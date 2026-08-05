@@ -531,7 +531,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.103</span>
+      <span id="buildVersionTop" class="build-version-top">v.104</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -566,6 +566,12 @@
         <button class="rank-tab on" data-period="week">주간</button>
         <button class="rank-tab" data-period="month">월간</button>
         <button class="rank-tab" data-period="quarter">분기</button>
+      </div>
+      <div class="rank-tabs" style="margin-top:-8px;">
+        <button class="rank-tab on" data-category="전체">전체</button>
+        <button class="rank-tab" data-category="새벽코트">새벽코트</button>
+        <button class="rank-tab" data-category="평일">평일</button>
+        <button class="rank-tab" data-category="주말">주말</button>
       </div>
       <div class="rank-period-label" id="rankPeriodLabel"></div>
       <div id="rankContent"></div>
@@ -652,6 +658,14 @@
       <div class="manual-item">
         <div class="manual-h">사용 체크 & 재고 확인</div>
         <p>일정 카드의 "🎾 클럽볼 사용 체크"에서 사용한 개수를 바로 등록할 수 있어요(개인볼 사용은 하단 "공불출내역" 메뉴에서 별도 체크). 하단 "공불출내역"에서 종합운동장·유니온·창고 위치별 재고도 확인 가능해요.</p>
+      </div>
+
+      <div class="manual-divider">📋 오늘현황 & 🏆 참석랭킹</div>
+      <div class="manual-item">
+        <div class="manual-h">화면 상단에서 바로 확인</div>
+        <p>위치 탭 바로 아래 "오늘현황"·"참석 랭킹" 버튼으로 언제든 빠르게 확인할 수 있어요.</p>
+        <p>참석랭킹은 주간·월간·분기 기간과 별개로, <strong>전체·새벽코트·평일·주말</strong> 부문을 선택해서 볼 수 있어요. 예를 들어 "이번 달 새벽코트 랭킹"처럼 원하는 조합으로 확인 가능해요.</p>
+        <p>※ "오늘의 결산 보고"는 화면에 항상 떠있지 않고, 하루 1회(오후 12시경) 알림으로 안내돼요.</p>
       </div>
 
       <div class="manual-divider">👋 신규회원 가이드 (요약)</div>
@@ -830,10 +844,9 @@
     <div class="today-panel-body" id="updatePanelBody"></div>
   </div>
 
-  <details class="admin-collapse" id="templateList"><summary class="admin-collapse-head">📋 반복일정 목록</summary><div class="admin-collapse-body" id="templateListBody"></div></details>
-  <details class="admin-collapse" id="memberMgmtPanel"><summary class="admin-collapse-head">👥 회원 관리</summary><div class="admin-collapse-body" id="memberMgmtBody"></div></details>
-  <details class="admin-collapse" id="warnStatusPanel"><summary class="admin-collapse-head">⚠️ 경고현황</summary><div class="admin-collapse-body" id="warnStatusBody"></div></details>
   <details class="admin-collapse" id="dashboardPanel"><summary class="admin-collapse-head">📊 운영 대시보드</summary><div class="admin-collapse-body" id="dashboardBody"></div></details>
+  <details class="admin-collapse" id="memberMgmtPanel"><summary class="admin-collapse-head">👥 회원 관리</summary><div class="admin-collapse-body" id="memberMgmtBody"></div></details>
+  <details class="admin-collapse" id="templateList"><summary class="admin-collapse-head">📋 반복일정 목록</summary><div class="admin-collapse-body" id="templateListBody"></div></details>
   <details class="admin-collapse" id="addEventForm"><summary class="admin-collapse-head">➕ 일정 추가</summary><div class="admin-collapse-body">
     <div class="field">제목<input id="newTitle" placeholder="예: 유니온 저녁" style="min-width:120px"></div>
     <div class="field">지역
@@ -1101,17 +1114,33 @@ function checkMonthlyRankingAnnouncement(){
   }
 }
 
-function computeRanking(startIso, endIso){
+function computeRanking(startIso, endIso, category){
+  category = category || '전체';
   const tally = {};
-  Object.entries(state.data.votes || {}).forEach(([eventId, votesForEvent]) => {
-    const dateStr = extractDateFromEventId(eventId);
-    if(dateStr < startIso || dateStr > endIso) return;
-    Object.entries(votesForEvent).forEach(([name, v]) => {
-      if(v.status === 'attend'){
-        tally[name] = (tally[name] || 0) + 1;
-      }
+  if(category === '전체'){
+    Object.entries(state.data.votes || {}).forEach(([eventId, votesForEvent]) => {
+      const dateStr = extractDateFromEventId(eventId);
+      if(dateStr < startIso || dateStr > endIso) return;
+      Object.entries(votesForEvent).forEach(([name, v]) => {
+        if(v.status === 'attend'){
+          tally[name] = (tally[name] || 0) + 1;
+        }
+      });
     });
-  });
+  } else {
+    const events = getEventsInDateRange(new Date(startIso + 'T00:00:00'), new Date(endIso + 'T00:00:00'));
+    events.forEach(ev => {
+      const cat5 = classifyEventCategory(ev);
+      const cat3 = cat5 === '새벽코트' ? '새벽코트' : (cat5 === '토요일' || cat5 === '일요일') ? '주말' : '평일';
+      if(cat3 !== category) return;
+      const votes = state.data.votes[ev.id] || {};
+      Object.entries(votes).forEach(([name, v]) => {
+        if(v.status === 'attend'){
+          tally[name] = (tally[name] || 0) + 1;
+        }
+      });
+    });
+  }
   return Object.entries(tally)
     .map(([name, count]) => ({ name, count }))
     .sort((a,b) => b.count - a.count)
@@ -2825,14 +2854,32 @@ document.getElementById('warnPanelToggle').onclick = async () => {
 };
 
 const SITE_LOG = [
+  { ts:'2026-08-05 11:00', t:'🏆 참석랭킹 새벽코트·평일·주말 부문 분리, 오늘현황 결산보고는 알림으로만', important:true, d:[
+    '참석랭킹에 "새벽코트/평일/주말" 부문 탭 신설 — 기존 기간(주간/월간/분기) 탭과 함께 조합해서 확인 가능 (예: 이번달 새벽코트 랭킹)',
+    '오늘현황 패널에 실시간으로 표시되던 "오늘의 결산 보고"를 제거 — 하루 1회(오후 12:04) 알림으로만 안내되도록 정리',
+    '💭 개발노트: 부문 분리는 "요일(토/일)"과 "시간대(새벽/저녁)"라는 서로 다른 축을 하나의 3분류로 합치는 설계라, 겹치는 케이스(예: 토요일 새벽)를 어느 쪽에 넣을지가 핵심 판단이었음 — "요일이 주말이면 시간 무관하게 주말로" 우선 처리하기로 결정. 결산보고 제거는 "화면에 상시 노출 vs 알림 1회"의 정보 전달 방식 선택 문제였는데, 이미 알림으로 하루 1번 나가고 있어서 화면에 중복으로 띄울 필요가 적다고 판단'
+  ]},
+  { ts:'2026-08-05 10:30', t:'✏️ 관리자모드 패널 순서 재정비 + 경고현황을 대시보드에 통합', important:true, d:[
+    '순서 변경: 운영대시보드(경고현황 통합) → 회원관리 → 반복일정목록 → 일정추가',
+    '별도로 있던 "경고현황" 패널을 없애고, 운영 대시보드 안에서 회원별 경고 관리(펼침목록+삭제)까지 한번에 확인 가능하게 통합',
+    '💭 개발노트: 원래 경고현황이 별도 패널로 분리돼있던 이유가 명확하지 않았고, 실제로는 대시보드에서 이미 쓰던 렌더링 함수(renderDisciplinaryHtml)를 그대로 재사용 중이었음(참석랭킹에서도 재사용) — "관리 화면이 여러 곳에 흩어져 있으면 어디서 뭘 봐야 하는지 헷갈린다"는 UX 원칙에 따라 하나로 합침. 패널 삭제시 그 요소를 참조하던 JS 4곳(스타일토글/함수호출/새로고침분기/함수정의)이 남아있으면 런타임 에러가 나므로, 삭제할 때마다 항상 전체 참조를 grep으로 재확인하는 습관이 이번에도 유효했음'
+  ]},
+  { ts:'2026-08-05 10:00', t:'📈 운영 대시보드 — 회원별 상세 통계 대폭 확장', important:true, d:[
+    '관리자 전용 — 새벽코트/18-20시/20-22시/토요일/일요일 5개 시간대로 세분화, 기간도 30일/이번달/이번분기/올해 중 선택 가능',
+    '1일 2회 참석(당일 연속참석) 횟수, 연속 출석일수(2일/3일/4일+) 횟수, 대기했다가 정원마감으로 참석 못한 횟수까지 회원별로 실시간 집계',
+    '20-22시(황금시간대)와 연속참석 TOP5를 상단에 별도로 강조 표시',
+    '💭 개발노트: 가장 까다로웠던 부분은 "연속 출석일수" 계산 — 날짜 배열을 정렬한 뒤 연속 구간(스트릭)을 찾는 로직인데, "2일 연속을 3번 했다"와 "6일 연속을 1번 했다"를 서로 다른 값으로 셀지, 아니면 6일 연속 안에 2일 연속이 포함된 걸로 볼지 설계 선택이 필요했음 — 여기선 "정확히 그 길이의 스트릭"만 카운트하는 방식(6일 연속이면 2/3/4일 칸에는 안 잡히고 "4일+"에만 반영)을 택함. 실제 배포 전 8/1~8/3(3일연속)+8/5~8/6(2일연속) 조합으로 직접 시뮬레이션 돌려서 계산이 맞는지 확인 후 반영'
+  ]},
   { ts:'2026-08-05 09:30', t:'✏️ 하단 네비게이션 재정비', important:true, d:[
     '오늘현황이 최상단으로 이동해서 하단 네비에서는 제거(상단에서만 이용)',
     '순서 변경: 메뉴얼(가이드안내) → 대진표 → 지문체크 → 공불출 → 업데이트',
-    '이름을 짧게 줄여서 전부 한 줄로 표시되게 정리 (업데이트히스토리→업데이트, 공불출내역→공불출, 대진표생성기→대진표, 가이드안내→메뉴얼)'
+    '이름을 짧게 줄여서 전부 한 줄로 표시되게 정리 (업데이트히스토리→업데이트, 공불출내역→공불출, 대진표생성기→대진표, 가이드안내→메뉴얼)',
+    '💭 개발노트: 버튼 하나를 화면에서 없앨 때 가장 위험한 부분은 "그 버튼을 열던 클릭 이벤트가 어딘가에 그대로 남아있는 것" — HTML에서 지웠는데 JS의 getElementById가 그 버튼을 계속 찾으려 하면 null 에러가 남. 이번에도 정확히 그 문제가 발생할 뻔해서, 삭제 직후 바로 전체 참조를 재검색해서 잡아냄'
   ]},
   { ts:'2026-08-05 09:00', t:'📖 가이드 대폭 확장 + 오늘현황 최상단 배치', important:true, d:[
     '가이드 안내에 대기 승급 우선순위(일반대기>늦참>연참), 늦참 제도, 연속참석 규칙(성수기 시범규칙 포함), 게스트 참석, 관외 우선권, 클럽볼 이용법을 새로 추가해서 신규회원도 최신 규칙을 쉽게 파악 가능',
-    '"오늘현황" 버튼을 하단 네비뿐 아니라 메인화면 최상단(참석랭킹 옆)에도 추가해서 상시 빠른 접근 가능 — 하단 네비는 그대로 유지'
+    '"오늘현황" 버튼을 하단 네비뿐 아니라 메인화면 최상단(참석랭킹 옆)에도 추가해서 상시 빠른 접근 가능 — 하단 네비는 그대로 유지',
+    '💭 개발노트: 가이드가 오래 방치되면서 실제 시스템 동작과 문서 사이의 간극이 컸던 걸 이번에 크게 좁힘 — 신규회원이 규칙을 이해 못해서 반복 질문하는 걸 줄이려는 목적이 큼. "코드가 진실이고 문서는 따라간다"는 원칙상, 앞으로 규칙 변경할 때마다 가이드도 같이 업데이트하는 걸 습관화할 필요'
   ]},
   { ts:'2026-08-04 18:00', t:'✂️ 마일스톤 기능(럭키방문/사이트최초N회) 분리 — 사이트 경량화', important:true, d:[
     '럭키방문(777~4444) 및 사이트최초 N회달성 시스템을 별도 참고파일로 분리, 사이트에서는 제거 — HTML/코드 105줄 감소',
@@ -3089,7 +3136,7 @@ const SITE_LOG = [
   ]},
   { ts:'2026-07-21 22:00', t:'🎾 금요일 안내 · 이력조회 보강 · 칭호아이콘 위치조정 · 마일스톤 확장', important:true, d:[
     '금요일 20-22시 유니온·종합운동장 동시 일정시, 시작 6시간 전부터 "같은 성별끼리 모여서, 유니온 우선 이용" 안내 자동 발송 (유니온 코트 이용기록 유지 목적)',
-    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.103 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
+    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.104 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
     '관리자 "지금 자동승급 실행"의 일반 대기열 승급에도 AI관리자 댓글이 빠져있던 것 발견, 추가',
     '이름 옆 칭호 아이콘(럭키/최초달성/월간메달)을 참석목록·랭킹에서 제거하고 댓글에만 표시하도록 위치 조정',
     '럭키방문 마일스톤 5종에서 2000/2222/3000/3333/4000/4444 추가해 총 11종으로 확대'
@@ -5275,7 +5322,6 @@ function syncAdminUI(){
   document.getElementById('addEventForm').style.display = on ? 'block' : 'none';
   document.getElementById('templateList').style.display = on ? 'block' : 'none';
   document.getElementById('memberMgmtPanel').style.display = on ? 'block' : 'none';
-  document.getElementById('warnStatusPanel').style.display = on ? 'block' : 'none';
   document.getElementById('dashboardPanel').style.display = on ? 'block' : 'none';
   if(on) renderDashboard();
   renderTemplateList();
@@ -5306,13 +5352,6 @@ document.getElementById('adminToggle').onclick = async () => {
   renderEventList();
 };
 
-function renderWarnStatusPanel(){
-  const box = document.getElementById('warnStatusBody');
-  if(!box) return;
-  if(!hasAdminPower()){ box.innerHTML = ""; return; }
-  box.innerHTML = renderDisciplinaryHtml();
-  wireDisciplinaryButtons(box);
-}
 
 function renderDashboard(){
   const box = document.getElementById('dashboardBody');
@@ -5374,56 +5413,153 @@ function renderDashboard(){
   `;
 
   box.innerHTML = trendHtml + penaltyHtml + warningHtml + `
+    <div class="manual-divider" style="margin-top:14px;">⚠️ 경고 현황 (회원별 관리)</div>
+  ` + renderDisciplinaryHtml() + `
     <div style="margin-top:14px;">
-      <button id="openMonthlyStatsBtn" style="width:100%;border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:10px;font-size:calc(12px * var(--font-scale, 1));font-weight:700;cursor:pointer;">📈 최근 30일 회원별·시간대별 통계 보기</button>
+      <button id="openMonthlyStatsBtn" style="width:100%;border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:10px;font-size:calc(12px * var(--font-scale, 1));font-weight:700;cursor:pointer;">📈 회원별 상세 통계 보기 (시간대별·연속참석)</button>
     </div>
     <div id="monthlyStatsBody" style="margin-top:10px;"></div>
   `;
+  wireDisciplinaryButtons(box);
   const statsBtn = document.getElementById('openMonthlyStatsBtn');
   if(statsBtn) statsBtn.onclick = () => renderMonthlyMemberStats();
 }
 
-function renderMonthlyMemberStats(){
-  const body = document.getElementById('monthlyStatsBody');
-  if(!body) return;
-  const end = new Date(); end.setHours(0,0,0,0);
-  const start = new Date(end); start.setDate(start.getDate() - 29);
-  const events = getEventsInDateRange(start, end);
+function classifyEventCategory(ev){
+  const dow = new Date(ev.event_date + 'T00:00:00').getDay(); // 0=일, 6=토
+  if(dow === 6) return '토요일';
+  if(dow === 0) return '일요일';
+  const startHour = parseInt((ev.start_time || '00:00').split(':')[0], 10);
+  if(startHour < 10) return '새벽코트';
+  if(startHour < 20) return '18-20시';
+  return '20-22시';
+}
 
-  const attendByName = {};
-  const attendByTimeSlot = {};
+function isNextDayIso(dateStr1, dateStr2){
+  const d1 = new Date(dateStr1 + 'T00:00:00');
+  const d2 = new Date(dateStr2 + 'T00:00:00');
+  return Math.round((d2 - d1) / 86400000) === 1;
+}
+
+function computeDetailedMemberStats(start, end){
+  const events = getEventsInDateRange(start, end);
+  const CATS = ['새벽코트','18-20시','20-22시','토요일','일요일'];
+  const stats = {};
+  const attendDatesByName = {};
+  const attendCountPerDayByName = {};
+
   events.forEach(ev => {
     const votes = state.data.votes[ev.id] || {};
-    const slotKey = `${ev.start_time}-${ev.end_time}`;
+    const category = classifyEventCategory(ev);
     Object.entries(votes).forEach(([name, v]) => {
-      if(v.status !== 'attend') return;
-      attendByName[name] = (attendByName[name] || 0) + 1;
-      attendByTimeSlot[slotKey] = (attendByTimeSlot[slotKey] || 0) + 1;
+      if(!stats[name]) stats[name] = { categories: {'새벽코트':0,'18-20시':0,'20-22시':0,'토요일':0,'일요일':0}, waitingNotPromoted: 0, sameDayDouble: 0, streaks: {2:0,3:0,4:0,'5+':0} };
+      if(v.status === 'attend'){
+        stats[name].categories[category]++;
+        if(!attendCountPerDayByName[name]) attendCountPerDayByName[name] = {};
+        attendCountPerDayByName[name][ev.event_date] = (attendCountPerDayByName[name][ev.event_date] || 0) + 1;
+        if(!attendDatesByName[name]) attendDatesByName[name] = new Set();
+        attendDatesByName[name].add(ev.event_date);
+      } else if(v.status === 'waiting'){
+        stats[name].waitingNotPromoted++;
+      }
     });
   });
 
-  const nameEntries = Object.entries(attendByName).sort((a,b) => b[1]-a[1]);
-  const counts = nameEntries.map(([,c]) => c);
-  const mean = counts.length ? counts.reduce((a,b)=>a+b,0) / counts.length : 0;
-  const outliers = nameEntries.filter(([,c]) => c >= mean * 2 && c >= 8); // 평균의 2배 이상 + 최소 8회 이상만 표시(소수 데이터 노이즈 방지)
+  Object.entries(attendCountPerDayByName).forEach(([name, dayMap]) => {
+    stats[name].sameDayDouble = Object.values(dayMap).filter(c => c >= 2).length;
+  });
 
-  const nameHtml = nameEntries.map(([name,c], i) => `${i+1}. ${escapeHtml(name)} — ${c}회${outliers.some(([n])=>n===name) ? ' 🔺' : ''}`).join('<br>');
-  const timeEntries = Object.entries(attendByTimeSlot).sort((a,b) => b[1]-a[1]);
-  const timeHtml = timeEntries.map(([slot,c]) => `${slot} — ${c}회`).join('<br>');
+  Object.entries(attendDatesByName).forEach(([name, dateSet]) => {
+    const dates = Array.from(dateSet).sort();
+    const streakCounts = {2:0, 3:0, 4:0, '5+':0};
+    let streakLen = 1;
+    for(let i=1;i<=dates.length;i++){
+      const isConsecutive = i < dates.length && isNextDayIso(dates[i-1], dates[i]);
+      if(isConsecutive){
+        streakLen++;
+      } else {
+        if(streakLen === 2) streakCounts[2]++;
+        else if(streakLen === 3) streakCounts[3]++;
+        else if(streakLen === 4) streakCounts[4]++;
+        else if(streakLen >= 5) streakCounts['5+']++;
+        streakLen = 1;
+      }
+    }
+    stats[name].streaks = streakCounts;
+  });
+
+  return { stats, CATS };
+}
+
+function renderMonthlyMemberStats(period){
+  period = period || '30일';
+  const body = document.getElementById('monthlyStatsBody');
+  if(!body) return;
+
+  const now = new Date(); now.setHours(0,0,0,0);
+  let start, end = now;
+  if(period === '30일'){ start = new Date(now); start.setDate(start.getDate() - 29); }
+  else if(period === '이번달'){ start = new Date(now.getFullYear(), now.getMonth(), 1); }
+  else if(period === '이번분기'){ const q = Math.floor(now.getMonth()/3); start = new Date(now.getFullYear(), q*3, 1); }
+  else if(period === '올해'){ start = new Date(now.getFullYear(), 0, 1); }
+
+  const { stats } = computeDetailedMemberStats(start, end);
+  const entries = Object.entries(stats);
+  const totalOf = (s) => Object.values(s.categories).reduce((a,b)=>a+b,0);
+  entries.sort((a,b) => totalOf(b[1]) - totalOf(a[1]));
+
+  const periodBtns = ['30일','이번달','이번분기','올해'].map(p =>
+    `<button data-stats-period="${p}" style="flex:1;border:1px solid ${p===period?'var(--brand)':'var(--line)'};background:${p===period?'var(--brand-soft)':'var(--panel)'};color:${p===period?'var(--brand-dark)':'var(--ink)'};border-radius:8px;padding:6px;font-size:calc(11px * var(--font-scale, 1));font-weight:700;cursor:pointer;">${p}</button>`
+  ).join('');
+
+  const rows = entries.map(([name, s]) => {
+    const c = s.categories;
+    return `<tr>
+      <td style="text-align:left;padding:4px 6px;">${escapeHtml(name)}</td>
+      <td>${c['새벽코트']}</td>
+      <td>${c['18-20시']}</td>
+      <td style="font-weight:800;color:var(--brand-dark);">${c['20-22시']}</td>
+      <td>${c['토요일']}</td>
+      <td>${c['일요일']}</td>
+      <td style="font-weight:700;">${totalOf(s)}</td>
+      <td>${s.sameDayDouble}</td>
+      <td>${s.streaks[2]}</td>
+      <td>${s.streaks[3]}</td>
+      <td>${s.streaks[4] + s.streaks['5+']}</td>
+      <td>${s.waitingNotPromoted}</td>
+    </tr>`;
+  }).join('');
+
+  const top20to22 = [...entries].sort((a,b) => b[1].categories['20-22시'] - a[1].categories['20-22시']).slice(0,5)
+    .map(([n,s]) => `${escapeHtml(n)}(${s.categories['20-22시']}회)`).join(', ');
+  const consecutiveTotal = (s) => s.sameDayDouble + s.streaks[2] + s.streaks[3] + s.streaks[4] + s.streaks['5+'];
+  const topConsecutive = [...entries].sort((a,b) => consecutiveTotal(b[1]) - consecutiveTotal(a[1])).slice(0,5)
+    .map(([n,s]) => `${escapeHtml(n)}(${consecutiveTotal(s)}회)`).join(', ');
 
   body.innerHTML = `
-    <div style="font-size:calc(11px * var(--font-scale, 1));color:var(--ink-faint);margin-bottom:8px;">${localIso(start)} ~ ${localIso(end)} · 평균 ${mean.toFixed(1)}회/인</div>
-    ${outliers.length ? `<div style="background:var(--danger-soft);border-radius:8px;padding:8px 10px;margin-bottom:10px;font-size:calc(11px * var(--font-scale, 1));color:var(--danger);">🔺 평균 대비 2배 이상 참석: ${outliers.map(([n,c])=>`${escapeHtml(n)}(${c}회)`).join(', ')} — 코트 이용 편중 여부 참고용, 반드시 문제라는 뜻은 아니에요.</div>` : ''}
-    <div style="font-size:calc(12px * var(--font-scale, 1));font-weight:700;margin-bottom:6px;">회원별 참석 횟수</div>
-    <div style="font-size:calc(11px * var(--font-scale, 1));max-height:300px;overflow-y:auto;margin-bottom:14px;">${nameHtml || '데이터 없음'}</div>
-    <div style="font-size:calc(12px * var(--font-scale, 1));font-weight:700;margin-bottom:6px;">시간대별 참석 횟수</div>
-    <div style="font-size:calc(11px * var(--font-scale, 1));">${timeHtml || '데이터 없음'}</div>
+    <div style="display:flex;gap:6px;margin-bottom:10px;">${periodBtns}</div>
+    <div style="font-size:calc(11px * var(--font-scale, 1));color:var(--ink-faint);margin-bottom:8px;">${localIso(start)} ~ ${localIso(end)}</div>
+    <div style="background:var(--brand-soft);border-radius:8px;padding:8px 10px;margin-bottom:10px;font-size:calc(11px * var(--font-scale, 1));">
+      🏆 <b>20-22시(황금시간대) TOP5</b>: ${top20to22 || '데이터 없음'}<br>
+      🔁 <b>연속참석(당일2회+연속일수) TOP5</b>: ${topConsecutive || '데이터 없음'}
+    </div>
+    <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:calc(10px * var(--font-scale, 1));text-align:center;">
+        <thead><tr style="border-bottom:1px solid var(--line);font-weight:700;">
+          <th style="text-align:left;padding:4px 6px;">이름</th><th>새벽</th><th>18-20</th><th>20-22</th><th>토</th><th>일</th><th>합계</th>
+          <th>1일2회</th><th>2일연속</th><th>3일연속</th><th>4일+</th><th>대기미승급</th>
+        </tr></thead>
+        <tbody>${rows || '<tr><td colspan="12">데이터 없음</td></tr>'}</tbody>
+      </table>
+    </div>
   `;
+  body.querySelectorAll('[data-stats-period]').forEach(btn => {
+    btn.onclick = () => renderMonthlyMemberStats(btn.getAttribute('data-stats-period'));
+  });
 }
 
 function renderMemberMgmt(){
   const box = document.getElementById('memberMgmtBody');
-  renderWarnStatusPanel();
   if(!hasAdminPower()){ box.innerHTML = ""; return; }
   const active = getActiveMembers().slice().sort((a,b)=>a.name.localeCompare(b.name,'ko'));
   const pins = state.data.memberPins || {};
@@ -5925,11 +6061,7 @@ async function renderTodayPanel(){
         ${recentNewMembers.map(escapeHtml).join(', ')}님이 최근에 가입하셨어요. 반갑게 맞아주세요~
       </div>` : '';
 
-    const dailySummaryText = await buildDailySummary();
-    const dailySummaryHtml = `<div class="manual-divider" style="margin-top:14px;">📋 오늘의 결산 보고 (실시간)</div>
-      <div class="today-empty" style="white-space:pre-line;text-align:left;">${escapeHtml(dailySummaryText)}</div>`;
-
-    body.innerHTML = newMemberHtml + fpSummaryHtml + dailySummaryHtml + scheduleHtml;
+    body.innerHTML = newMemberHtml + fpSummaryHtml + scheduleHtml;
   }catch(e){
     console.error('오늘현황 렌더링 오류', e);
     body.innerHTML = `<div class="today-empty">오늘 현황을 불러오는 중 오류가 발생했습니다. 새로고침해 주세요.</div>`;
@@ -6362,6 +6494,7 @@ document.getElementById('guideToggle').onclick = () => {
 document.getElementById('guideModalClose').onclick = () => closePanels();
 
 let currentRankPeriod = 'week';
+let currentRankCategory = '전체';
 
 function renderRankBody(){
   let startIso, endIso, label;
@@ -6376,9 +6509,9 @@ function renderRankBody(){
     startIso = s; endIso = e;
     label = `${qn}분기 (${startIso.slice(0,7)} ~ ${endIso.slice(0,7)})`;
   }
-  document.getElementById('rankPeriodLabel').textContent = label;
+  document.getElementById('rankPeriodLabel').textContent = label + (currentRankCategory !== '전체' ? ` · ${currentRankCategory}` : '');
 
-  const ranking = computeRanking(startIso, endIso);
+  const ranking = computeRanking(startIso, endIso, currentRankCategory);
   const content = document.getElementById('rankContent');
   if(ranking.length === 0){
     content.innerHTML = `<div class="rank-empty">해당 기간 참석 기록이 없습니다.</div>`;
@@ -6479,7 +6612,6 @@ function wireDisciplinaryButtons(container){
     const ok = await refreshWarningDataFromServer();
     if(!ok) alert('서버에서 다시 불러오는 데 실패했습니다. 네트워크를 확인해 주세요.');
     if(document.getElementById('warnPanel') === container) renderWarnPanel();
-    else if(document.getElementById('warnStatusBody') === container) renderWarnStatusPanel();
     else if(typeof renderRankBody === 'function') renderRankBody();
     refreshBtn.textContent = original;
     refreshBtn.disabled = false;
@@ -6539,11 +6671,19 @@ document.getElementById('bracketNavToggle').onclick = () => {
   openBracketPanel();
 };
 document.getElementById('rankModalClose').onclick = () => closePanels();
-document.querySelectorAll('.rank-tab').forEach(tab => {
+document.querySelectorAll('.rank-tab[data-period]').forEach(tab => {
   tab.onclick = () => {
-    document.querySelectorAll('.rank-tab').forEach(t => t.classList.remove('on'));
+    document.querySelectorAll('.rank-tab[data-period]').forEach(t => t.classList.remove('on'));
     tab.classList.add('on');
     currentRankPeriod = tab.getAttribute('data-period');
+    renderRankBody();
+  };
+});
+document.querySelectorAll('.rank-tab[data-category]').forEach(tab => {
+  tab.onclick = () => {
+    document.querySelectorAll('.rank-tab[data-category]').forEach(t => t.classList.remove('on'));
+    tab.classList.add('on');
+    currentRankCategory = tab.getAttribute('data-category');
     renderRankBody();
   };
 });
