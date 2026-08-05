@@ -531,7 +531,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.104</span>
+      <span id="buildVersionTop" class="build-version-top">v.105</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -623,9 +623,9 @@
       </div>
       <div class="manual-item">
         <div class="manual-h">③ 2코트 일정의 성별 유연 승급</div>
-        <p>2코트(정원 12명) 일정은 원칙적으로 <strong>남6·여6 균형</strong>을 유지합니다. 시작 <strong>전날 오전 11:50 기준</strong>으로 한쪽 성별이 2명 이하면, 운영 효율을 위해 <strong>반대 성별이 최대 12명까지</strong> 채울 수 있도록 자동 전환됩니다.</p>
-        <p>예) 수요일 18시 일정 → 화요일 11:50 기준으로 여자 참석이 2명 이하면, 그 시점부터 남자 대기자들이 순서대로 승급됩니다. 반대(남자 2명 이하 → 여자 확대)도 동일합니다. 양쪽 다 3명 이상이면 6:6 체제가 유지됩니다.</p>
-        <p>※ 유니온 3번코트가 도중에 확보되어 전체 정원이 늘어나더라도, 이미 6명 찬 성별은 11:50 판정 전까지 추가로 승급되지 않습니다. 정원 확대와 성별 유연승급은 별개로 작동합니다.</p>
+        <p>2코트(정원 12명) 일정은 원칙적으로 <strong>남6·여6 균형</strong>을 유지합니다. 시작 <strong>전날 낮 12시 기준</strong>으로 한쪽 성별이 2명 이하면, 운영 효율을 위해 <strong>반대 성별이 최대 12명까지</strong> 채울 수 있도록 자동 전환됩니다.</p>
+        <p>예) 수요일 18시 일정 → 화요일 낮 12시 기준으로 여자 참석이 2명 이하면, 그 시점부터 남자 대기자들이 순서대로 승급됩니다. 반대(남자 2명 이하 → 여자 확대)도 동일합니다. 양쪽 다 3명 이상이면 6:6 체제가 유지됩니다.</p>
+        <p>※ 유니온 3번코트가 도중에 확보되어 전체 정원이 늘어나더라도, 이미 6명 찬 성별은 전날 낮 12시 판정 전까지 추가로 승급되지 않습니다. 정원 확대와 성별 유연승급은 별개로 작동합니다.</p>
       </div>
       <div class="manual-item">
         <div class="manual-h">④ 종합운동장 관내:관외 비율</div>
@@ -844,6 +844,7 @@
     <div class="today-panel-body" id="updatePanelBody"></div>
   </div>
 
+  <details class="admin-collapse" id="memberStatsPanel"><summary class="admin-collapse-head">📈 회원별 상세 통계</summary><div class="admin-collapse-body" id="memberStatsBody"></div></details>
   <details class="admin-collapse" id="dashboardPanel"><summary class="admin-collapse-head">📊 운영 대시보드</summary><div class="admin-collapse-body" id="dashboardBody"></div></details>
   <details class="admin-collapse" id="memberMgmtPanel"><summary class="admin-collapse-head">👥 회원 관리</summary><div class="admin-collapse-body" id="memberMgmtBody"></div></details>
   <details class="admin-collapse" id="templateList"><summary class="admin-collapse-head">📋 반복일정 목록</summary><div class="admin-collapse-body" id="templateListBody"></div></details>
@@ -1970,7 +1971,7 @@ function computedCounts(ev){
       else { if(v.district==='관외') gwaeAttend++; else naeAttend++; }
     } else if(v.status==='absent'){ liveAbsent++; absentNames.push(entry); }
     else if(v.status==='waiting'){
-      if(v.type === 'consecutive'){ waitConsecutive++; waitConsecutiveNames.push(entry); }
+      if(v.type === 'consecutive' || v.type === 'late_consecutive'){ waitConsecutive++; waitConsecutiveNames.push(entry); }
       else if(v.type === 'gwae_review'){ waitGwaeReview++; waitGwaeReviewNames.push(entry); }
       else if(v.type === 'late_request'){ waitLateRequest++; waitLateRequestNames.push(entry); }
       else if(v.type === 'gwae_wait'){ waitGwaeWait++; waitGwaeWaitNames.push(entry); }
@@ -2006,7 +2007,7 @@ async function cancelRelatedConsecutiveWaiting(ev, name){
     if(!isAdjacent) continue;
     const otherVotes = state.data.votes[other.id] || {};
     const v = otherVotes[name];
-    if(v && v.status === 'waiting' && v.type === 'consecutive'){
+    if(v && v.status === 'waiting' && (v.type === 'consecutive' || v.type === 'late_consecutive')){
       delete otherVotes[name];
       await saveVoteRow(other.id, name, null);
       pushNotification(`${name}님의 ${shortEventLabel(other)} 연속참석 대기가 함께 취소되었습니다. (${shortEventLabel(ev)} 참석 취소로 인함)`, {eventId: other.id, actor: name});
@@ -2026,7 +2027,8 @@ function isConsecutiveCase(ev){
 }
 
 function waitingSortKey(v){
-  const priority = v.type === 'regular' ? 0 : (v.type === 'late' ? 1 : 2);
+  // 우선순위: 일반대기(0) > 늦참(1) > 연참(2) > 늦참+연참 동시(3, 최하위)
+  const priority = v.type === 'regular' ? 0 : (v.type === 'late' ? 1 : (v.type === 'late_consecutive' ? 3 : 2));
   return priority * 1e15 + (v.ts || 0);
 }
 
@@ -2190,7 +2192,8 @@ async function checkWaitlistToAbsentConversion(){
 }
 
 async function checkConsecutiveWaitingLatePromotion(){
-  if(!isPeakSeason()) return false; // 비수기(겨울)엔 기존처럼 정오에 일반대기와 동일하게 승급되므로 별도 처리 불필요
+  // 순수 연참(consecutive)은 성수기에만 이 특별경로를 탐(비수기엔 tryAutoPromote가 낮12시부터 정상 처리).
+  // 늦참+연참 동시(late_consecutive)는 항상 자동승급 대상에서 제외되어 있으므로, 계절 무관하게 이 함수가 유일한 승급 경로임 — 놓치면 영원히 승급 안 되니 계절 체크 없이 항상 실행.
   let changed = false;
   const t = todayIso();
   for(const ev of getInstances()){
@@ -2211,14 +2214,15 @@ async function checkConsecutiveWaitingLatePromotion(){
       const available = ev.max_players - counts.regularTotal;
       if(available <= 0) break;
       const waiting = Object.entries(votes)
-        .filter(([,v]) => v.status === 'waiting' && v.type === 'consecutive')
+        .filter(([,v]) => v.status === 'waiting' && (v.type === 'late_consecutive' || (v.type === 'consecutive' && isPeakSeason())))
         .sort((a,b) => waitingSortKey(a[1]) - waitingSortKey(b[1]));
       if(waiting.length === 0) break;
       const [name, v] = waiting[0];
-      votes[name] = { status:'attend', gender: v.gender, district: v.district, hidden:false, promotedFrom:'consecutive', ts: Date.now() };
+      votes[name] = { status:'attend', gender: v.gender, district: v.district, hidden:false, promotedFrom: v.type, lateArrival: v.lateArrival || false, lateMinutes: v.lateMinutes || null, ts: Date.now() };
       await saveVoteRow(ev.id, name, votes[name]);
-      pushNotification(`${name}님이 대기에서 자동 승급되어 ${shortEventLabel(ev)} 참석으로 전환되었습니다. (연속참석, 시작 1시간전 정원 확인)`, {eventId: ev.id, actor: name, category:'promotion'});
-      await postAiAdminComment(ev.id, `🔁 ${name}님이 연속참석 대기에서 참석으로 승급되었습니다. (성수기 시범규칙 — 시작 1시간전, 자리가 남아 승급)`);
+      const reasonLabel = v.type === 'late_consecutive' ? '늦참+연속참석' : '연속참석';
+      pushNotification(`${name}님이 대기에서 자동 승급되어 ${shortEventLabel(ev)} 참석으로 전환되었습니다. (${reasonLabel}, 시작 1시간전 정원 확인)`, {eventId: ev.id, actor: name, category:'promotion'});
+      await postAiAdminComment(ev.id, `🔁 ${name}님이 ${reasonLabel} 대기에서 참석으로 승급되었습니다. (시작 1시간전, 자리가 남아 승급)`);
       changed = true;
     }
   }
@@ -2273,12 +2277,12 @@ async function checkGenderFlexPromotions(){
   const tmr = localIso(new Date(now.getTime() + 86400000));
   for(const ev of getInstances()){
     if(ev.court_count !== 2) continue;
-    if(ev.event_date !== t && ev.event_date !== tmr) continue; // 24시간 이내 결정 대상만 검사
+    if(ev.event_date !== t && ev.event_date !== tmr) continue; // 하루 전 사전예고 취지 복원 — 당일/익일 이틀치 검사
     if(state.data.genderFlex[ev.id] && state.data.genderFlex[ev.id] !== '균형') continue; // 남/여 확대 결정은 영구 고정, 균형 상태는 상황 변화에 대비해 계속 재검토
     const startDt = getEventDateTime(ev);
     const prevDay = new Date(startDt.getTime() - 24 * 60 * 60 * 1000);
-    const decisionTime = new Date(prevDay.getFullYear(), prevDay.getMonth(), prevDay.getDate(), 11, 50, 0);
-    if(now < decisionTime) continue; // 아직 결정 시점(하루 전) 전
+    const decisionTime = new Date(prevDay.getFullYear(), prevDay.getMonth(), prevDay.getDate(), 12, 0, 0); // 일정 전날 낮 12시(정오) 고정
+    if(now < decisionTime) continue; // 아직 전날 낮 12시 전
     if(now >= startDt) { state.data.genderFlex[ev.id] = 'expired'; markDirty('genderFlex', ev.id); continue; } // 이미 시작한 일정은 처리 안 함
     const counts = computedCounts(ev);
     if(counts.female <= 2 && counts.male > 2){
@@ -2329,7 +2333,7 @@ async function promoteGenderFlexWaiting(ev, flexGender){
     if(v.type === 'late'){
       await postAiAdminComment(ev.id, `⏰ ${name}님이 늦참 선대기에서 참석으로 자동 승급되었습니다. (사유: 성별 유연승급, 늦참 ${v.lateMinutes || '?'}분 예정)`);
     } else {
-      await postAiAdminComment(ev.id, `${name}님이 대기에서 참석으로 자동 승급되었습니다. (사유: ${flexGender === '남' ? '여자' : '남자'} 참석 소수(2명 이하)로 성별 유연승급 발동 — 전날 오전 11:50 기준)`);
+      await postAiAdminComment(ev.id, `${name}님이 대기에서 참석으로 자동 승급되었습니다. (사유: ${flexGender === '남' ? '여자' : '남자'} 참석 소수(2명 이하)로 성별 유연승급 발동 — 전날 낮 12시 기준)`);
     }
   }
 }
@@ -2854,6 +2858,27 @@ document.getElementById('warnPanelToggle').onclick = async () => {
 };
 
 const SITE_LOG = [
+  { ts:'2026-08-05 14:20', t:'↩️ 성별유연승급 판정시점 — "전날 낮 12시"로 재조정', important:true, d:[
+    '직전 통일(당일 낮12시)에서 "하루 전 미리 확정" 취지를 되살리기 위해 다시 조정 — 일정 전날 낮 12시(정오) 고정으로 최종 확정',
+    '3번코트확인팝업·일반자동승급은 그대로 "당일 낮 12시" 유지, 성별유연승급만 "전날 낮 12시"로 남음(취지가 다르므로 완전 통일보다 이 형태가 더 적합)',
+    '가이드·AI관리자댓글·대기유형 힌트 문구 전부 "전날 낮 12시" 기준으로 재수정, 시뮬레이션으로 정확한 계산(수요일 20시 일정 → 화요일 12:00:00) 검증 완료'
+  ]},
+  { ts:'2026-08-05 14:00', t:'⏰ 자동승급 관련 시점 3종을 낮 12시로 통일 (새벽코트 제외)', important:true, d:[
+    '성별유연승급 판정 시점: "일정 전날 오전 11:50" → "당일 낮 12시"로 변경 — 일반 자동승급(tryAutoPromote)과 동일 시각으로 통일',
+    '3번코트 확보확인 팝업: "오전 11시부터" → "낮 12시부터"로 변경',
+    '⚠️ 성별유연승급은 원래 "하루 전 미리 확정"이 취지였는데, 이번 통일로 저녁일정(18-20시/20-22시) 기준 판정이 나오는 시점이 24시간 전에서 6~8시간 전으로 앞당겨짐(사실은 늦춰짐) — 회원들이 사전에 계획할 시간이 줄어드는 영향이 있으니 운영해보고 필요시 재조정 권장',
+    '2코트(성별유연승급 대상) 일정 전수 확인 결과, 정오 이전 시작하는 일정 없음(전부 18시·20시 시작) — 판정시점이 일정 시작보다 늦어지는 문제 없음 확인'
+  ]},
+  { ts:'2026-08-05 13:00', t:'🐛 "늦참+연속참석" 동시 상황 우선순위 버그 수정', important:true, d:[
+    '30분 초과 늦참으로 등록할 때, 동시에 인접코트 연속참석 상황이어도 이를 체크하지 않고 무조건 늦참(우선순위 1위)으로 처리되던 버그 발견',
+    '늦참이면서 연속참석인 경우, 순수 연속참석보다도 낮은 최하위 우선순위(늦참+연참)로 별도 구분되도록 수정 — 최종 우선순위: 일반대기 > 늦참 > 연속참석 > 늦참+연속참석',
+    '해당 유형은 평소 자동승급 경로에서 항상 제외되고, 시작 1시간전 특별 승급 기회를 통해서만(계절 무관) 승급 가능하도록 설계 — 영구히 승급 못하는 상황 방지',
+    '시뮬레이션으로 4가지 유형 혼재 상황에서 정확한 순서(일반→늦참→연참→늦참+연참) 검증 완료'
+  ]},
+  { ts:'2026-08-05 12:00', t:'📈 회원별 상세통계 최상단 별도패널로 분리 + 늦참 표시 개선', important:true, d:[
+    '"회원별 상세 통계"를 운영대시보드 안 버튼에서 최상단 독립 패널로 분리 — 관리자모드 켜면 가장 먼저 보이는 위치, 가장 자주 확인할 기능이라 접근성 강화',
+    '참석목록의 늦참 표시를 이름 옆에서 시간 뒤로 이동, "(늦N분)" 형식으로 정리 (예: 주소연 8/3 09:10 (늦30분))'
+  ]},
   { ts:'2026-08-05 11:00', t:'🏆 참석랭킹 새벽코트·평일·주말 부문 분리, 오늘현황 결산보고는 알림으로만', important:true, d:[
     '참석랭킹에 "새벽코트/평일/주말" 부문 탭 신설 — 기존 기간(주간/월간/분기) 탭과 함께 조합해서 확인 가능 (예: 이번달 새벽코트 랭킹)',
     '오늘현황 패널에 실시간으로 표시되던 "오늘의 결산 보고"를 제거 — 하루 1회(오후 12:04) 알림으로만 안내되도록 정리',
@@ -3136,7 +3161,7 @@ const SITE_LOG = [
   ]},
   { ts:'2026-07-21 22:00', t:'🎾 금요일 안내 · 이력조회 보강 · 칭호아이콘 위치조정 · 마일스톤 확장', important:true, d:[
     '금요일 20-22시 유니온·종합운동장 동시 일정시, 시작 6시간 전부터 "같은 성별끼리 모여서, 유니온 우선 이용" 안내 자동 발송 (유니온 코트 이용기록 유지 목적)',
-    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.104 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
+    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.105 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
     '관리자 "지금 자동승급 실행"의 일반 대기열 승급에도 AI관리자 댓글이 빠져있던 것 발견, 추가',
     '이름 옆 칭호 아이콘(럭키/최초달성/월간메달)을 참석목록·랭킹에서 제거하고 댓글에만 표시하도록 위치 조정',
     '럭키방문 마일스톤 5종에서 2000/2222/3000/3333/4000/4444 추가해 총 11종으로 확대'
@@ -3895,7 +3920,7 @@ function renderInviteChips(entries){
 function renderMyWaitingNotice(myVote, counts){
   const typeMap = {
     'consecutive': { arr: counts.waitConsecutiveNames, label: '연속참석 대기', hint: '정오(낮 12시) 이후, 자리가 있으면 순서대로 자동 승급됩니다.' },
-    'gender_wait': { arr: counts.waitGenderWaitNames, label: '성별 대기', hint: '전날 오전 11:50 판정에서 반대 성별이 소수(2명 이하)로 확정되면 자동 승급됩니다.' },
+    'gender_wait': { arr: counts.waitGenderWaitNames, label: '성별 대기', hint: '전날 낮 12시 판정에서 반대 성별이 소수(2명 이하)로 확정되면 자동 승급됩니다.' },
     'gwae_wait': { arr: counts.waitGwaeWaitNames, label: '관외 대기', hint: '관내 참석 인원이 비율 조건을 충족하면 자동 승급됩니다.' },
     'gwae_review': { arr: counts.waitGwaeReviewNames, label: '관외 승인 대기', hint: '운영진 승인이 필요합니다.' },
     'late_request': { arr: counts.waitLateRequestNames, label: '긴급 참석 요청', hint: '운영진 승인이 필요합니다.' },
@@ -3915,11 +3940,11 @@ function renderNameChips(entries, suffix, showDistrict, eventId){
     const timeStr = formatTimestamp(ts);
     const districtTag = (showDistrict && e.district) ? (e.district === '관외' ? `<span class="chip-district chip-district-gwae">관외</span>` : `<span class="chip-district">관내</span>`) : '';
     const hiddenTag = e.hidden ? `<span class="chip-hidden-tag">★히든</span>` : '';
-    const PROMOTED_LABELS = { consecutive:'🔁연참승급', wait:'⬆️대기승급', gwae_wait:'⬆️관외대기승급', gender_wait:'⬆️성별대기승급', late:'⬆️늦참승급', regular:'⬆️일반대기승급' };
+    const PROMOTED_LABELS = { consecutive:'🔁연참승급', wait:'⬆️대기승급', gwae_wait:'⬆️관외대기승급', gender_wait:'⬆️성별대기승급', late:'⬆️늦참승급', regular:'⬆️일반대기승급', late_consecutive:'🔁늦참+연참승급' };
     const promotedTag = e.promotedFrom && PROMOTED_LABELS[e.promotedFrom] ? `<span class="chip-promoted-tag">${PROMOTED_LABELS[e.promotedFrom]}</span>` : '';
-    const lateTag = e.lateArrival ? `<span class="chip-promoted-tag">⏰늦참${e.lateMinutes ? `(${e.lateMinutes}분)` : ''}</span>` : '';
+    const lateTag = e.lateArrival ? ` <span class="chip-promoted-tag">(늦${e.lateMinutes ? e.lateMinutes : ''}분)</span>` : '';
     const histAttr = eventId ? ` data-hist-key="${eventId}|${escapeHtml(name)}" data-fallback-ts="${ts||''}"` : '';
-    const label = `${idx+1}. ${escapeHtml(name)}${hiddenTag}${promotedTag}${lateTag}${districtTag}${suffix}${timeStr ? `<span class="chip-ts"${histAttr} style="${eventId?'cursor:pointer;text-decoration:underline dotted;':''}">${timeStr}</span>` : ''}`;
+    const label = `${idx+1}. ${escapeHtml(name)}${hiddenTag}${promotedTag}${districtTag}${suffix}${timeStr ? `<span class="chip-ts"${histAttr} style="${eventId?'cursor:pointer;text-decoration:underline dotted;':''}">${timeStr}</span>` : ''}${lateTag}`;
     let chipClass = e.hidden ? 'name-chip name-chip-hidden' : 'name-chip';
     if(hasAdminPower()){
       return `<span class="${chipClass} admin-chip">${label}
@@ -4564,10 +4589,12 @@ async function checkLateArrival(eventId){
       await saveVoteRow(eventId, state.myName, votesAfter[state.myName]);
     }
   } else {
-    // 30분 초과: 선대기(대기>늦참>연참 우선순위), 자리 나면 자동승급
+    // 30분 초과: 선대기(대기>늦참>연참>늦참+연참 우선순위), 자리 나면 자동승급
+    // 인접 코트 참석 중(연참 상황)이면서 동시에 늦참이면, 순수 늦참보다도 낮은 최하위 우선순위로 등록
+    const isAlsoConsecutive = isConsecutiveCase(ev);
     const votes = state.data.votes[eventId] || {};
     state.data.votes[eventId] = votes;
-    votes[state.myName] = { status:'waiting', type:'late', gender: state.myGender, district: state.myDistrict, lateArrival:true, lateMinutes, ts: Date.now() };
+    votes[state.myName] = { status:'waiting', type: isAlsoConsecutive ? 'late_consecutive' : 'late', gender: state.myGender, district: state.myDistrict, lateArrival:true, lateMinutes, ts: Date.now() };
     await saveVoteRow(eventId, state.myName, votes[state.myName]);
   }
 
@@ -5323,7 +5350,8 @@ function syncAdminUI(){
   document.getElementById('templateList').style.display = on ? 'block' : 'none';
   document.getElementById('memberMgmtPanel').style.display = on ? 'block' : 'none';
   document.getElementById('dashboardPanel').style.display = on ? 'block' : 'none';
-  if(on) renderDashboard();
+  document.getElementById('memberStatsPanel').style.display = on ? 'block' : 'none';
+  if(on){ renderDashboard(); renderMonthlyMemberStats(); }
   renderTemplateList();
   renderMemberMgmt();
   if(on){
@@ -5414,15 +5442,8 @@ function renderDashboard(){
 
   box.innerHTML = trendHtml + penaltyHtml + warningHtml + `
     <div class="manual-divider" style="margin-top:14px;">⚠️ 경고 현황 (회원별 관리)</div>
-  ` + renderDisciplinaryHtml() + `
-    <div style="margin-top:14px;">
-      <button id="openMonthlyStatsBtn" style="width:100%;border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:10px;font-size:calc(12px * var(--font-scale, 1));font-weight:700;cursor:pointer;">📈 회원별 상세 통계 보기 (시간대별·연속참석)</button>
-    </div>
-    <div id="monthlyStatsBody" style="margin-top:10px;"></div>
-  `;
+  ` + renderDisciplinaryHtml();
   wireDisciplinaryButtons(box);
-  const statsBtn = document.getElementById('openMonthlyStatsBtn');
-  if(statsBtn) statsBtn.onclick = () => renderMonthlyMemberStats();
 }
 
 function classifyEventCategory(ev){
@@ -5493,7 +5514,7 @@ function computeDetailedMemberStats(start, end){
 
 function renderMonthlyMemberStats(period){
   period = period || '30일';
-  const body = document.getElementById('monthlyStatsBody');
+  const body = document.getElementById('memberStatsBody');
   if(!body) return;
 
   const now = new Date(); now.setHours(0,0,0,0);
@@ -5949,7 +5970,7 @@ function checkSaturdayCourt3Reminder(){
 
 function checkCourt3ConfirmPopup(){
   const now = new Date();
-  if(now.getHours() < 11) return;
+  if(now.getHours() < 12) return; // 통일: 낮 12시부터
   const t = todayIso();
   const candidates = getInstances().filter(ev => ev.event_date === t && ev.includesCourt3 && !ev.court3Confirmed);
   candidates.forEach(ev => {
