@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -531,7 +530,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.106</span>
+      <span id="buildVersionTop" class="build-version-top">v.108</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -1166,7 +1165,7 @@ function computeAttendanceStats(startIso, endIso){
 
 function buildTemplates(){
   return [
-    {id:"daily_union_morning", title:"유니온 새벽테니스", daysOfWeek:[1,2,3,4,5], startTime:"06:00", endTime:"08:00", location:"유니온", courts:["4번"]},
+    {id:"daily_union_morning", title:"유니온 새벽테니스", daysOfWeek:[1,2,3,4,5], startTime:"06:00", endTime:"08:00", location:"유니온", courts:["4번","3번"]},
     {id:"mon_jongun_night", title:"종합운동장 저녁", daysOfWeek:[1], startTime:"20:00", endTime:"22:00", location:"종합운동장", courts:["3번"]},
     {id:"tue_union_evening", title:"유니온 저녁", daysOfWeek:[2], startTime:"18:00", endTime:"20:00", location:"유니온", courts:["2번"]},
     {id:"tue_union_night", title:"유니온 밤", daysOfWeek:[2], startTime:"20:00", endTime:"22:00", location:"유니온", courts:["2번","3번"]},
@@ -1185,7 +1184,7 @@ function buildTemplates(){
 }
 
 function defaultData(){
-  return { templates: buildTemplates(), votes: {}, skippedDates: {}, capacityOverrides: {}, memberPins: {}, comments: {}, notifications: [], notifiedFlags: {}, fingerprintChecks: {}, extraMembers: [], removedMembers: [], fingerprintExtraTargets: [], court3Confirmed: {}, cancelStats: {}, sameDayCancelStats: {}, genderFlex: {}, preClosed: {}, inviteCourts: {}, inviteClosed: {}, genderClosed: {}, penalties: {}, warnings: {}, monthlyChampions: {}, titleChoice: {}, pendingApproval: {}, removedTemplateIds: [], approvedAt: {}, districtOverrides: {}, wholeCancelled: {}, voteHistory: {}, ballStock: { '종합운동장': 0, '유니온': 0, '창고': 0 }, ballStockLastRefill: {} };
+  return { templates: buildTemplates(), votes: {}, skippedDates: {}, capacityOverrides: {}, memberPins: {}, comments: {}, notifications: [], notifiedFlags: {}, fingerprintChecks: {}, extraMembers: [], removedMembers: [], fingerprintExtraTargets: [], dawnSemiAdmins: [], court3Confirmed: {}, cancelStats: {}, sameDayCancelStats: {}, genderFlex: {}, preClosed: {}, inviteCourts: {}, inviteClosed: {}, genderClosed: {}, penalties: {}, warnings: {}, monthlyChampions: {}, titleChoice: {}, pendingApproval: {}, removedTemplateIds: [], approvedAt: {}, districtOverrides: {}, wholeCancelled: {}, voteHistory: {}, ballStock: { '종합운동장': 0, '유니온': 0, '창고': 0 }, ballStockLastRefill: {} };
 }
 
 function getFingerprintTargets(){
@@ -1391,7 +1390,7 @@ async function saveData(){
         // null 값은 "명시적으로 삭제됨"을 의미하며, 병합 후 실제로 키를 제거한다.
         const MERGE_MAP_FIELDS = ['memberPins','fingerprintChecks','court3Confirmed','genderFlex','preClosed',
           'inviteCourts','inviteClosed','genderClosed','capacityOverrides','cancelStats','sameDayCancelStats','notifiedFlags','skippedDates','monthlyChampions','titleChoice','pendingApproval','approvedAt','districtOverrides','wholeCancelled','voteHistory','ballStock','ballStockLastRefill'];
-        const MERGE_ARRAY_FIELDS = ['fingerprintExtraTargets','removedMembers'];
+        const MERGE_ARRAY_FIELDS = ['fingerprintExtraTargets','removedMembers','dawnSemiAdmins'];
         MERGE_ARRAY_FIELDS.forEach(field => {
           // 배열 필드는 합집합으로 병합 (둘 중 하나라도 추가했으면 유지)
           const serverArr = fresh.value[field] || [];
@@ -1453,10 +1452,11 @@ function escapeHtml(s){
 
 function computeCapacity(t, id, opts){
   const capacityOverrides = opts.capacityOverrides, court3Confirmed = opts.court3Confirmed, inviteCourts = opts.inviteCourts;
-  const quota = t.courts.length * 6;
+  const isDawnCourt = t.startTime === '06:00' && t.endTime === '08:00';
+  const quota = isDawnCourt ? 8 : t.courts.length * 6; // 새벽코트는 레슨생(랠리)+게임조가 섞여있어 표준공식과 다르게 특수 지정
   const fullMax = t.courts.length * 8;
   const includesCourt3 = t.location === '유니온' && t.courts.length > 1 && t.courts.some(c => c.replace(/번/g,'').trim() === '3');
-  const unconfirmedMax = includesCourt3 ? (t.courts.length === 3 ? 12 : (t.courts.length - 1) * 8) : fullMax;
+  const unconfirmedMax = isDawnCourt ? 6 : (includesCourt3 ? (t.courts.length === 3 ? 12 : (t.courts.length - 1) * 8) : fullMax);
   const isConfirmed = !!(court3Confirmed && court3Confirmed[id]);
   const computedDefault = includesCourt3 ? (isConfirmed ? quota : unconfirmedMax) : quota;
   const inviteN = (inviteCourts && inviteCourts[id]) ? inviteCourts[id] : 0;
@@ -1523,6 +1523,16 @@ function getInstances(){
 
 function hasAdminPower(){
   return state.adminMode;
+}
+
+function isDawnSemiAdmin(name){
+  return !!(name && state.data.dawnSemiAdmins && state.data.dawnSemiAdmins.includes(name));
+}
+
+function canConfirmCourt3(ev){
+  if(hasAdminPower()) return true;
+  if(ev.start_time === '06:00' && isDawnSemiAdmin(state.myName)) return true;
+  return false;
 }
 
 function getActiveMembers(){
@@ -1953,11 +1963,11 @@ function getVote(eventId){
 
 function computedCounts(ev){
   const votes = state.data.votes[ev.id] || {};
-  let female=0, male=0, gwaeAttend=0, naeAttend=0, liveAbsent=0, waitRegular=0, waitConsecutive=0, waitGwaeReview=0, waitLateRequest=0, waitGwaeWait=0, waitGenderWait=0, waitPreclose=0;
+  let female=0, male=0, gwaeAttend=0, naeAttend=0, liveAbsent=0, waitRegular=0, waitConsecutive=0, waitGwaeReview=0, waitLateRequest=0, waitGwaeWait=0, waitGenderWait=0, waitPreclose=0, waitLate=0;
   const hiddenAttendees = [];
   const inviteNames = [];
   const femaleNames = [], maleNames = [], absentNames = [];
-  const waitRegularNames = [], waitConsecutiveNames = [], waitGwaeReviewNames = [], waitLateRequestNames = [], waitGwaeWaitNames = [], waitGenderWaitNames = [], waitPrecloseNames = [];
+  const waitRegularNames = [], waitConsecutiveNames = [], waitGwaeReviewNames = [], waitLateRequestNames = [], waitGwaeWaitNames = [], waitGenderWaitNames = [], waitPrecloseNames = [], waitLateNames = [];
   Object.entries(votes).forEach(([name, v]) => {
     const entry = { name, ts: v.ts || 0, district: v.district || '' };
     if(v.status==='attend' && v.isInvite){
@@ -1978,19 +1988,20 @@ function computedCounts(ev){
       else if(v.type === 'gwae_wait'){ waitGwaeWait++; waitGwaeWaitNames.push(entry); }
       else if(v.type === 'gender_wait'){ waitGenderWait++; waitGenderWaitNames.push(entry); }
       else if(v.type === 'preclose_wait'){ waitPreclose++; waitPrecloseNames.push(entry); }
+      else if(v.type === 'late'){ waitLate++; waitLateNames.push(Object.assign({}, entry, { lateMinutes: v.lateMinutes || null })); }
       else { waitRegular++; waitRegularNames.push(entry); }
     }
   });
   const byTs = (a,b) => (a.ts||0) - (b.ts||0);
   femaleNames.sort(byTs); maleNames.sort(byTs); absentNames.sort(byTs); inviteNames.sort(byTs);
-  waitRegularNames.sort(byTs); waitConsecutiveNames.sort(byTs); waitGwaeReviewNames.sort(byTs); waitLateRequestNames.sort(byTs); waitGwaeWaitNames.sort(byTs); waitGenderWaitNames.sort(byTs); waitPrecloseNames.sort(byTs);
+  waitRegularNames.sort(byTs); waitConsecutiveNames.sort(byTs); waitGwaeReviewNames.sort(byTs); waitLateRequestNames.sort(byTs); waitGwaeWaitNames.sort(byTs); waitGenderWaitNames.sort(byTs); waitPrecloseNames.sort(byTs); waitLateNames.sort(byTs);
   const regularTotal = ev.attend + female + male;
   return {
     female, male, gwaeAttend, naeAttend,
-    femaleNames, maleNames, absentNames, waitRegularNames, waitConsecutiveNames, waitGwaeReviewNames, waitLateRequestNames, waitGwaeWaitNames, waitGenderWaitNames, waitPrecloseNames, inviteNames,
+    femaleNames, maleNames, absentNames, waitRegularNames, waitConsecutiveNames, waitGwaeReviewNames, waitLateRequestNames, waitGwaeWaitNames, waitGenderWaitNames, waitPrecloseNames, waitLateNames, inviteNames,
     absent: ev.absent + liveAbsent,
-    waiting: ev.waiting + waitRegular + waitConsecutive + waitGwaeReview + waitLateRequest + waitGwaeWait + waitGenderWait + waitPreclose,
-    waitRegular, waitConsecutive, waitGwaeReview, waitLateRequest, waitGwaeWait,
+    waiting: ev.waiting + waitRegular + waitConsecutive + waitGwaeReview + waitLateRequest + waitGwaeWait + waitGenderWait + waitPreclose + waitLate,
+    waitRegular, waitConsecutive, waitGwaeReview, waitLateRequest, waitGwaeWait, waitLate,
     hiddenAttendees, regularTotal,
     isFull: regularTotal >= ev.max_players,
     doublesReady: (female + male) >= 4,
@@ -2860,6 +2871,28 @@ document.getElementById('warnPanelToggle').onclick = async () => {
 };
 
 const SITE_LOG = [
+  { ts:'2026-08-05 17:30', t:'🌅 새벽코트 특수정원(6→8) + 새벽코트 준관리자 기능 신설', important:true, d:[
+    '새벽테니스 정원을 표준 공식 대신 특수 지정 — 레슨생(랠리)+게임조가 섞여있는 특성 반영: 미확보시 6명, 3번코트 확보시 8명',
+    '"새벽코트 준관리자" 역할 신설 — 회원관리에서 관리자가 특정 회원을 지정하면, 그 회원은 새벽 일정에 한해 3번코트 확보 확인 버튼을 관리자 없이도 직접 누를 수 있음',
+    '알림 문구도 관리자/새벽코트준관리자를 구분해서 표시 (예: "OOO(새벽코트 준관리자)님이 3번코트를 확보 확인했습니다")',
+    '회원목록에 🌅준관리자 태그로 누가 지정되어 있는지 한눈에 확인 가능'
+  ]},
+  { ts:'2026-08-05 17:00', t:'🆕 유니온 새벽테니스 — 3번코트 확보란 신설', important:true, d:[
+    '기존엔 4번코트 1개만 고정으로 썼는데, 이제 3번코트도 추가로 확보할 수 있는 구조로 변경 — 저녁 유니온 일정과 동일한 방식(미확보시 정원 8명, 확보시 정원 12명)',
+    '3번코트 확보확인 버튼도 새벽 일정 카드에 자동으로 표시됨(참석 회원 누구나 확인 가능)',
+    '"3번코트 확보확인 팝업"과 "화·금 확보확률 안내"는 새벽시간대는 제외되도록 안전장치 추가 — 전자는 이미 끝난 시간대에 뒤늦게 물어보는 게 어색해서, 후자는 "새벽레슨 인원 때문에 확보확률 높다"는 근거가 새벽 자체 일정엔 안 맞아서 (기존 checkDawnCourt3Reminder가 새벽 참석자들에게 저녁 3번코트 확인을 부탁하는 기능은 그대로 유지)',
+    '⚠️ 참고: 성별유연승급(2코트 전용) 로직은 이제 새벽테니스도 대상에 포함됨 — 코트가 2개(4번+3번)가 되어 조건을 만족하게 됨. 새벽엔 원래 인원이 적어 실질적 영향은 제한적일 것으로 보이나, 필요시 별도 제외 요청 가능'
+  ]},
+  { ts:'2026-08-05 16:00', t:'🐛 대기유형 표시/이력 오류 3건 수정', important:true, d:[
+    '① 순수 늦참대기(30분초과, type:late)가 별도 분류 없이 "일반대기"로 잘못 섞여 카운트되던 문제 발견, 별도 카테고리(늦참대기)로 분리하고 오늘현황·본인대기안내 등 관련 화면 전부 반영',
+    '② 오늘현황 대기목록에 관외대기·늦참대기가 누락되어 있던 것도 함께 포함되도록 수정, 관외대기자가 있으면 "관내 회원이 더 오시면 바로 참석 가능해요" 긴급안내 문구 추가',
+    '③ 참석시간 클릭시 뜨는 "OO님 처리 이력"에서, 다른 사람 이름이 섞여 보이던 문제 — 실제로는 버그가 아니라 "관리자가 대신 처리한 사람"(actor)을 표시하던 것인데 형식이 오해를 부름. "(관리자 OOO님이 처리)"로 명확하게 표시하도록 개선'
+  ]},
+  { ts:'2026-08-05 16:30', t:'🐛 관외+연속참석 동시상황 — 관외 비율규칙 우회 승급 버그 수정', important:true, d:[
+    '관외 회원이 인접코트 연속참석 상황이면, 연참 체크가 관외 비율규칙(관내최소3명, 비율계산) 체크보다 먼저 실행되어 — 관외 규칙을 완전히 건너뛰고 그냥 연참대기로 등록되던 버그 발견. 이 경우 관외 비율 조건을 무시한 채 연참 우선순위로 자동승급될 수 있었음',
+    '연참 상황이어도 관외 회원이면, 연참대기로 등록하기 전에 관외 규칙(관내최소3명+비율)을 먼저 체크하도록 수정 — 조건 미충족시 관외대기로, 충족시에만 정상적으로 연참대기로 등록',
+    '관내 2명(미충족)/3명(충족) 시나리오 시뮬레이션으로 정확한 분기 확인 완료'
+  ]},
   { ts:'2026-08-05 15:30', t:'🐛 오늘 작업 전체 교차검증 — 관외우선권↔관내최소3명 충돌버그 발견 및 수정', important:true, d:[
     '방금 추가한 "관내 최소 3명" 규칙과, 이전에 만든 "관외 우선권" 규칙이 서로 부딪히는 시나리오 발견: 관내 3명 미만 상태에서 관외 대기자가 있으면, 새로 신청하는 관내 회원이 관외우선권 로직에 의해 불필요하게 대기로 밀리는데, 정작 관외도 관내최소3명 조건 미충족으로 승급이 안 되어 "아무도 자리를 못 채우는" 상황이 발생할 뻔함',
     '관외우선권 로직 발동 조건에 "관내 3명 이상"을 추가해서, 관내가 아직 3명 미만이면 이 로직 자체가 발동하지 않고 새 관내 회원이 정상적으로 바로 참석되도록 수정',
@@ -3174,7 +3207,7 @@ const SITE_LOG = [
   ]},
   { ts:'2026-07-21 22:00', t:'🎾 금요일 안내 · 이력조회 보강 · 칭호아이콘 위치조정 · 마일스톤 확장', important:true, d:[
     '금요일 20-22시 유니온·종합운동장 동시 일정시, 시작 6시간 전부터 "같은 성별끼리 모여서, 유니온 우선 이용" 안내 자동 발송 (유니온 코트 이용기록 유지 목적)',
-    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.106 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
+    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.108 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
     '관리자 "지금 자동승급 실행"의 일반 대기열 승급에도 AI관리자 댓글이 빠져있던 것 발견, 추가',
     '이름 옆 칭호 아이콘(럭키/최초달성/월간메달)을 참석목록·랭킹에서 제거하고 댓글에만 표시하도록 위치 조정',
     '럭키방문 마일스톤 5종에서 2000/2222/3000/3333/4000/4444 추가해 총 11종으로 확대'
@@ -3889,7 +3922,8 @@ function showVoteHistory(histKey, fallbackTs){
   const lines = hist.map((h,i) => {
     const label = STATUS_LABEL_KR[h.status] || h.status;
     const tag = i === 0 ? '(최초 등록)' : '';
-    return `${formatTimestamp(h.ts)} — ${label} ${tag} · ${h.actor || ''}`;
+    const actorNote = (h.actor && h.actor !== name) ? ` (관리자 ${h.actor}님이 처리)` : '';
+    return `${formatTimestamp(h.ts)} — ${label} ${tag}${actorNote}`;
   });
   alert(`📜 ${name}님 처리 이력\n\n${lines.join('\n')}`);
 }
@@ -3933,6 +3967,8 @@ function renderInviteChips(entries){
 function renderMyWaitingNotice(myVote, counts){
   const typeMap = {
     'consecutive': { arr: counts.waitConsecutiveNames, label: '연속참석 대기', hint: '정오(낮 12시) 이후, 자리가 있으면 순서대로 자동 승급됩니다.' },
+    'late_consecutive': { arr: counts.waitConsecutiveNames, label: '늦참+연속참석 대기', hint: '시작 1시간전, 자리가 있으면 승급됩니다(가장 낮은 우선순위).' },
+    'late': { arr: counts.waitLateNames, label: '늦참 대기', hint: '정오(낮 12시) 이후, 자리가 있으면 순서대로 자동 승급됩니다.' },
     'gender_wait': { arr: counts.waitGenderWaitNames, label: '성별 대기', hint: '전날 낮 12시 판정에서 반대 성별이 소수(2명 이하)로 확정되면 자동 승급됩니다.' },
     'gwae_wait': { arr: counts.waitGwaeWaitNames, label: '관외 대기', hint: '관내 참석 인원이 비율 조건을 충족하면 자동 승급됩니다.' },
     'gwae_review': { arr: counts.waitGwaeReviewNames, label: '관외 승인 대기', hint: '운영진 승인이 필요합니다.' },
@@ -4124,7 +4160,7 @@ function renderEventCard(ev){
       <button class="confirm-btn" id="confirmBtn-${ev.id}">✓ 확정</button>
       <button class="confirm-cancel" id="cancelBtn-${ev.id}">선택 취소</button>
     </div><div class="pending-note">선택하신 내용을 "확정" 버튼을 눌러야 최종 반영됩니다.</div>` : ''}
-    ${ev.includesCourt3 ? `<div class="admin-row" style="display:${hasAdminPower()?'flex':'none'}">
+    ${ev.includesCourt3 ? `<div class="admin-row" style="display:${canConfirmCourt3(ev)?'flex':'none'}">
       <button class="court3-toggle-btn ${ev.court3Confirmed?'confirmed':''}" data-court3-toggle="${ev.id}" style="font-size:calc(11px * var(--font-scale, 1));padding:6px 10px;border-radius:8px;border:1px solid var(--line);background:${ev.court3Confirmed?'var(--brand-soft)':'var(--panel)'};cursor:pointer;white-space:nowrap;width:100%;">
         ${ev.court3Confirmed ? '✅ 3번코트 확보됨 (해제하려면 클릭)' : '📍 3번코트 확보 확인'}
       </button>
@@ -4761,6 +4797,27 @@ async function setVote(eventId, status, gender){
         }
       }
     } else if(!hasAdminPower() && isConsecutiveCase(ev)){
+      // 관외 회원이 연참 상황이어도, 관외 규칙(관내최소3명·비율)을 먼저 체크해야 함
+      // — 안 그러면 연참 체크가 먼저 걸려서 관외 비율규칙을 완전히 우회한 채 연참 우선순위로 자동승급되는 버그가 있었음
+      if(ev.location === '종합운동장' && state.myDistrict === '관외'){
+        const gwCounts = computedCounts(ev);
+        const gwSelfRegular = (existing && existing.status === 'attend' && !existing.hidden) ? 1 : 0;
+        const gwSelfGwae = (gwSelfRegular && existing.district === '관외') ? 1 : 0;
+        const naeOk = gwCounts.naeAttend >= 3;
+        const gwProspectiveTotal = gwCounts.regularTotal - gwSelfRegular + 1;
+        const gwLimit = gwaeLimit(gwProspectiveTotal, ev.court_count);
+        const gwWithoutSelf = gwCounts.gwaeAttend - gwSelfGwae;
+        const ratioOk = (gwWithoutSelf + 1) <= gwLimit;
+        if(!naeOk || !ratioOk){
+          votes[state.myName] = { status:'waiting', type:'gwae_wait', gender:g, district:'관외', ts: Date.now() };
+          await saveVoteRow(eventId, state.myName, votes[state.myName]);
+          pushNotification(`${state.myName}님이 ${label} 관외 대기로 등록되었습니다. (연속참석 상황이지만, 관외 비율 조건이 우선 적용됨)`);
+          await postAiAdminComment(eventId, `${state.myName}님의 참석 시도가 관외 대기로 자동 전환되었습니다. (사유: ${!naeOk ? `관내 참석 ${gwCounts.naeAttend}명(최소 3명 필요)` : '관외 비율 조건 미충족'} — 연속참석보다 관외 규칙이 우선)`);
+          renderEventList(); renderNotifBell();
+          alert('연속참석 상황이지만, 관외 비율 조건이 아직 충족되지 않아 관외 대기로 등록되었습니다.');
+          return;
+        }
+      }
       votes[state.myName] = { status:'waiting', type:'consecutive', gender:g, district: state.myDistrict, ts: Date.now() };
       pushNotification(`${state.myName}님이 ${label} 연속참석 대기로 등록되었습니다.`);
       await saveVoteRow(eventId, state.myName, votes[state.myName]);
@@ -5003,7 +5060,8 @@ async function toggleCourt3Confirmed(eventId){
   }
   const ev = getInstances().find(e => e.id === eventId);
   const label = ev ? shortEventLabel(ev) : '';
-  pushNotification(`${state.myName}(관리자)님이 ${label} 3번코트를 ${nowConfirmed ? '확보 확인' : '미확보로 되돌림'} 처리했습니다.`, {eventId, actor: state.myName, category:'court_status'});
+  const roleLabel = hasAdminPower() ? '관리자' : '새벽코트 준관리자';
+  pushNotification(`${state.myName}(${roleLabel})님이 ${label} 3번코트를 ${nowConfirmed ? '확보 확인' : '미확보로 되돌림'} 처리했습니다.`, {eventId, actor: state.myName, category:'court_status'});
   if(ev && nowConfirmed){
     const addedSlots = Math.max(0, ev.max_players - prevMaxPlayers);
     await postAiAdminComment(eventId, `🎾 3번코트 확보 완료! 정원이 ${prevMaxPlayers}명 → ${ev.max_players}명으로 늘어나서, 현재 ${addedSlots}명 추가 참석 가능해요.`);
@@ -5625,9 +5683,10 @@ function renderMemberMgmt(){
         const isPending = state.data.pendingApproval && state.data.pendingApproval[m.name];
         return `
         <div class="member-row">
-          <span class="m-name">${escapeHtml(m.name)}${m.is_staff?' ★':''}${isPending ? ' <span class="chip-invite-tag guest">⏳승인대기</span>' : ''}${isPenalized ? ' <span class="chip-invite-tag guest">🚫페널티중</span>' : ''}${warnCount > 0 ? ` <span class="chip-invite-tag guest">⚠️${warnCount}</span>` : ''}</span>
+          <span class="m-name">${escapeHtml(m.name)}${m.is_staff?' ★':''}${isDawnSemiAdmin(m.name) ? ' <span class="chip-invite-tag" style="background:var(--accent-soft);color:var(--accent-dark);">🌅준관리자</span>' : ''}${isPending ? ' <span class="chip-invite-tag guest">⏳승인대기</span>' : ''}${isPenalized ? ' <span class="chip-invite-tag guest">🚫페널티중</span>' : ''}${warnCount > 0 ? ` <span class="chip-invite-tag guest">⚠️${warnCount}</span>` : ''}</span>
           <span class="m-meta">${m.gender}/${m.district}</span>
           <button class="pin-reset-btn" data-toggle-district="${escapeHtml(m.name)}">${m.district === '관내' ? '→관외로' : '→관내로'}</button>
+          <button class="pin-reset-btn" data-toggle-dawn-semi="${escapeHtml(m.name)}">${isDawnSemiAdmin(m.name) ? '🌅준관리자 해제' : '🌅새벽준관리자 지정'}</button>
           <span class="m-pin">PIN ${pins[m.name] ? '설정됨 🔒' : '미설정'}</span>
           ${isPending ? `<button class="pin-reset-btn" data-approve-member="${escapeHtml(m.name)}" style="background:var(--brand-soft);color:var(--brand-dark);">✅승인</button>` : ''}
           ${pins[m.name] ? `<button class="pin-reset-btn" data-reset-pin="${escapeHtml(m.name)}">PIN초기화</button>` : ''}
@@ -5712,6 +5771,23 @@ function renderMemberMgmt(){
   });
   box.querySelectorAll('[data-toggle-district]').forEach(btn => {
     btn.onclick = () => toggleMemberDistrict(btn.getAttribute('data-toggle-district'));
+  });
+  box.querySelectorAll('[data-toggle-dawn-semi]').forEach(btn => {
+    btn.onclick = async () => {
+      const name = btn.getAttribute('data-toggle-dawn-semi');
+      if(!state.data.dawnSemiAdmins) state.data.dawnSemiAdmins = [];
+      const idx = state.data.dawnSemiAdmins.indexOf(name);
+      if(idx >= 0){
+        state.data.dawnSemiAdmins.splice(idx, 1);
+        pushNotification(`${state.myName}(관리자)님이 ${name}님의 새벽코트 준관리자 권한을 해제했습니다.`);
+      } else {
+        state.data.dawnSemiAdmins.push(name);
+        pushNotification(`${state.myName}(관리자)님이 ${name}님을 새벽코트 준관리자로 지정했습니다. (새벽 일정의 3번코트 확보 확인 가능)`);
+      }
+      markDirty('dawnSemiAdmins', name);
+      await saveData();
+      renderMemberMgmt();
+    };
   });
 }
 
@@ -5900,6 +5976,7 @@ async function checkCourt3LikelyConfirm(){
     if(ev.event_date !== t) continue;
     if(ev.location !== '유니온') continue;
     if(ev.court_count !== 2) continue; // 3번코트 확장 개념이 있는 2코트 일정에만 해당 (1코트 일정엔 무관)
+    if(ev.start_time === '06:00') continue; // 새벽 레슨 인원 근거는 저녁 일정용 — 새벽 자체 일정에는 부적합
     const dow = new Date(ev.event_date + 'T00:00:00').getDay(); // 2=화, 5=금
     if(dow !== 2 && dow !== 5) continue;
     if(state.data.court3Confirmed && state.data.court3Confirmed[ev.id]) continue; // 이미 확보됨
@@ -5995,7 +6072,7 @@ function checkCourt3ConfirmPopup(){
   const now = new Date();
   if(now.getHours() < 12) return; // 통일: 낮 12시부터
   const t = todayIso();
-  const candidates = getInstances().filter(ev => ev.event_date === t && ev.includesCourt3 && !ev.court3Confirmed);
+  const candidates = getInstances().filter(ev => ev.event_date === t && ev.includesCourt3 && !ev.court3Confirmed && ev.start_time !== '06:00');
   candidates.forEach(ev => {
     // 관리자이거나, 이 일정에 실제로 참석중인 회원이면 확인 대상 (관리자가 매번 직접 안 봐도 되게)
     const myVote = getVote(ev.id);
@@ -6071,7 +6148,10 @@ async function renderTodayPanel(){
     } else {
       scheduleHtml = todays.map(ev => {
         const c = computedCounts(ev);
-        const waitAll = [...c.waitRegularNames, ...c.waitConsecutiveNames, ...c.waitGwaeReviewNames];
+        const waitAll = [...c.waitRegularNames, ...c.waitConsecutiveNames, ...c.waitGwaeReviewNames, ...c.waitGwaeWaitNames, ...c.waitLateNames];
+        const gwaeWaitAlert = c.waitGwaeWaitNames.length > 0
+          ? `<div class="t-namebox" style="background:var(--danger-soft);color:var(--danger);font-weight:700;">🚨 관외 대기 ${c.waitGwaeWaitNames.length}명 — 관내 회원이 더 오시면 바로 참석 가능해요! (${nameListText(c.waitGwaeWaitNames)})</div>`
+          : '';
         const districtInfo = ev.location === '종합운동장'
           ? `<div class="t-district">관내 ${c.naeAttend}명 · 관외 ${c.gwaeAttend}명</div>`
           : '';
@@ -6081,6 +6161,7 @@ async function renderTodayPanel(){
           <div class="t-time">${formatHour(ev.start_time)}-${formatHour(ev.end_time)}${isPast ? ' (종료)' : ''}</div>
           <div class="t-loc">${escapeHtml(ev.location)} ${escapeHtml(formatCourtLabel(ev.court))} 코트 (${ev.court_count}개) · 참석 ${c.regularTotal}명</div>
           ${districtInfo}
+          ${gwaeWaitAlert}
           <div class="t-namebox male-c"><b>남자참석 (${c.male})</b> ${nameListText(c.maleNames)}</div>
           <div class="t-namebox female-c"><b>여자참석 (${c.female})</b> ${nameListText(c.femaleNames)}</div>
           <div class="t-namebox wait-c"><b>대기 (${c.waiting})</b> ${nameListText(waitAll)}</div>
