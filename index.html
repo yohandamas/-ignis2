@@ -531,7 +531,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.110</span>
+      <span id="buildVersionTop" class="build-version-top">v.111</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -2872,6 +2872,10 @@ document.getElementById('warnPanelToggle').onclick = async () => {
 };
 
 const SITE_LOG = [
+  { ts:'2026-08-06 10:00', t:'🎾 공불출내역 — 본인 기록 직접 삭제 가능하게', important:true, d:[
+    '기존엔 관리자만 삭제할 수 있었는데, 이제 본인이 등록한 기록은 직접 삭제 가능(잘못 눌러 중복체크한 경우 등)',
+    '클럽볼 기록을 삭제하면, 이미 차감됐던 재고도 자동으로 복원됨(삭제 전 몇 개가 재고로 돌아가는지 확인 문구로 안내)'
+  ]},
   { ts:'2026-08-06 10:15', t:'🐛 페이지 접속시 맨 아래로 스크롤되어 있던 문제 수정', important:true, d:[
     '페이지에 처음 접속하면 스크롤이 맨 위가 아니라 맨 아래로 내려가 있던 문제 — 캘린더·일정목록 등이 비동기로 순차 렌더링되며 페이지 높이가 계속 바뀌는 과정에서, 브라우저의 자동 스크롤 복원 기능이 엉뚱한 위치로 스크롤시키는 흔한 현상으로 확인',
     '스크롤 자동복원을 브라우저에 맡기지 않고 직접 제어하도록 변경 — 페이지 로드 시작·데이터 로딩 시작·전체 렌더링 완료 시점 3곳에서 명시적으로 최상단(0,0)으로 고정'
@@ -3220,7 +3224,7 @@ const SITE_LOG = [
   ]},
   { ts:'2026-07-21 22:00', t:'🎾 금요일 안내 · 이력조회 보강 · 칭호아이콘 위치조정 · 마일스톤 확장', important:true, d:[
     '금요일 20-22시 유니온·종합운동장 동시 일정시, 시작 6시간 전부터 "같은 성별끼리 모여서, 유니온 우선 이용" 안내 자동 발송 (유니온 코트 이용기록 유지 목적)',
-    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.110 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
+    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.111 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
     '관리자 "지금 자동승급 실행"의 일반 대기열 승급에도 AI관리자 댓글이 빠져있던 것 발견, 추가',
     '이름 옆 칭호 아이콘(럭키/최초달성/월간메달)을 참석목록·랭킹에서 제거하고 댓글에만 표시하도록 위치 조정',
     '럭키방문 마일스톤 5종에서 2000/2222/3000/3333/4000/4444 추가해 총 11종으로 확대'
@@ -6290,7 +6294,7 @@ function renderBallSection(list){
     const reasonNote = b.reason === '분실로 인한 추가개봉' ? ' <span style="color:var(--danger);font-weight:700;">🚨분실</span>' : '';
     return `<div class="fp-check-row" data-ball-id="${b.id}" style="justify-content:space-between;">
       <span>${escapeHtml(b.member_name)} ${dateLabel} ${escapeHtml(b.location)} <b>${escapeHtml(b.ball_type)}</b> ${b.count}개${bundleNote}${reasonNote}</span>
-      ${admin ? `<button class="c-del" data-ball-del="${b.id}">삭제</button>` : ''}
+      ${(admin || b.member_name === state.myName) ? `<button class="c-del" data-ball-del="${b.id}">삭제</button>` : ''}
     </div>`;
   };
 
@@ -6398,9 +6402,16 @@ function wireBallSection(){
   document.querySelectorAll('[data-ball-del]').forEach(btn => {
     btn.onclick = async () => {
       const id = btn.getAttribute('data-ball-del');
-      if(!confirm('이 기록을 삭제하시겠습니까?')) return;
+      const record = list.find(b => b.id === id);
+      if(!confirm('이 기록을 삭제하시겠습니까?' + (record && record.ball_type === '클럽볼' ? `\n(클럽볼 ${record.count}개는 재고로 다시 복원됩니다)` : ''))) return;
       try{ await sb.from('ignis_ball_checkouts').delete().eq('id', id); }
       catch(e){ console.error('공불출 기록 삭제 실패', e); }
+      if(record && record.ball_type === '클럽볼'){
+        if(!state.data.ballStock) state.data.ballStock = { '종합운동장': 0, '유니온': 0, '창고': 0 };
+        state.data.ballStock[record.location] = (state.data.ballStock[record.location] ?? 0) + record.count;
+        markDirty('ballStock', record.location);
+        await saveData();
+      }
       renderBallPanel();
     };
   });
