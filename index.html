@@ -530,7 +530,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.108</span>
+      <span id="buildVersionTop" class="build-version-top">v.109</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -2871,6 +2871,10 @@ document.getElementById('warnPanelToggle').onclick = async () => {
 };
 
 const SITE_LOG = [
+  { ts:'2026-08-06 09:00', t:'🐛 새벽테니스 3번코트 미반영 문제 — 서버 데이터 마이그레이션 추가', important:true, d:[
+    'v108에서 새벽테니스에 3번코트 확보란을 추가했는데도, 실제 화면엔 반영이 안 되던 문제 발견 — 코드(buildTemplates)는 정상이지만, 이미 운영 중인 Supabase에 저장된 실제 템플릿 데이터는 코드 수정만으로는 자동 갱신되지 않는다는 걸 확인',
+    '앱 시작시 서버에 저장된 새벽테니스 템플릿이 예전 값(4번코트만)이면 자동으로 새 값(4번+3번)으로 갱신하고 서버에 저장하는 1회성 마이그레이션 로직 추가 — 이제 접속하는 순간 자동으로 반영됨'
+  ]},
   { ts:'2026-08-05 17:30', t:'🌅 새벽코트 특수정원(6→8) + 새벽코트 준관리자 기능 신설', important:true, d:[
     '새벽테니스 정원을 표준 공식 대신 특수 지정 — 레슨생(랠리)+게임조가 섞여있는 특성 반영: 미확보시 6명, 3번코트 확보시 8명',
     '"새벽코트 준관리자" 역할 신설 — 회원관리에서 관리자가 특정 회원을 지정하면, 그 회원은 새벽 일정에 한해 3번코트 확보 확인 버튼을 관리자 없이도 직접 누를 수 있음',
@@ -3207,7 +3211,7 @@ const SITE_LOG = [
   ]},
   { ts:'2026-07-21 22:00', t:'🎾 금요일 안내 · 이력조회 보강 · 칭호아이콘 위치조정 · 마일스톤 확장', important:true, d:[
     '금요일 20-22시 유니온·종합운동장 동시 일정시, 시작 6시간 전부터 "같은 성별끼리 모여서, 유니온 우선 이용" 안내 자동 발송 (유니온 코트 이용기록 유지 목적)',
-    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.108 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
+    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.109 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
     '관리자 "지금 자동승급 실행"의 일반 대기열 승급에도 AI관리자 댓글이 빠져있던 것 발견, 추가',
     '이름 옆 칭호 아이콘(럭키/최초달성/월간메달)을 참석목록·랭킹에서 제거하고 댓글에만 표시하도록 위치 조정',
     '럭키방문 마일스톤 5종에서 2000/2222/3000/3333/4000/4444 추가해 총 11종으로 확대'
@@ -6979,6 +6983,15 @@ document.getElementById('chooseTitleBtn').onclick = () => chooseTitleUI();
 async function init(){
   const [data, myName] = await Promise.all([loadData(), loadMyName()]);
   state.data = data;
+  // 새벽테니스 템플릿 마이그레이션 — 서버에 예전 값(4번코트만)이 저장되어 있으면 새 값(4번+3번)으로 갱신
+  try{
+    const dawnT = state.data.templates && state.data.templates.find(t => t.id === 'daily_union_morning');
+    if(dawnT && (!Array.isArray(dawnT.courts) || !dawnT.courts.includes('3번'))){
+      dawnT.courts = ['4번','3번'];
+      markDirty('templates', 'daily_union_morning');
+      await saveData();
+    }
+  }catch(e){ console.error('새벽테니스 템플릿 마이그레이션 오류', e); }
   lastDataSnapshot = JSON.stringify(data);
   state.myName = myName;
   try{ await refreshWarningDataFromServer(); }catch(e){ console.error('경고/페널티 초기로드 오류', e); }
