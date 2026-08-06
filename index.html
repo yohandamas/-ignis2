@@ -531,7 +531,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.111</span>
+      <span id="buildVersionTop" class="build-version-top">v.112</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -2872,6 +2872,11 @@ document.getElementById('warnPanelToggle').onclick = async () => {
 };
 
 const SITE_LOG = [
+  { ts:'2026-08-06 14:57', t:'🐛 공불출내역 삭제버튼 클릭 무반응 긴급수정', important:true, d:[
+    '바로 직전에 추가한 "본인기록 삭제+재고복원" 기능에서, 삭제 로직이 참조하는 list 변수가 실제로는 다른 함수(wireBallSection) 안에 있어 접근 불가능한 상태였음 — 클릭은 되지만 내부에서 "list is not defined" 오류가 나서 아무 반응도 없는 것처럼 보이던 버그',
+    'wireBallSection이 list를 매개변수로 전달받도록 수정, 호출부도 함께 수정',
+    '수정 전(에러 발생)/후(정상 동작) 시뮬레이션으로 재현 및 해결 확인'
+  ]},
   { ts:'2026-08-06 10:00', t:'🎾 공불출내역 — 본인 기록 직접 삭제 가능하게', important:true, d:[
     '기존엔 관리자만 삭제할 수 있었는데, 이제 본인이 등록한 기록은 직접 삭제 가능(잘못 눌러 중복체크한 경우 등)',
     '클럽볼 기록을 삭제하면, 이미 차감됐던 재고도 자동으로 복원됨(삭제 전 몇 개가 재고로 돌아가는지 확인 문구로 안내)'
@@ -3224,7 +3229,7 @@ const SITE_LOG = [
   ]},
   { ts:'2026-07-21 22:00', t:'🎾 금요일 안내 · 이력조회 보강 · 칭호아이콘 위치조정 · 마일스톤 확장', important:true, d:[
     '금요일 20-22시 유니온·종합운동장 동시 일정시, 시작 6시간 전부터 "같은 성별끼리 모여서, 유니온 우선 이용" 안내 자동 발송 (유니온 코트 이용기록 유지 목적)',
-    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.111 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
+    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.112 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
     '관리자 "지금 자동승급 실행"의 일반 대기열 승급에도 AI관리자 댓글이 빠져있던 것 발견, 추가',
     '이름 옆 칭호 아이콘(럭키/최초달성/월간메달)을 참석목록·랭킹에서 제거하고 댓글에만 표시하도록 위치 조정',
     '럭키방문 마일스톤 5종에서 2000/2222/3000/3333/4000/4444 추가해 총 11종으로 확대'
@@ -6278,7 +6283,7 @@ async function renderBallPanel(){
     list = data || [];
   }catch(e){ console.error('공불출내역 조회 실패', e); }
   body.innerHTML = renderBallSection(list);
-  wireBallSection();
+  wireBallSection(list);
 }
 
 function renderBallSection(list){
@@ -6374,7 +6379,8 @@ function renderBallSection(list){
   `;
 }
 
-function wireBallSection(){
+function wireBallSection(list){
+  list = list || [];
   const addBtn = document.getElementById('ballAddBtn');
   if(addBtn) addBtn.onclick = async () => {
     const name = document.getElementById('ballNameSelect').value;
