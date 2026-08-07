@@ -985,3 +985,14 @@
 | 원인② | `waitLateNames`/`waitConsecutiveNames`(late_consecutive 케이스)의 entry 객체 자체에 `lateArrival` 필드가 없어서, `lateTag` 조건(`e.lateArrival`)이 항상 false — 두 목록 모두 entry 생성시 `lateArrival:true` 명시적으로 포함하도록 수정 |
 | 검증 | 5분/45분/60분 등 다양한 분 단위로 즉시참석·대기중·승급후 3단계 시뮬레이션 전부 정상 확인. 30분 이상만 표시되는 제한 없이 전체 분 단위 표시됨(요청사항 반영) |
 | 교훈 | 새 대기유형(waitLateNames)을 만들 때, 데이터 집계(computedCounts)만 고치고 실제 화면에 뿌리는 지점(메인카드 이름목록)을 함께 안 고치면 "데이터는 있는데 안 보이는" 버그가 생김 — 새 카테고리 추가시 표시 지점 전체를 체크리스트로 확인할 것 |
+
+## 90. 늦참(N분) 표시 — 최종 근본원인: DB 저장 자체가 누락 (v116, 2026-08-06)
+
+| 항목 | 내용 |
+|---|---|
+| 배경 | v115 배포 후에도 재현된다는 스크린샷 제보 — 승급함수·화면표시 로직은 전부 정상인데도 안 됨. `saveVoteRow`(DB저장 함수) 자체를 재검사 |
+| 진짜 원인 | `saveVoteRow`가 Supabase `ignis_votes` 테이블에 upsert할 때 필드 목록에 `late_arrival`/`late_minutes`가 애초에 빠져있었음 — 로컬 메모리(state.data.votes)에는 정상 저장되어 화면엔 잠깐 보이지만, **서버에는 저장되지 않아** 새로고침·재접속·실시간동기화(다른 회원 화면)에서 전부 사라지는 구조적 문제. v114/v115에서 고친 것들은 전부 "로컬 처리" 단계였고, 이번이 진짜 마지막 조각 |
+| 수정한 3곳 | ① `saveVoteRow`(저장) — upsert 객체에 `late_arrival: !!voteObj.lateArrival, late_minutes: voteObj.lateMinutes \|\| null` 추가 ② `loadData`(초기 로딩) — `lateArrival: !!row.late_arrival, lateMinutes: row.late_minutes \|\| null` 매핑 추가 ③ Supabase realtime 구독 콜백 — 동일하게 `payload.new.late_arrival`/`late_minutes` 매핑 추가 |
+| ⚠️ DB 마이그레이션 필요 | Supabase `ignis_votes` 테이블에 `late_arrival`(boolean), `late_minutes`(integer) 컬럼이 없으면 upsert 자체가 실패할 수 있음 — `SQL_늦참컬럼추가.sql` 1회 실행 필요: `ALTER TABLE ignis_votes ADD COLUMN IF NOT EXISTS late_arrival boolean DEFAULT false, ADD COLUMN IF NOT EXISTS late_minutes integer DEFAULT NULL;` |
+| 검증 | 저장→로딩 왕복(round-trip) 시뮬레이션으로 lateArrival/lateMinutes가 DB를 거쳐도 정확히 보존되는 것 확인 |
+| 교훈 | 새 필드를 votes 객체에 추가할 때, "로컬 상태 처리"와 "DB 영속화(저장+로딩+realtime)"는 완전히 별개의 체크 대상 — 로컬에서 잘 되는 것처럼 보여도 DB 왕복까지 반드시 확인해야 함 |

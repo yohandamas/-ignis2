@@ -531,7 +531,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.115</span>
+      <span id="buildVersionTop" class="build-version-top">v.116</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -1209,7 +1209,8 @@ async function loadVotesTable(){
         hidden: !!row.hidden, type: row.vote_type || undefined,
         ts: row.ts ? Number(row.ts) : Date.now(),
         isInvite: !!row.is_invite, promotedFrom: row.promoted_from || null, invitedBy: row.invited_by || null,
-        displayName: row.display_name || null
+        displayName: row.display_name || null,
+        lateArrival: !!row.late_arrival, lateMinutes: row.late_minutes || null
       };
     });
     return votes;
@@ -1229,7 +1230,8 @@ async function saveVoteRow(eventId, name, voteObj){
         status: voteObj.status, gender: voteObj.gender || null, district: voteObj.district || null,
         hidden: !!voteObj.hidden, vote_type: voteObj.type || null, ts: voteObj.ts || Date.now(),
         is_invite: !!voteObj.isInvite, promoted_from: voteObj.promotedFrom || null, invited_by: voteObj.invitedBy || null,
-        display_name: voteObj.displayName || null
+        display_name: voteObj.displayName || null,
+        late_arrival: !!voteObj.lateArrival, late_minutes: voteObj.lateMinutes || null
       });
       // 이력 기록 (참석/대기 클릭시 "언제 처음눌렀는지 / 언제 승급됐는지" 조회용)
       const histKey = eventId + '|' + name;
@@ -2888,6 +2890,12 @@ document.getElementById('warnPanelToggle').onclick = async () => {
 };
 
 const SITE_LOG = [
+  { ts:'2026-08-06 18:00', t:'🚨 늦참(N분) 표시 — 진짜 최종 근본원인 발견: DB 저장 자체가 누락되고 있었음', important:true, d:[
+    'v115까지 고친 건 전부 "로컬 메모리에서의 처리"였는데, saveVoteRow(DB 저장 함수) 자체가 애초에 late_arrival/late_minutes 필드를 Supabase에 전혀 저장하지 않고 있었음 — 로컬에선 잠깐 보여도, 새로고침·재접속·다른기기에서 보면 DB에 없으니 사라지는 구조적 문제',
+    '저장(saveVoteRow) + 초기로딩(loadData) + 실시간동기화(realtime 구독) 3곳 전부에 late_arrival/late_minutes 매핑 추가 — 이제 서버 왕복까지 완전히 보존됨',
+    '⚠️ 반드시 필요: Supabase에 late_arrival(boolean)/late_minutes(integer) 컬럼이 없으면 저장 자체가 실패할 수 있음 — SQL_늦참컬럼추가.sql 1회 실행 필요',
+    '저장→로딩 왕복 시뮬레이션으로 lateArrival/lateMinutes 정확히 보존되는 것 확인'
+  ]},
   { ts:'2026-08-06 17:30', t:'🐛 늦참(N분) 표시 안 되던 진짜 원인 2건 추가 발견 및 수정', important:true, d:[
     'v114 수정에도 계속 안 보인다는 제보로 재조사 — 승급함수 자체(11개 전부)는 이미 정상이었고, 진짜 원인은 표시 단계에 있었음',
     '① 메인 참석카드의 "대기(N)" 이름목록에서 6가지 대기유형만 나열하고 있었고, 최근 신설한 "늦참대기"(waitLateNames)가 이 목록 자체에서 빠져있었음 — 대기 총 카운트엔 잡히는데 이름이 안 보이던 "사라짐" 현상의 정체. 목록에 추가해서 이제 "(늦참)" 태그와 함께 정상 표시됨',
@@ -3268,7 +3276,7 @@ const SITE_LOG = [
   ]},
   { ts:'2026-07-21 22:00', t:'🎾 금요일 안내 · 이력조회 보강 · 칭호아이콘 위치조정 · 마일스톤 확장', important:true, d:[
     '금요일 20-22시 유니온·종합운동장 동시 일정시, 시작 6시간 전부터 "같은 성별끼리 모여서, 유니온 우선 이용" 안내 자동 발송 (유니온 코트 이용기록 유지 목적)',
-    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.115 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
+    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.116 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
     '관리자 "지금 자동승급 실행"의 일반 대기열 승급에도 AI관리자 댓글이 빠져있던 것 발견, 추가',
     '이름 옆 칭호 아이콘(럭키/최초달성/월간메달)을 참석목록·랭킹에서 제거하고 댓글에만 표시하도록 위치 조정',
     '럭키방문 마일스톤 5종에서 2000/2222/3000/3333/4000/4444 추가해 총 11종으로 확대'
@@ -3906,7 +3914,8 @@ function subscribeRealtime(){
             hidden: !!payload.new.hidden, type: payload.new.vote_type || undefined,
             ts: payload.new.ts ? Number(payload.new.ts) : Date.now(),
             isInvite: !!payload.new.is_invite, promotedFrom: payload.new.promoted_from || null, invitedBy: payload.new.invited_by || null,
-            displayName: payload.new.display_name || null
+            displayName: payload.new.display_name || null,
+            lateArrival: !!payload.new.late_arrival, lateMinutes: payload.new.late_minutes || null
           };
         }
         if(payload.eventType === 'INSERT' && payload.new && payload.new.vote_type === 'late_request' && hasAdminPower() && row.member_name !== state.myName){
