@@ -531,7 +531,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.113</span>
+      <span id="buildVersionTop" class="build-version-top">v.114</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -2061,7 +2061,7 @@ async function tryPromoteGwaeWaiting(ev){
     const limit = gwaeLimit(prospectiveTotal, ev.court_count);
     if(counts.gwaeAttend >= limit) break; // 아직 관내 비율 미충족, 더 기다려야 함
     const [name, v] = gwaeWaitEntries[0];
-    votes[name] = { status:'attend', gender:v.gender, district:'관외', hidden:false, promotedFrom:'wait', ts: v.ts };
+    votes[name] = { status:'attend', gender:v.gender, district:'관외', hidden:false, promotedFrom:'wait', lateArrival: v.lateArrival || false, lateMinutes: v.lateMinutes || null, ts: v.ts };
     await saveVoteRow(ev.id, name, votes[name]);
     pushNotification(`${name}님이 관외 대기에서 자동 승급되어 ${shortEventLabel(ev)} 참석으로 전환되었습니다.`, {eventId: ev.id, actor: name, category:'promotion'});
     await postAiAdminComment(ev.id, `${name}님이 대기에서 참석으로 자동 승급되었습니다. (사유: 관내 참석 인원 충족으로 관내:관외 비율 조건 통과)`);
@@ -2256,7 +2256,7 @@ async function checkEmergencyRequestTimeout(){
       const counts = computedCounts(ev);
       if(counts.regularTotal < ev.max_players){
         // 정원 미달: 관리자 부재시 긴급 프로토콜로 자동승급 (회원에게는 관리자 승인처럼 안내)
-        votes[name] = { status:'attend', gender:v.gender, district:v.district, hidden:false, promotedFrom:'wait', autoApprovedPopupPending:true, ts: Date.now() };
+        votes[name] = { status:'attend', gender:v.gender, district:v.district, hidden:false, promotedFrom:'wait', autoApprovedPopupPending:true, lateArrival: v.lateArrival || false, lateMinutes: v.lateMinutes || null, ts: Date.now() };
         await saveVoteRow(ev.id, name, votes[name]);
         pushNotification(`운영진(관리자)님이 ${name}님의 긴급 참석 요청(${shortEventLabel(ev)})을 승인했습니다.`, {eventId: ev.id, actor: name});
       }
@@ -2872,6 +2872,11 @@ document.getElementById('warnPanelToggle').onclick = async () => {
 };
 
 const SITE_LOG = [
+  { ts:'2026-08-06 16:00', t:'🐛 늦참(N분) 표시가 대기승급 후 사라지던 버그 수정', important:true, d:[
+    '30분초과 늦참으로 등록된 회원이 대기에서 참석으로 승급될 때, 경로에 따라 lateArrival/lateMinutes 정보가 새 참석기록에 누락되어 "(늦N분)" 표시가 사라지던 문제 발견',
+    '관외대기승급, 7분자동승인, 관외승인, 긴급참석승인, 관리자수동이동, 히든석등록 등 총 9곳의 참석전환 지점을 전수 점검해서 5곳에서 누락 발견, 전부 보존하도록 수정',
+    '승급 전/후 시뮬레이션으로 "(늦60분)" 표시가 정상적으로 유지되는 것 확인'
+  ]},
   { ts:'2026-08-06 15:20', t:'📊 공불출내역 — 월간 재고정산 리포트 신설 (CSV 다운로드)', important:true, d:[
     '관리자 전용 — "📊 월간 재고정산 리포트" 버튼으로 최근 30일 반출내역을 위치·종류별/회원별TOP10/일자별 추이로 한눈에 확인 가능',
     '⬇️ CSV 다운로드 버튼으로 실제 데이터를 엑셀 파일로 바로 받아볼 수 있음(날짜,회원,위치,종류,개수,사유 컬럼)',
@@ -3234,7 +3239,7 @@ const SITE_LOG = [
   ]},
   { ts:'2026-07-21 22:00', t:'🎾 금요일 안내 · 이력조회 보강 · 칭호아이콘 위치조정 · 마일스톤 확장', important:true, d:[
     '금요일 20-22시 유니온·종합운동장 동시 일정시, 시작 6시간 전부터 "같은 성별끼리 모여서, 유니온 우선 이용" 안내 자동 발송 (유니온 코트 이용기록 유지 목적)',
-    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.113 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
+    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.114 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
     '관리자 "지금 자동승급 실행"의 일반 대기열 승급에도 AI관리자 댓글이 빠져있던 것 발견, 추가',
     '이름 옆 칭호 아이콘(럭키/최초달성/월간메달)을 참석목록·랭킹에서 제거하고 댓글에만 표시하도록 위치 조정',
     '럭키방문 마일스톤 5종에서 2000/2222/3000/3333/4000/4444 추가해 총 11종으로 확대'
@@ -4390,7 +4395,7 @@ async function adminMoveMember(eventId, name, action){
     if(reasonChoice === null) return;
     const REASON_MAP = { '일반대기승급':'regular', '관외대기승급':'gwae_wait', '성별대기승급':'gender_wait', '연속참석승급':'consecutive', '늦참승급':'late' };
     const promotedFrom = REASON_MAP[reasonChoice] || null;
-    votes[name] = { status:'attend', gender:g, district, hidden:false, promotedFrom, ts: Date.now() };
+    votes[name] = { status:'attend', gender:g, district, hidden:false, promotedFrom, lateArrival: (existing && existing.lateArrival) || false, lateMinutes: (existing && existing.lateMinutes) || null, ts: Date.now() };
     await saveVoteRow(eventId, name, votes[name]);
     pushNotification(`${state.myName}(관리자)님이 ${name}님을 ${label} 참석으로 등록했습니다.${promotedFrom ? ` (사유: ${reasonChoice})` : ''}`, {eventId, actor: name});
   } else if(action === 'absent'){
@@ -4439,7 +4444,7 @@ async function approveGwaeReview(eventId, name){
   const votes = state.data.votes[eventId];
   if(!votes || !votes[name]) return;
   const v = votes[name];
-  votes[name] = { status:'attend', gender:v.gender, district:'관외', hidden:false, promotedFrom:'wait', ts: Date.now() };
+  votes[name] = { status:'attend', gender:v.gender, district:'관외', hidden:false, promotedFrom:'wait', lateArrival: v.lateArrival || false, lateMinutes: v.lateMinutes || null, ts: Date.now() };
   await saveVoteRow(eventId, name, votes[name]);
   pushNotification(`${state.myName}(관리자)님이 ${name}님의 관외 비율 승인 대기를 참석으로 전환했습니다.`, {eventId, actor: name});
   await saveData();
@@ -4573,7 +4578,7 @@ async function approveLateRequest(eventId, name){
   const v = votes[name];
   const ev = getInstances().find(e => e.id === eventId);
   const label = ev ? shortEventLabel(ev) : '';
-  votes[name] = { status:'attend', gender:v.gender, district:v.district, hidden:false, promotedFrom:'wait', ts: Date.now() };
+  votes[name] = { status:'attend', gender:v.gender, district:v.district, hidden:false, promotedFrom:'wait', lateArrival: v.lateArrival || false, lateMinutes: v.lateMinutes || null, ts: Date.now() };
   await saveVoteRow(eventId, name, votes[name]);
   pushNotification(`${state.myName}(관리자)님이 ${name}님의 긴급 참석 요청(${label})을 승인했습니다.`, {eventId, actor: name});
   // 이미 코트배치 제안이 나간 뒤에 긴급참석이 승인된 경우, 바뀐 인원으로 다시 한번 안내
@@ -4970,7 +4975,7 @@ async function setVote(eventId, status, gender){
         }
         hidden = true;
       }
-      votes[state.myName] = { status:'attend', gender: g, district: state.myDistrict, hidden, ts: Date.now() };
+      votes[state.myName] = { status:'attend', gender: g, district: state.myDistrict, hidden, lateArrival:false, lateMinutes:null, ts: Date.now() };
       pushNotification(`${state.myName}님 ${label} 참석 체크${hidden ? ' (히든)' : ''}`, {eventId, actor: state.myName});
       checkFirstAttendance(state.myName);
     }

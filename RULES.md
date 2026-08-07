@@ -956,3 +956,12 @@
 | CSV 다운로드 | `downloadBallCsv(recent)` — 날짜,회원,위치,종류,개수,사유 컬럼으로 BOM 포함 CSV 생성(엑셀 한글깨짐 방지), Blob+객체URL로 클라이언트에서 직접 다운로드 |
 | 스코프 주의 | 85번 버그의 재발 방지 위해, `list`를 모든 관련 함수(`renderBallMonthlyReport`, `computeBallMonthlyReport`, 버튼 클릭핸들러)에 명시적으로 매개변수 전달 — 시뮬레이션으로 30일 필터링·집계 정확성 확인 완료 |
 | 데이터 소스 | 기존과 동일하게 클라이언트가 이미 불러온 `list`(ignis_ball_checkouts 조회 결과) 활용 — 별도 DB 직접조회 없음 |
+
+## 87. 늦참(N분) 표시 승급후 유실 버그 수정 (v114, 2026-08-06)
+
+| 항목 | 규칙 |
+|---|---|
+| 버그 원인 | 대기(waiting)에서 참석(attend)으로 승급되는 코드 지점이 총 9곳 존재하는데, 그중 5곳이 새 vote 객체를 만들 때 `lateArrival`/`lateMinutes` 필드를 빠뜨림 — 늦참으로 등록됐다가 자동/수동 승급되면 "(늦N분)" 표시가 사라짐 |
+| 수정한 5곳 | `tryPromoteGwaeWaiting`(관외대기승급), `checkEmergencyRequestTimeout`(7분자동승인), `approveGwaeReview`(관외 관리자승인), `approveLateRequest`(긴급참석 관리자승인), `adminMoveMember`의 attend-경로(관리자 수동이동, `existing.lateArrival` 참조) |
+| 일관성 보완 | `setVote`의 히든석(운영진 오버플로우) 등록 지점에도 `lateArrival:false, lateMinutes:null` 명시적 추가 — 9곳 전부 필드 일관성 확보 |
+| 검증 | 전체 코드에서 `status:'attend'` 생성 지점 전수 검색으로 누락 여부 재확인(2차), 승급 전/후 시뮬레이션으로 "(늦60분)" 표시 유지 확인 |
