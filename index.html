@@ -531,7 +531,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.114</span>
+      <span id="buildVersionTop" class="build-version-top">v.115</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -1750,6 +1750,16 @@ function gwaeLimit(totalAttendance, courtCount){
   return Math.min(base, courtCount * 2);
 }
 
+function canPromoteRespectingGwaeLimit(ev, counts, v){
+  // regular/gender_wait 등 일반 대기유형이더라도, 그 사람이 관외라면 승급 직전 비율·관내최소인원 조건을 반드시 재확인
+  // (정원마감 등으로 gwae_wait이 아닌 다른 타입으로 대기하게 된 관외 회원이, 비율/관내최소3명 규칙을 우회해서 승급되는 걸 방지)
+  if(ev.location !== '종합운동장' || v.district !== '관외') return true;
+  if(counts.naeAttend < 3) return false;
+  const prospectiveTotal = counts.regularTotal + 1;
+  const limit = gwaeLimit(prospectiveTotal, ev.court_count);
+  return counts.gwaeAttend < limit;
+}
+
 function renderTabs(){
   const tabs = document.getElementById('tabs');
   tabs.innerHTML = "";
@@ -1983,13 +1993,13 @@ function computedCounts(ev){
       else { if(v.district==='관외') gwaeAttend++; else naeAttend++; }
     } else if(v.status==='absent'){ liveAbsent++; absentNames.push(entry); }
     else if(v.status==='waiting'){
-      if(v.type === 'consecutive' || v.type === 'late_consecutive'){ waitConsecutive++; waitConsecutiveNames.push(entry); }
+      if(v.type === 'consecutive' || v.type === 'late_consecutive'){ waitConsecutive++; waitConsecutiveNames.push(v.type === 'late_consecutive' ? Object.assign({}, entry, { lateArrival:true, lateMinutes: v.lateMinutes || null }) : entry); }
       else if(v.type === 'gwae_review'){ waitGwaeReview++; waitGwaeReviewNames.push(entry); }
       else if(v.type === 'late_request'){ waitLateRequest++; waitLateRequestNames.push(entry); }
       else if(v.type === 'gwae_wait'){ waitGwaeWait++; waitGwaeWaitNames.push(entry); }
       else if(v.type === 'gender_wait'){ waitGenderWait++; waitGenderWaitNames.push(entry); }
       else if(v.type === 'preclose_wait'){ waitPreclose++; waitPrecloseNames.push(entry); }
-      else if(v.type === 'late'){ waitLate++; waitLateNames.push(Object.assign({}, entry, { lateMinutes: v.lateMinutes || null })); }
+      else if(v.type === 'late'){ waitLate++; waitLateNames.push(Object.assign({}, entry, { lateArrival:true, lateMinutes: v.lateMinutes || null })); }
       else { waitRegular++; waitRegularNames.push(entry); }
     }
   });
@@ -2231,7 +2241,9 @@ async function checkConsecutiveWaitingLatePromotion(){
         .filter(([,v]) => v.status === 'waiting' && (v.type === 'late_consecutive' || (v.type === 'consecutive' && isPeakSeason())))
         .sort((a,b) => waitingSortKey(a[1]) - waitingSortKey(b[1]));
       if(waiting.length === 0) break;
-      const [name, v] = waiting[0];
+      const promotable = waiting.find(([,v]) => canPromoteRespectingGwaeLimit(ev, counts, v));
+      if(!promotable) break;
+      const [name, v] = promotable;
       votes[name] = { status:'attend', gender: v.gender, district: v.district, hidden:false, promotedFrom: v.type, lateArrival: v.lateArrival || false, lateMinutes: v.lateMinutes || null, ts: Date.now() };
       await saveVoteRow(ev.id, name, votes[name]);
       const reasonLabel = v.type === 'late_consecutive' ? '늦참+연속참석' : '연속참석';
@@ -2339,7 +2351,9 @@ async function promoteGenderFlexWaiting(ev, flexGender){
       })
       .sort((a,b) => waitingSortKey(a[1]) - waitingSortKey(b[1]));
     if(waiting.length === 0) break;
-    const [name, v] = waiting[0];
+    const promotable = waiting.find(([,v]) => canPromoteRespectingGwaeLimit(ev, counts, v));
+    if(!promotable) break;
+    const [name, v] = promotable;
     const promotedFrom = v.type === 'consecutive' ? 'consecutive' : 'wait';
     votes[name] = { status:'attend', gender: v.gender, district: v.district, hidden:false, promotedFrom, lateArrival: v.lateArrival || false, lateMinutes: v.lateMinutes || null, ts: v.ts };
     await saveVoteRow(ev.id, name, votes[name]);
@@ -2390,6 +2404,8 @@ async function tryAutoPromote(ev){
   let changed = false;
   for(const [name, v] of waitingEntries){
     if(available <= 0) break;
+    const liveCounts = computedCounts(ev); // 매 승급마다 최신 카운트로 재확인
+    if(!canPromoteRespectingGwaeLimit(ev, liveCounts, v)) continue; // 관외비율 초과시 건너뛰고 다음 후보로
     const promotedFrom = v.type === 'consecutive' ? 'consecutive' : 'wait';
     votes[name] = { status:'attend', gender: v.gender, district: v.district, hidden:false, promotedFrom, lateArrival: v.lateArrival || false, lateMinutes: v.lateMinutes || null, ts: Date.now() };
     await saveVoteRow(ev.id, name, votes[name]);
@@ -2872,6 +2888,19 @@ document.getElementById('warnPanelToggle').onclick = async () => {
 };
 
 const SITE_LOG = [
+  { ts:'2026-08-06 17:30', t:'🐛 늦참(N분) 표시 안 되던 진짜 원인 2건 추가 발견 및 수정', important:true, d:[
+    'v114 수정에도 계속 안 보인다는 제보로 재조사 — 승급함수 자체(11개 전부)는 이미 정상이었고, 진짜 원인은 표시 단계에 있었음',
+    '① 메인 참석카드의 "대기(N)" 이름목록에서 6가지 대기유형만 나열하고 있었고, 최근 신설한 "늦참대기"(waitLateNames)가 이 목록 자체에서 빠져있었음 — 대기 총 카운트엔 잡히는데 이름이 안 보이던 "사라짐" 현상의 정체. 목록에 추가해서 이제 "(늦참)" 태그와 함께 정상 표시됨',
+    '② waitLateNames·waitConsecutiveNames(늦참+연참)의 entry 자체에 lateArrival 필드가 아예 없어서, 있어도 "(늦N분)" 태그 조건을 항상 통과 못하던 문제 — 두 목록 모두 entry 생성시 lateArrival:true 포함하도록 수정',
+    '5분/45분/60분 등 모든 분 단위 정상 표시 확인, 즉시참석·대기중·승급후 3단계 전부 시뮬레이션 검증 완료 — 30분 이상만 표시되는 제한 없음(요청하신 대로 전체 분 단위 표시)'
+  ]},
+  { ts:'2026-08-06 17:00', t:'🔍 승급 관련 전체 함수 전수감사 — 관외비율 우회 가능성 발견 및 수정', important:true, d:[
+    '사용자 제보로 승급함수 11개 전체를 전수 점검, 5곳(tryAutoPromote/promoteWaitingForCapacity/checkConsecutiveWaitingLatePromotion/promoteGenderFlexWaiting/forcePromoteWaitingNow)에서 관외 비율(gwaeLimit)·관내최소3명 규칙을 재확인 안 하고 승급시키는 구조적 허점 발견',
+    '경위: 관외 회원이 "비율은 통과했지만 전체정원이 꽉 차서" regular 타입으로 대기하게 되는 경우가 있는데, 이후 정원 확대·낮12시 자동승급 등으로 이 사람이 승급될 때 관외규칙 자체가 재확인 없이 통과되던 구조적 문제',
+    '공통 헬퍼함수 canPromoteRespectingGwaeLimit() 신설, 5개 함수 전부에 적용 — 승급 직전 매번 최신 카운트로 관외비율·관내최소3명 재확인, 조건 미충족시 다음 대기자로 건너뛰도록 수정',
+    '5가지 케이스(관내/관내미충족/비율여유/비율꽉참/유니온) 시뮬레이션으로 전부 정확한 결과 확인',
+    '※ "참6+대기1" 질문 답변: 본인이 대기를 직접 누른 시각(ts) 기준으로 우선순위가 고정되며, 이후 다른 회원이 참석을 눌러도 대기자 우선순위는 밀리지 않음(정상 확인)'
+  ]},
   { ts:'2026-08-06 16:00', t:'🐛 늦참(N분) 표시가 대기승급 후 사라지던 버그 수정', important:true, d:[
     '30분초과 늦참으로 등록된 회원이 대기에서 참석으로 승급될 때, 경로에 따라 lateArrival/lateMinutes 정보가 새 참석기록에 누락되어 "(늦N분)" 표시가 사라지던 문제 발견',
     '관외대기승급, 7분자동승인, 관외승인, 긴급참석승인, 관리자수동이동, 히든석등록 등 총 9곳의 참석전환 지점을 전수 점검해서 5곳에서 누락 발견, 전부 보존하도록 수정',
@@ -3239,7 +3268,7 @@ const SITE_LOG = [
   ]},
   { ts:'2026-07-21 22:00', t:'🎾 금요일 안내 · 이력조회 보강 · 칭호아이콘 위치조정 · 마일스톤 확장', important:true, d:[
     '금요일 20-22시 유니온·종합운동장 동시 일정시, 시작 6시간 전부터 "같은 성별끼리 모여서, 유니온 우선 이용" 안내 자동 발송 (유니온 코트 이용기록 유지 목적)',
-    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.114 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
+    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.115 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
     '관리자 "지금 자동승급 실행"의 일반 대기열 승급에도 AI관리자 댓글이 빠져있던 것 발견, 추가',
     '이름 옆 칭호 아이콘(럭키/최초달성/월간메달)을 참석목록·랭킹에서 제거하고 댓글에만 표시하도록 위치 조정',
     '럭키방문 마일스톤 5종에서 2000/2222/3000/3333/4000/4444 추가해 총 11종으로 확대'
@@ -4166,7 +4195,7 @@ function renderEventCard(ev){
       </div>
       <div class="attend-box waiting">
         <div class="box-head">대기 (${counts.waiting})</div>
-        <div class="name-tags">${renderNameChips(counts.waitRegularNames,'',false,ev.id)}${renderNameChips(counts.waitConsecutiveNames,' (연속)',false,ev.id)}${renderNameChips(counts.waitGwaeReviewNames,' (승인대기)',false,ev.id)}${renderNameChips(counts.waitGwaeWaitNames,' (관외대기)',false,ev.id)}${renderNameChips(counts.waitGenderWaitNames,' (성별대기)',false,ev.id)}${renderNameChips(counts.waitPrecloseNames,' (선마감대기)',false,ev.id)}</div>
+        <div class="name-tags">${renderNameChips(counts.waitRegularNames,'',false,ev.id)}${renderNameChips(counts.waitLateNames,' (늦참)',false,ev.id)}${renderNameChips(counts.waitConsecutiveNames,' (연속)',false,ev.id)}${renderNameChips(counts.waitGwaeReviewNames,' (승인대기)',false,ev.id)}${renderNameChips(counts.waitGwaeWaitNames,' (관외대기)',false,ev.id)}${renderNameChips(counts.waitGenderWaitNames,' (성별대기)',false,ev.id)}${renderNameChips(counts.waitPrecloseNames,' (선마감대기)',false,ev.id)}</div>
       </div>
     </div>
     ${myStatus === 'waiting' ? renderMyWaitingNotice(myVote, counts) : ''}
@@ -5061,7 +5090,9 @@ async function promoteWaitingForCapacity(ev){
       })
       .sort((a,b) => waitingSortKey(a[1]) - waitingSortKey(b[1]));
     if(waiting.length === 0) break;
-    const [name, v] = waiting[0];
+    const promotable = waiting.find(([,v]) => canPromoteRespectingGwaeLimit(ev, counts, v));
+    if(!promotable) break; // 남은 대기자가 전부 관외인데 비율이 이미 꽉 찼다면 여기서 중단
+    const [name, v] = promotable;
     const promotedFrom = v.type === 'consecutive' ? 'consecutive' : 'wait';
     votes[name] = { status:'attend', gender: v.gender, district: v.district, hidden:false, promotedFrom, lateArrival: v.lateArrival || false, lateMinutes: v.lateMinutes || null, ts: v.ts };
     await saveVoteRow(ev.id, name, votes[name]);
@@ -5127,6 +5158,8 @@ async function forcePromoteWaitingNow(ev){
   let changed = false;
   for(const [name, v] of waitingEntries){
     if(available <= 0) break;
+    const liveCounts = computedCounts(ev);
+    if(!canPromoteRespectingGwaeLimit(ev, liveCounts, v)) continue; // 관외비율 초과시 건너뛰고 다음 후보로 (관리자 수동실행이라도 비율규칙은 유지)
     const promotedFrom = v.type === 'consecutive' ? 'consecutive' : 'wait';
     votes[name] = { status:'attend', gender: v.gender, district: v.district, hidden:false, promotedFrom, lateArrival: v.lateArrival || false, lateMinutes: v.lateMinutes || null, ts: Date.now() };
     await saveVoteRow(ev.id, name, votes[name]);

@@ -965,3 +965,23 @@
 | 수정한 5곳 | `tryPromoteGwaeWaiting`(관외대기승급), `checkEmergencyRequestTimeout`(7분자동승인), `approveGwaeReview`(관외 관리자승인), `approveLateRequest`(긴급참석 관리자승인), `adminMoveMember`의 attend-경로(관리자 수동이동, `existing.lateArrival` 참조) |
 | 일관성 보완 | `setVote`의 히든석(운영진 오버플로우) 등록 지점에도 `lateArrival:false, lateMinutes:null` 명시적 추가 — 9곳 전부 필드 일관성 확보 |
 | 검증 | 전체 코드에서 `status:'attend'` 생성 지점 전수 검색으로 누락 여부 재확인(2차), 승급 전/후 시뮬레이션으로 "(늦60분)" 표시 유지 확인 |
+
+## 88. 승급 관련 함수 전수감사 — 관외비율 우회 가능성 수정 (v115, 2026-08-06)
+
+| 항목 | 규칙 |
+|---|---|
+| 계기 | 사용자가 "자동승급이 기존규칙을 무시하는 사례가 더 있는지" 질문 — 승급 관련 함수 11개(`tryPromoteGwaeWaiting`, `checkConsecutiveWaitingLatePromotion`, `checkEmergencyRequestTimeout`, `checkGenderFlexPromotions`, `promoteGenderFlexWaiting`, `tryAutoPromote`, `runAutoPromotions`, `approveGwaeReview`, `approveLateRequest`, `promoteWaitingForCapacity`, `forcePromoteWaitingNow`, `adminForcePromote`) 전수 점검 |
+| 발견한 구조적 허점 | 관외 회원이 "비율은 여유 있지만 전체정원이 꽉 차서" `type:'regular'`로 대기하게 되는 케이스가 존재 — 이후 이 사람이 `tryAutoPromote`(낮12시)/`promoteWaitingForCapacity`(정원확대)/`checkConsecutiveWaitingLatePromotion`(연참1시간전)/`promoteGenderFlexWaiting`(성별유연)/`forcePromoteWaitingNow`(관리자수동)로 승급될 때, 5곳 전부 관외비율(gwaeLimit)·관내최소3명 규칙을 재확인하지 않고 그대로 승급시키는 구조였음 |
+| 수정 | 공통 헬퍼 `canPromoteRespectingGwaeLimit(ev, counts, v)` 신설 — 종합운동장+관외인 경우만 (관내최소3명 충족 && 비율여유) 체크, 관내이거나 유니온이면 항상 true. 5개 함수 전부에 적용: `tryAutoPromote`/`forcePromoteWaitingNow`는 순회 루프에서 `continue`로 스킵, `promoteWaitingForCapacity`/`checkConsecutiveWaitingLatePromotion`/`promoteGenderFlexWaiting`은 `waiting[0]` 대신 `waiting.find(...)`로 조건 통과하는 첫 대기자를 탐색 |
+| 검증 | 관내/관내최소3명미충족/비율여유/비율꽉참/유니온(관외규칙무관) 5개 케이스 시뮬레이션 전부 정확 |
+| 부가 확인 | "참석6+대기1" 질문에 대한 답변 — 대기는 본인이 클릭한 시각(ts) 기준으로 우선순위가 고정되며, 이후 다른 회원의 참석 등록은 기존 대기자 우선순위에 영향 없음(정상 동작 확인, 별도 수정 불필요) |
+
+## 89. 늦참(N분) 표시 안 되던 진짜 원인 2건 수정 (v115, 2026-08-06)
+
+| 항목 | 내용 |
+|---|---|
+| 배경 | v114에서 승급함수 5곳의 lateArrival 보존을 고쳤음에도 "여전히 안 보인다"는 재제보 — 승급함수 11개 전체를 재검증했으나 전부 정상이었음, 근본 원인은 승급 로직이 아니라 화면표시 단계에 있었음 |
+| 원인① | 메인 참석카드 "대기(N)" 이름목록(`renderNameChips` 호출부)에서 6가지 대기유형만 나열하고, 최근 신설한 `waitLateNames`(늦참대기)가 이 목록 자체에서 누락 — 카운트엔 포함되지만 이름은 안 보이는 "사라짐" 현상의 정체. 목록에 `renderNameChips(counts.waitLateNames,' (늦참)',...)` 추가 |
+| 원인② | `waitLateNames`/`waitConsecutiveNames`(late_consecutive 케이스)의 entry 객체 자체에 `lateArrival` 필드가 없어서, `lateTag` 조건(`e.lateArrival`)이 항상 false — 두 목록 모두 entry 생성시 `lateArrival:true` 명시적으로 포함하도록 수정 |
+| 검증 | 5분/45분/60분 등 다양한 분 단위로 즉시참석·대기중·승급후 3단계 시뮬레이션 전부 정상 확인. 30분 이상만 표시되는 제한 없이 전체 분 단위 표시됨(요청사항 반영) |
+| 교훈 | 새 대기유형(waitLateNames)을 만들 때, 데이터 집계(computedCounts)만 고치고 실제 화면에 뿌리는 지점(메인카드 이름목록)을 함께 안 고치면 "데이터는 있는데 안 보이는" 버그가 생김 — 새 카테고리 추가시 표시 지점 전체를 체크리스트로 확인할 것 |
