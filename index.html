@@ -531,7 +531,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.112</span>
+      <span id="buildVersionTop" class="build-version-top">v.113</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -2872,6 +2872,11 @@ document.getElementById('warnPanelToggle').onclick = async () => {
 };
 
 const SITE_LOG = [
+  { ts:'2026-08-06 15:20', t:'📊 공불출내역 — 월간 재고정산 리포트 신설 (CSV 다운로드)', important:true, d:[
+    '관리자 전용 — "📊 월간 재고정산 리포트" 버튼으로 최근 30일 반출내역을 위치·종류별/회원별TOP10/일자별 추이로 한눈에 확인 가능',
+    '⬇️ CSV 다운로드 버튼으로 실제 데이터를 엑셀 파일로 바로 받아볼 수 있음(날짜,회원,위치,종류,개수,사유 컬럼)',
+    '재고 실사 후 정합성 확인(충전량-반출량-현재고 대조)에 활용 가능하도록 설계'
+  ]},
   { ts:'2026-08-06 14:57', t:'🐛 공불출내역 삭제버튼 클릭 무반응 긴급수정', important:true, d:[
     '바로 직전에 추가한 "본인기록 삭제+재고복원" 기능에서, 삭제 로직이 참조하는 list 변수가 실제로는 다른 함수(wireBallSection) 안에 있어 접근 불가능한 상태였음 — 클릭은 되지만 내부에서 "list is not defined" 오류가 나서 아무 반응도 없는 것처럼 보이던 버그',
     'wireBallSection이 list를 매개변수로 전달받도록 수정, 호출부도 함께 수정',
@@ -3229,7 +3234,7 @@ const SITE_LOG = [
   ]},
   { ts:'2026-07-21 22:00', t:'🎾 금요일 안내 · 이력조회 보강 · 칭호아이콘 위치조정 · 마일스톤 확장', important:true, d:[
     '금요일 20-22시 유니온·종합운동장 동시 일정시, 시작 6시간 전부터 "같은 성별끼리 모여서, 유니온 우선 이용" 안내 자동 발송 (유니온 코트 이용기록 유지 목적)',
-    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.112 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
+    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.113 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
     '관리자 "지금 자동승급 실행"의 일반 대기열 승급에도 AI관리자 댓글이 빠져있던 것 발견, 추가',
     '이름 옆 칭호 아이콘(럭키/최초달성/월간메달)을 참석목록·랭킹에서 제거하고 댓글에만 표시하도록 위치 조정',
     '럭키방문 마일스톤 5종에서 2000/2222/3000/3333/4000/4444 추가해 총 11종으로 확대'
@@ -6373,14 +6378,87 @@ function renderBallSection(list){
             ${rows}
           </div>`;
         })()}
+        ${admin ? `<button class="fp-reset-btn" id="ballMonthlyReportBtn" style="background:var(--brand-soft);color:var(--brand-dark);border-color:var(--brand);">📊 월간 재고정산 리포트 (CSV 다운로드)</button>` : ''}
+        <div id="ballMonthlyReportBody"></div>
         ${admin ? `<button class="fp-reset-btn" id="ballResetAllBtn">🔄 전체 초기화</button>` : ''}
       </div>
     </div>
   `;
 }
 
+function computeBallMonthlyReport(list, days){
+  days = days || 30;
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - days); cutoff.setHours(0,0,0,0);
+  const recent = list.filter(b => new Date(b.checkout_date) >= cutoff);
+
+  const byLocationType = {}; // "위치|타입" -> 합계
+  const byMember = {};
+  const byDate = {};
+  recent.forEach(b => {
+    const key = `${b.location}|${b.ball_type}`;
+    byLocationType[key] = (byLocationType[key] || 0) + b.count;
+    byMember[b.member_name] = (byMember[b.member_name] || 0) + b.count;
+    byDate[b.checkout_date] = (byDate[b.checkout_date] || 0) + b.count;
+  });
+
+  const memberRanking = Object.entries(byMember).sort((a,b) => b[1]-a[1]);
+  const dateTrend = Object.entries(byDate).sort((a,b) => a[0].localeCompare(b[0]));
+
+  return { recent, byLocationType, memberRanking, dateTrend, cutoff: localIso(cutoff) };
+}
+
+function renderBallMonthlyReport(list){
+  const body = document.getElementById('ballMonthlyReportBody');
+  if(!body) return;
+  const { recent, byLocationType, memberRanking, dateTrend, cutoff } = computeBallMonthlyReport(list, 30);
+  const stock = state.data.ballStock || {};
+  const lastRefill = state.data.ballStockLastRefill || {};
+
+  const locTypeRows = Object.entries(byLocationType).sort((a,b)=>b[1]-a[1])
+    .map(([k,v]) => { const [loc,type] = k.split('|'); return `${loc} · ${type}: <b>${v}개</b>`; }).join('<br>');
+  const memberRows = memberRanking.slice(0,10).map(([n,c],i) => `${i+1}. ${escapeHtml(n)} — ${c}개`).join('<br>');
+  const trendRows = dateTrend.map(([d,c]) => `${d.slice(5)}: ${c}개`).join(' · ');
+
+  const clubBallTotal = recent.filter(b=>b.ball_type==='클럽볼').reduce((a,b)=>a+b.count,0);
+
+  body.innerHTML = `
+    <div class="fp-list-box" style="border-color:var(--brand);">
+      <div class="fp-h">📊 최근 30일 재고정산 리포트 (${cutoff} ~ 오늘)</div>
+      <div style="font-size:calc(11px * var(--font-scale, 1));padding:6px 0;">
+        <b>현재 재고</b> — 종합운동장 ${stock['종합운동장']??0}개(충전 ${lastRefill['종합운동장']||'-'}) · 유니온 ${stock['유니온']??0}개(충전 ${lastRefill['유니온']||'-'}) · 창고 ${stock['창고']??0}개(충전 ${lastRefill['창고']||'-'})<br><br>
+        <b>최근 30일 클럽볼 총 반출</b> — ${clubBallTotal}개<br><br>
+        <b>위치·종류별 반출량</b><br>${locTypeRows || '기록 없음'}<br><br>
+        <b>회원별 반출 TOP10</b><br>${memberRows || '기록 없음'}<br><br>
+        <b>일자별 추이</b><br>${trendRows || '기록 없음'}<br><br>
+        <span style="color:var(--ink-faint);">※ 재고 정합성 확인: "충전일 이후 반출량"과 "충전량-현재재고" 차이를 비교해서 오차가 있는지 직접 대조해 보세요.</span>
+      </div>
+      <button id="ballCsvDownloadBtn" style="width:100%;background:var(--brand);color:#fff;border:none;border-radius:8px;padding:8px;font-weight:700;cursor:pointer;margin-top:6px;">⬇️ CSV로 다운로드 (엑셀에서 열기)</button>
+    </div>
+  `;
+  document.getElementById('ballCsvDownloadBtn').onclick = () => downloadBallCsv(recent);
+}
+
+function downloadBallCsv(recent){
+  const header = '날짜,회원,위치,종류,개수,사유\n';
+  const rows = recent.slice().sort((a,b) => a.checkout_date.localeCompare(b.checkout_date)).map(b =>
+    `${b.checkout_date},${b.member_name},${b.location},${b.ball_type},${b.count},${b.reason||''}`
+  ).join('\n');
+  const csv = '\uFEFF' + header + rows; // BOM 추가로 엑셀 한글깨짐 방지
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `이그니스_클럽볼_반출내역_${localIso(new Date())}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 function wireBallSection(list){
   list = list || [];
+  const monthlyBtn = document.getElementById('ballMonthlyReportBtn');
+  if(monthlyBtn) monthlyBtn.onclick = () => renderBallMonthlyReport(list);
   const addBtn = document.getElementById('ballAddBtn');
   if(addBtn) addBtn.onclick = async () => {
     const name = document.getElementById('ballNameSelect').value;
