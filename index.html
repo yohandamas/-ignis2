@@ -531,7 +531,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.116</span>
+      <span id="buildVersionTop" class="build-version-top">v.117</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -1210,7 +1210,8 @@ async function loadVotesTable(){
         ts: row.ts ? Number(row.ts) : Date.now(),
         isInvite: !!row.is_invite, promotedFrom: row.promoted_from || null, invitedBy: row.invited_by || null,
         displayName: row.display_name || null,
-        lateArrival: !!row.late_arrival, lateMinutes: row.late_minutes || null
+        lateArrival: !!row.late_arrival, lateMinutes: row.late_minutes || null,
+        autoApprovedPopupPending: !!row.auto_approved_popup_pending
       };
     });
     return votes;
@@ -1231,7 +1232,8 @@ async function saveVoteRow(eventId, name, voteObj){
         hidden: !!voteObj.hidden, vote_type: voteObj.type || null, ts: voteObj.ts || Date.now(),
         is_invite: !!voteObj.isInvite, promoted_from: voteObj.promotedFrom || null, invited_by: voteObj.invitedBy || null,
         display_name: voteObj.displayName || null,
-        late_arrival: !!voteObj.lateArrival, late_minutes: voteObj.lateMinutes || null
+        late_arrival: !!voteObj.lateArrival, late_minutes: voteObj.lateMinutes || null,
+        auto_approved_popup_pending: !!voteObj.autoApprovedPopupPending
       });
       // 이력 기록 (참석/대기 클릭시 "언제 처음눌렀는지 / 언제 승급됐는지" 조회용)
       const histKey = eventId + '|' + name;
@@ -2890,6 +2892,14 @@ document.getElementById('warnPanelToggle').onclick = async () => {
 };
 
 const SITE_LOG = [
+  { ts:'2026-08-06 18:30', t:'🔍 "로컬에서만 돌고 DB저장 안 되는" 유사사례 전체 전수점검', important:true, d:[
+    'lateArrival 사건을 계기로, votes 테이블 필드·state.data(JSON blob) 필드 전체를 대상으로 같은 유형의 버그가 더 있는지 전수 점검',
+    '① votes 테이블: 11개 필드 중 autoApprovedPopupPending(7분 자동승인 팝업 안내용 플래그) 1건 발견 — DB에 auto_approved_popup_pending 컬럼 추가, 저장·로딩·실시간동기화 3곳 전부 매핑 완료',
+    '② state.data(JSON blob): defaultData의 모든 필드가 MERGE_MAP_FIELDS/MERGE_ARRAY_FIELDS/특별취급(templates,extraMembers) 중 하나로 전부 커버됨 — 누락 없음 확인',
+    '③ markDirty 호출 누락 의심 3건 발견했으나, 전부 "다른 세션이 이미 처리한 값을 로컬에 동기화만 하는" 정상 로직으로 확인(오탐)',
+    '④ comments/notifications/warnings/penalties/ball_checkouts — 전부 별도 정규테이블로 완전히 분리되어 있어 이 유형의 문제와 무관함을 재확인',
+    'Supabase MCP 연동으로 컬럼 추가부터 검증까지 전부 대화 중 직접 실행 완료(SQL 파일 별도 실행 불필요)'
+  ]},
   { ts:'2026-08-06 18:00', t:'🚨 늦참(N분) 표시 — 진짜 최종 근본원인 발견: DB 저장 자체가 누락되고 있었음', important:true, d:[
     'v115까지 고친 건 전부 "로컬 메모리에서의 처리"였는데, saveVoteRow(DB 저장 함수) 자체가 애초에 late_arrival/late_minutes 필드를 Supabase에 전혀 저장하지 않고 있었음 — 로컬에선 잠깐 보여도, 새로고침·재접속·다른기기에서 보면 DB에 없으니 사라지는 구조적 문제',
     '저장(saveVoteRow) + 초기로딩(loadData) + 실시간동기화(realtime 구독) 3곳 전부에 late_arrival/late_minutes 매핑 추가 — 이제 서버 왕복까지 완전히 보존됨',
@@ -3276,7 +3286,7 @@ const SITE_LOG = [
   ]},
   { ts:'2026-07-21 22:00', t:'🎾 금요일 안내 · 이력조회 보강 · 칭호아이콘 위치조정 · 마일스톤 확장', important:true, d:[
     '금요일 20-22시 유니온·종합운동장 동시 일정시, 시작 6시간 전부터 "같은 성별끼리 모여서, 유니온 우선 이용" 안내 자동 발송 (유니온 코트 이용기록 유지 목적)',
-    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.116 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
+    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.117 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
     '관리자 "지금 자동승급 실행"의 일반 대기열 승급에도 AI관리자 댓글이 빠져있던 것 발견, 추가',
     '이름 옆 칭호 아이콘(럭키/최초달성/월간메달)을 참석목록·랭킹에서 제거하고 댓글에만 표시하도록 위치 조정',
     '럭키방문 마일스톤 5종에서 2000/2222/3000/3333/4000/4444 추가해 총 11종으로 확대'
@@ -3915,7 +3925,8 @@ function subscribeRealtime(){
             ts: payload.new.ts ? Number(payload.new.ts) : Date.now(),
             isInvite: !!payload.new.is_invite, promotedFrom: payload.new.promoted_from || null, invitedBy: payload.new.invited_by || null,
             displayName: payload.new.display_name || null,
-            lateArrival: !!payload.new.late_arrival, lateMinutes: payload.new.late_minutes || null
+            lateArrival: !!payload.new.late_arrival, lateMinutes: payload.new.late_minutes || null,
+            autoApprovedPopupPending: !!payload.new.auto_approved_popup_pending
           };
         }
         if(payload.eventType === 'INSERT' && payload.new && payload.new.vote_type === 'late_request' && hasAdminPower() && row.member_name !== state.myName){

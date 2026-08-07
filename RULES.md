@@ -996,3 +996,15 @@
 | ⚠️ DB 마이그레이션 필요 | Supabase `ignis_votes` 테이블에 `late_arrival`(boolean), `late_minutes`(integer) 컬럼이 없으면 upsert 자체가 실패할 수 있음 — `SQL_늦참컬럼추가.sql` 1회 실행 필요: `ALTER TABLE ignis_votes ADD COLUMN IF NOT EXISTS late_arrival boolean DEFAULT false, ADD COLUMN IF NOT EXISTS late_minutes integer DEFAULT NULL;` |
 | 검증 | 저장→로딩 왕복(round-trip) 시뮬레이션으로 lateArrival/lateMinutes가 DB를 거쳐도 정확히 보존되는 것 확인 |
 | 교훈 | 새 필드를 votes 객체에 추가할 때, "로컬 상태 처리"와 "DB 영속화(저장+로딩+realtime)"는 완전히 별개의 체크 대상 — 로컬에서 잘 되는 것처럼 보여도 DB 왕복까지 반드시 확인해야 함 |
+
+## 91. "로컬처리 vs DB저장" 유사사례 전체 전수점검 (v117, 2026-08-06)
+
+| 항목 | 내용 |
+|---|---|
+| 계기 | 90번(lateArrival DB저장누락) 사건 직후, 같은 유형의 버그가 다른 곳에도 있는지 전체 점검 요청 |
+| 방법 | ① `votes[...] = {...}` 전체 패턴에서 실제 사용되는 필드 정규식 추출 → `saveVoteRow` 저장목록과 대조 ② `state.data.XXX` 사용 필드 전체 → `defaultData()` 정의 필드와 대조 ③ MERGE_MAP_FIELDS 대상 필드의 `state.data.FIELD[key]=` 대입 지점 전수 검색 → 인근에 `markDirty` 호출 여부 확인 |
+| 발견① | `autoApprovedPopupPending`(7분 자동승인 팝업 안내용) — votes 저장목록에서 누락. DB에 `auto_approved_popup_pending` boolean 컬럼 추가(Supabase MCP로 직접 실행), 저장·로딩·realtime 3곳 매핑 완료 |
+| 확인② | `state.data`(JSON blob) — defaultData의 모든 필드가 MERGE_MAP_FIELDS/MERGE_ARRAY_FIELDS/특별취급(templates·extraMembers) 중 하나로 전부 커버됨, 누락 없음 |
+| 확인③ | markDirty 호출 누락으로 보였던 3건(전부 notifiedFlags) — 실제로는 "다른 세션이 서버에 이미 저장한 값을 로컬에 동기화만 하는" 의도된 정상 로직(재확인 후 저장 스킵), 오탐으로 확인 |
+| 확인④ | comments/notifications/warnings/penalties/ball_checkouts — 전부 별도 정규 테이블(`ignis_comments` 등)로 완전히 분리되어 있어 이 유형 문제와 무관 |
+| 실행 방식 | Supabase MCP(`apply_migration`, `execute_sql`) 연동으로 컬럼 추가·검증을 대화 중 직접 실행 — 더 이상 별도 SQL 파일을 사용자가 수동 실행할 필요 없음 |
