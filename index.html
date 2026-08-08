@@ -531,7 +531,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.118</span>
+      <span id="buildVersionTop" class="build-version-top">v.119</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -2510,7 +2510,7 @@ async function buildDailySummary(){
   const stillWaiting = [];
   todays.forEach(e => {
     const c = computedCounts(e);
-    const names = [...c.waitRegularNames, ...c.waitConsecutiveNames, ...c.waitGwaeReviewNames, ...c.waitLateRequestNames, ...c.waitGwaeWaitNames, ...c.waitGenderWaitNames, ...c.waitPrecloseNames].map(n => n.name);
+    const names = [...c.waitRegularNames, ...c.waitConsecutiveNames, ...c.waitGwaeReviewNames, ...c.waitLateRequestNames, ...c.waitGwaeWaitNames, ...c.waitGenderWaitNames, ...c.waitPrecloseNames, ...c.waitLateNames].map(n => n.name);
     if(names.length) stillWaiting.push(`${e.location} ${formatHour(e.start_time)}-${formatHour(e.end_time)}: ${names.join(', ')}`);
   });
   if(stillWaiting.length){
@@ -2892,6 +2892,12 @@ document.getElementById('warnPanelToggle').onclick = async () => {
 };
 
 const SITE_LOG = [
+  { ts:'2026-08-08 00:00', t:'🐛 늦참(30분 초과, 60분+ 포함) 신규 등록 시 조용히 실패하던 문제 방어 처리', important:true, d:[
+    '기존엔 checkLateArrival() 내부에서 오류가 나면(예: 연속참석 판정 함수 예외) 아무 안내 없이 등록이 중단되어 "대기 목록에 안 보인다"는 증상으로만 나타났음 — try/catch로 감싸서 실패 시 사용자에게 명확한 오류 메시지를 띄우도록 수정',
+    '연속참석 판정(isConsecutiveCase) 실패는 등록 전체를 막지 않고 일반 늦참으로 대체 처리되도록 격리',
+    '직접입력(예: 60분) 시 숫자 외 문자가 섞여 들어와도 안전하게 숫자만 추출하도록 파싱 보강, 300분 초과 등 비정상 값은 사전에 안내 후 차단',
+    '오늘의 상황보고 패널과 일일 결산(끝까지 대기하다 승급 못하신 분) 목록에서 늦참대기/긴급요청/성별대기/선마감대기 일부 카테고리가 누락되어 있던 것도 함께 보강'
+  ]},
   { ts:'2026-08-06 19:00', t:'🐛 관리자모드 "이동▾" 버튼이 화면 밖으로 나가서 못 누르던 버그 수정', important:true, d:[
     '이름+승급태그+관외+시간+늦N분 등이 많이 붙은 참석자의 경우, 관리자모드 "이동▾" 드롭다운이 화면 밖으로 밀려나서 아예 클릭할 수 없는 문제 발견',
     '원인: .name-chip에 white-space:nowrap이 있어 칩 내부 모든 내용(이름·태그들·이동버튼)이 강제로 한 줄에 붙어있으려 했고, 예전에 추가한 overflow-x:hidden(다른 문제 방지용)과 겹치면서 화면 밖으로 나간 부분에 가로스크롤로도 접근할 방법이 아예 없어짐',
@@ -4462,7 +4468,9 @@ async function adminMoveMember(eventId, name, action){
     const waitType = action.split('-').slice(1).join('-'); // regular/gwae_wait/gender_wait/consecutive/late
     const g = (m && m.gender) || (existing && existing.gender) || '남';
     const waitTypeLabel = { regular:'일반', gwae_wait:'관외대기', gender_wait:'성별대기', consecutive:'연속참석', late:'늦참' }[waitType] || waitType;
-    votes[name] = { status:'waiting', type:waitType, gender:g, district, ts: Date.now() };
+    votes[name] = { status:'waiting', type:waitType, gender:g, district, ts: Date.now(),
+      lateArrival: waitType === 'late' ? ((existing && existing.lateArrival) || true) : false,
+      lateMinutes: waitType === 'late' ? ((existing && existing.lateMinutes) || null) : null };
     await saveVoteRow(eventId, name, votes[name]);
     pushNotification(`${state.myName}(관리자)님이 ${name}님을 ${label} 대기(${waitTypeLabel})로 이동했습니다.`, {eventId, actor: name});
   } else if(action === 'waiting'){
@@ -4702,61 +4710,71 @@ async function checkLateArrival(eventId){
   if(choice === null) return;
   let lateMinutes;
   if(choice === '30분 이상(직접입력)'){
-    const input = prompt('몇 분 정도 늦으실 것 같으세요?', '40');
+    const input = prompt('몇 분 정도 늦으실 것 같으세요? (예: 60)', '40');
     if(input === null) return;
-    lateMinutes = parseInt(input, 10);
+    // 전각 숫자·공백·"분" 등 사용자가 함께 입력하는 경우까지 안전하게 숫자만 추출
+    lateMinutes = parseInt(String(input).replace(/[^0-9]/g, ''), 10);
   } else {
     lateMinutes = parseInt(choice, 10);
   }
   if(isNaN(lateMinutes) || lateMinutes <= 0){ alert('올바른 분을 입력해 주세요.'); return; }
+  if(lateMinutes > 300){ alert('5시간(300분)을 초과하는 늦참은 등록할 수 없어요. 운영진에게 직접 문의해 주세요.'); return; }
 
   const reason = prompt('늦참 사유를 적어주세요. (예: 레슨 후 참석, 퇴근이 늦어져서 등)', '') || '';
 
   const isWithin30 = lateMinutes <= 30;
 
-  if(isWithin30){
-    // 30분 이내: 일반 참석과 "동등한 절차"로 처리 — setVote를 그대로 재사용해서
-    // 정원이 차있으면 정상적으로 대기로 가고(새치기 방지), 자리가 있을 때만 바로 참석됨
-    await setVote(eventId, 'attend', state.myGender);
-    const votesAfter = state.data.votes[eventId] || {};
-    if(votesAfter[state.myName]){
-      votesAfter[state.myName].lateArrival = true;
-      votesAfter[state.myName].lateMinutes = lateMinutes;
-      await saveVoteRow(eventId, state.myName, votesAfter[state.myName]);
+  try{
+    if(isWithin30){
+      // 30분 이내: 일반 참석과 "동등한 절차"로 처리 — setVote를 그대로 재사용해서
+      // 정원이 차있으면 정상적으로 대기로 가고(새치기 방지), 자리가 있을 때만 바로 참석됨
+      await setVote(eventId, 'attend', state.myGender);
+      const votesAfter = state.data.votes[eventId] || {};
+      if(votesAfter[state.myName]){
+        votesAfter[state.myName].lateArrival = true;
+        votesAfter[state.myName].lateMinutes = lateMinutes;
+        await saveVoteRow(eventId, state.myName, votesAfter[state.myName]);
+      }
+    } else {
+      // 30분 초과(60분 이상 포함): 선대기(대기>늦참>연참>늦참+연참 우선순위), 자리 나면 자동승급
+      // 인접 코트 참석 중(연참 상황)이면서 동시에 늦참이면, 순수 늦참보다도 낮은 최하위 우선순위로 등록
+      let isAlsoConsecutive = false;
+      try{ isAlsoConsecutive = isConsecutiveCase(ev); }
+      catch(ce){ console.error('연속참석 여부 확인 실패 (무시하고 일반 늦참으로 처리)', ce); }
+      if(!state.data.votes[eventId]) state.data.votes[eventId] = {};
+      const votes = state.data.votes[eventId];
+      votes[state.myName] = { status:'waiting', type: isAlsoConsecutive ? 'late_consecutive' : 'late', gender: state.myGender, district: state.myDistrict, lateArrival:true, lateMinutes, ts: Date.now() };
+      await saveVoteRow(eventId, state.myName, votes[state.myName]);
     }
-  } else {
-    // 30분 초과: 선대기(대기>늦참>연참>늦참+연참 우선순위), 자리 나면 자동승급
-    // 인접 코트 참석 중(연참 상황)이면서 동시에 늦참이면, 순수 늦참보다도 낮은 최하위 우선순위로 등록
-    const isAlsoConsecutive = isConsecutiveCase(ev);
-    const votes = state.data.votes[eventId] || {};
-    state.data.votes[eventId] = votes;
-    votes[state.myName] = { status:'waiting', type: isAlsoConsecutive ? 'late_consecutive' : 'late', gender: state.myGender, district: state.myDistrict, lateArrival:true, lateMinutes, ts: Date.now() };
-    await saveVoteRow(eventId, state.myName, votes[state.myName]);
+
+    const votesFinal = state.data.votes[eventId] || {};
+    const finalStatus = votesFinal[state.myName] ? votesFinal[state.myName].status : 'waiting';
+    const actuallyAttended = finalStatus === 'attend';
+
+    const label = shortEventLabel(ev);
+    const commentText = `⏰ 늦참 예정 (${lateMinutes}분 정도): ${reason || '사유 미입력'}`;
+    const newId = await insertCommentRow(eventId, state.myName, commentText, Date.now());
+    if(!state.data.comments[eventId]) state.data.comments[eventId] = [];
+    state.data.comments[eventId].push({ id: newId, name: state.myName, text: commentText, ts: Date.now() });
+
+    pushNotification(`${state.myName}님이 ${label}에 늦참(${lateMinutes}분) 예정으로 ${actuallyAttended ? '참석' : '대기'} 등록되었습니다.`, {eventId, actor: state.myName});
+    if(actuallyAttended){
+      await postAiAdminComment(eventId, `⏰ ${state.myName}님이 늦참(${lateMinutes}분) 예정으로 참석 처리되었습니다.${isWithin30 ? ' (30분 이내라 일반 참석과 동일하게 처리)' : ''}`);
+    } else if(isWithin30){
+      await postAiAdminComment(eventId, `⏰ ${state.myName}님이 늦참(${lateMinutes}분) 예정으로 신청하셨지만, 정원이 이미 차있어 일반 대기와 동일하게 대기 처리되었습니다. 자리가 나면 순서대로 승급됩니다.`);
+    } else {
+      await postAiAdminComment(eventId, `⏰ ${state.myName}님이 늦참(${lateMinutes}분) 예정으로 등록되었습니다. 30분을 초과해서 선대기 상태이며, 자리가 나면 자동으로 참석 승급됩니다. (우선순위: 일반대기>늦참>연속참석대기)`);
+    }
+
+    const ok = await saveData();
+    if(!ok) alert('저장에 실패했습니다. 다시 시도해 주세요.');
+    renderEventList();
+    renderNotifBell();
+  }catch(err){
+    console.error('늦참 등록 중 오류', err);
+    alert('늦참 등록 중 오류가 발생했습니다. 다시 시도해 주시고, 계속되면 관리자에게 알려주세요.\n(' + (err && err.message ? err.message : '알 수 없는 오류') + ')');
+    renderEventList();
   }
-
-  const votesFinal = state.data.votes[eventId] || {};
-  const finalStatus = votesFinal[state.myName] ? votesFinal[state.myName].status : 'waiting';
-  const actuallyAttended = finalStatus === 'attend';
-
-  const label = shortEventLabel(ev);
-  const commentText = `⏰ 늦참 예정 (${lateMinutes}분 정도): ${reason || '사유 미입력'}`;
-  const newId = await insertCommentRow(eventId, state.myName, commentText, Date.now());
-  if(!state.data.comments[eventId]) state.data.comments[eventId] = [];
-  state.data.comments[eventId].push({ id: newId, name: state.myName, text: commentText, ts: Date.now() });
-
-  pushNotification(`${state.myName}님이 ${label}에 늦참(${lateMinutes}분) 예정으로 ${actuallyAttended ? '참석' : '대기'} 등록되었습니다.`, {eventId, actor: state.myName});
-  if(actuallyAttended){
-    await postAiAdminComment(eventId, `⏰ ${state.myName}님이 늦참(${lateMinutes}분) 예정으로 참석 처리되었습니다.${isWithin30 ? ' (30분 이내라 일반 참석과 동일하게 처리)' : ''}`);
-  } else if(isWithin30){
-    await postAiAdminComment(eventId, `⏰ ${state.myName}님이 늦참(${lateMinutes}분) 예정으로 신청하셨지만, 정원이 이미 차있어 일반 대기와 동일하게 대기 처리되었습니다. 자리가 나면 순서대로 승급됩니다.`);
-  } else {
-    await postAiAdminComment(eventId, `⏰ ${state.myName}님이 늦참(${lateMinutes}분) 예정으로 등록되었습니다. 30분을 초과해서 선대기 상태이며, 자리가 나면 자동으로 참석 승급됩니다. (우선순위: 일반대기>늦참>연속참석대기)`);
-  }
-
-  const ok = await saveData();
-  if(!ok) alert('저장에 실패했습니다. 다시 시도해 주세요.');
-  renderEventList();
-  renderNotifBell();
 }
 
 async function setVote(eventId, status, gender){
@@ -6239,7 +6257,7 @@ async function renderTodayPanel(){
     } else {
       scheduleHtml = todays.map(ev => {
         const c = computedCounts(ev);
-        const waitAll = [...c.waitRegularNames, ...c.waitConsecutiveNames, ...c.waitGwaeReviewNames, ...c.waitGwaeWaitNames, ...c.waitLateNames];
+        const waitAll = [...c.waitRegularNames, ...c.waitConsecutiveNames, ...c.waitGwaeReviewNames, ...c.waitGwaeWaitNames, ...c.waitLateNames, ...c.waitLateRequestNames, ...c.waitGenderWaitNames, ...c.waitPrecloseNames];
         const gwaeWaitAlert = c.waitGwaeWaitNames.length > 0
           ? `<div class="t-namebox" style="background:var(--danger-soft);color:var(--danger);font-weight:700;">🚨 관외 대기 ${c.waitGwaeWaitNames.length}명 — 관내 회원이 더 오시면 바로 참석 가능해요! (${nameListText(c.waitGwaeWaitNames)})</div>`
           : '';
