@@ -531,7 +531,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.119</span>
+      <span id="buildVersionTop" class="build-version-top">v.120</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -2892,6 +2892,12 @@ document.getElementById('warnPanelToggle').onclick = async () => {
 };
 
 const SITE_LOG = [
+  { ts:'2026-08-08 12:00', t:'🚨 승급됐는데 화면에 안 보이던 버그 — 진짜 원인: 관리자 화면 실시간동기화 지연 + 수동보정 시 데이터 유실', important:true, d:[
+    'Supabase ignis_votes/ignis_comments 라이브 데이터로 실제 사례(최윤하님, 8/7 종합운동장 밤) 재구성 — 등록 2ms 후 다른 기기의 주기적 자동승급(runAutoPromotions, 20초 간격)이 정상적으로 참석 승급시켰으나(lateArrival 보존됨), 관리자 화면은 실시간 반영이 늦어 여전히 "참석자 없음"으로 보였던 것으로 추정',
+    '관리자가 이를 보고 "이동▾ → 여자참석으로 → 늦참승급"으로 수동 재처리하면서, 관리자 화면의 오래된 로컬 캐시(existing) 때문에 lateArrival/lateMinutes가 false/null로 덮어써짐 — DB에 promoted_from:"late", late_arrival:false로 남아있던 것으로 실측 확인',
+    '수정: adminMoveMember() 시작 시 로컬 캐시 대신 Supabase에서 해당 회원의 최신 행을 직접 재조회해서 existing으로 사용 — 관리자 화면이 잠시 뒤처져 있어도 수동 이동/승급 시 기존 lateArrival·lateMinutes·district 등 정보가 유실되지 않음',
+    '데이터 복구: 최윤하님의 8/7 기록을 late_arrival=true, late_minutes=60으로 Supabase에서 직접 정정'
+  ]},
   { ts:'2026-08-08 00:00', t:'🐛 늦참(30분 초과, 60분+ 포함) 신규 등록 시 조용히 실패하던 문제 방어 처리', important:true, d:[
     '기존엔 checkLateArrival() 내부에서 오류가 나면(예: 연속참석 판정 함수 예외) 아무 안내 없이 등록이 중단되어 "대기 목록에 안 보인다"는 증상으로만 나타났음 — try/catch로 감싸서 실패 시 사용자에게 명확한 오류 메시지를 띄우도록 수정',
     '연속참석 판정(isConsecutiveCase) 실패는 등록 전체를 막지 않고 일반 늦참으로 대체 처리되도록 격리',
@@ -4442,7 +4448,24 @@ async function adminMoveMember(eventId, name, action){
   const beforeCounts = ev ? computedCounts(ev) : null;
   if(!state.data.votes[eventId]) state.data.votes[eventId] = {};
   const votes = state.data.votes[eventId];
-  const existing = votes[name];
+  // 관리자 화면의 로컬 캐시가 실시간 동기화 지연으로 최신이 아닐 수 있음(예: 방금 다른 기기에서 자동승급된 직후).
+  // 로컬 캐시만 믿고 덮어쓰면 lateArrival/lateMinutes 등 기존 정보가 유실될 수 있어, 서버에서 해당 회원의 최신 행을 직접 재조회해서 existing으로 사용.
+  let existing = votes[name];
+  try{
+    const { data: freshRow, error: freshErr } = await sb.from('ignis_votes').select('*').eq('event_id', eventId).eq('member_name', name).maybeSingle();
+    if(!freshErr && freshRow){
+      existing = {
+        status: freshRow.status, gender: freshRow.gender, district: freshRow.district,
+        hidden: !!freshRow.hidden, type: freshRow.vote_type || undefined,
+        ts: freshRow.ts ? Number(freshRow.ts) : Date.now(),
+        isInvite: !!freshRow.is_invite, promotedFrom: freshRow.promoted_from || null, invitedBy: freshRow.invited_by || null,
+        displayName: freshRow.display_name || null,
+        lateArrival: !!freshRow.late_arrival, lateMinutes: freshRow.late_minutes || null,
+        autoApprovedPopupPending: !!freshRow.auto_approved_popup_pending
+      };
+      votes[name] = existing; // 로컬 캐시도 최신값으로 동기화
+    }
+  }catch(e){ console.error('관리자 이동 전 최신값 재조회 실패 (로컬 캐시로 계속 진행)', e); }
   const m = getActiveMembers().find(x => x.name === name);
   const district = (m && m.district) || (existing && existing.district) || '관내';
 
