@@ -531,7 +531,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.120</span>
+      <span id="buildVersionTop" class="build-version-top">v.121</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -1530,6 +1530,10 @@ function hasAdminPower(){
   return state.adminMode;
 }
 
+function isDawnEvent(ev){
+  return !!(ev && ev.start_time === '06:00' && ev.end_time === '08:00');
+}
+
 function isDawnSemiAdmin(name){
   return !!(name && state.data.dawnSemiAdmins && state.data.dawnSemiAdmins.includes(name));
 }
@@ -2307,6 +2311,7 @@ async function checkGenderFlexPromotions(){
   const tmr = localIso(new Date(now.getTime() + 86400000));
   for(const ev of getInstances()){
     if(ev.court_count !== 2) continue;
+    if(isDawnEvent(ev)) continue; // 새벽코트는 성별 상한 자체가 없어 유연승급 판정이 불필요
     if(ev.event_date !== t && ev.event_date !== tmr) continue; // 하루 전 사전예고 취지 복원 — 당일/익일 이틀치 검사
     if(state.data.genderFlex[ev.id] && state.data.genderFlex[ev.id] !== '균형') continue; // 남/여 확대 결정은 영구 고정, 균형 상태는 상황 변화에 대비해 계속 재검토
     const startDt = getEventDateTime(ev);
@@ -2396,7 +2401,7 @@ async function tryAutoPromote(ev){
       if(v.status !== 'waiting') return false;
       if(['gwae_review','late_request','gwae_wait'].includes(v.type)) return false;
       if(isPeakSeason() && v.type === 'consecutive') return false; // 성수기엔 연참이 정오 자동승급 대상에서 제외 — 시작 1시간전에 별도로 승급 기회를 줌
-      if(ev.court_count === 2){
+      if(ev.court_count === 2 && !isDawnEvent(ev)){
         const myGenderCount = v.gender === '여' ? counts.female : counts.male;
         const flexFavorsThisGender = flex === v.gender;
         if(myGenderCount >= 6 && !flexFavorsThisGender) return false;
@@ -2892,6 +2897,12 @@ document.getElementById('warnPanelToggle').onclick = async () => {
 };
 
 const SITE_LOG = [
+  { ts:'2026-08-09 21:29', t:'🌅 새벽테니스 — 성별 상한(성별대기) 완전 제외', important:true, d:[
+    '새벽테니스(06:00~08:00)는 이제 성별별 상한(예: 미확보시 여/남 각 3명)을 적용하지 않고, 전체 정원 기준으로만 대기/승급을 처리하도록 변경 — 한쪽 성별이 정원을 다 차지해도 등록 가능',
+    '등록 시 "성별대기"로 자동 전환되던 로직, 자동승급 4개 함수(tryAutoPromote/promoteWaitingForCapacity/forcePromoteWaitingNow)의 성별 상한 필터, 성별 유연승급 판정(checkGenderFlexPromotions)까지 새벽코트는 모두 제외 처리',
+    '관리자 "이동▾" 드롭다운에서도 새벽코트 일정에서는 "대기로 (성별대기)" 옵션 자체가 안 보이도록 처리',
+    '저녁/유니온 등 기존 2코트 일정의 성별대기 로직은 그대로 유지 — 새벽코트에만 한정 적용'
+  ]},
   { ts:'2026-08-08 12:00', t:'🚨 승급됐는데 화면에 안 보이던 버그 — 진짜 원인: 관리자 화면 실시간동기화 지연 + 수동보정 시 데이터 유실', important:true, d:[
     'Supabase ignis_votes/ignis_comments 라이브 데이터로 실제 사례(최윤하님, 8/7 종합운동장 밤) 재구성 — 등록 2ms 후 다른 기기의 주기적 자동승급(runAutoPromotions, 20초 간격)이 정상적으로 참석 승급시켰으나(lateArrival 보존됨), 관리자 화면은 실시간 반영이 늦어 여전히 "참석자 없음"으로 보였던 것으로 추정',
     '관리자가 이를 보고 "이동▾ → 여자참석으로 → 늦참승급"으로 수동 재처리하면서, 관리자 화면의 오래된 로컬 캐시(existing) 때문에 lateArrival/lateMinutes가 false/null로 덮어써짐 — DB에 promoted_from:"late", late_arrival:false로 남아있던 것으로 실측 확인',
@@ -4095,6 +4106,8 @@ function renderNameChips(entries, suffix, showDistrict, eventId){
     const label = `${idx+1}. ${escapeHtml(name)}${hiddenTag}${promotedTag}${districtTag}${suffix}${timeStr ? `<span class="chip-ts"${histAttr} style="${eventId?'cursor:pointer;text-decoration:underline dotted;':''}">${timeStr}</span>` : ''}${lateTag}`;
     let chipClass = e.hidden ? 'name-chip name-chip-hidden' : 'name-chip';
     if(hasAdminPower()){
+      const evForChip = eventId ? getInstances().find(x => x.id === eventId) : null;
+      const genderWaitOption = isDawnEvent(evForChip) ? '' : `<option value="waiting-gender_wait">대기로 (성별대기)</option>`;
       return `<span class="${chipClass} admin-chip">${label}
         <select data-admin-move="${escapeHtml(name)}">
           <option value="">이동▾</option>
@@ -4103,7 +4116,7 @@ function renderNameChips(entries, suffix, showDistrict, eventId){
           <option value="absent">불참으로</option>
           <option value="waiting-regular">대기로 (일반)</option>
           <option value="waiting-gwae_wait">대기로 (관외대기)</option>
-          <option value="waiting-gender_wait">대기로 (성별대기)</option>
+          ${genderWaitOption}
           <option value="waiting-consecutive">대기로 (연속참석)</option>
           <option value="waiting-late">대기로 (늦참)</option>
           <option value="to-invite">초청코트로</option>
@@ -5018,7 +5031,8 @@ async function setVote(eventId, status, gender){
       const wouldBeFull = regularWithoutSelf >= ev.max_players;
 
       // 2코트 일정: 성별별 상한 (gender-flex 발동 전까지) — 3번코트 미확보로 전체 정원이 줄어있으면 성비도 그에 맞게 축소
-      if(ev.court_count === 2 && !hasAdminPower()){
+      // 새벽코트는 성별 상한(성별대기)을 적용하지 않음 — 전체 정원 기준으로만 대기 처리
+      if(ev.court_count === 2 && !hasAdminPower() && !isDawnEvent(ev)){
         const flex = state.data.genderFlex && state.data.genderFlex[ev.id];
         const genderCap = Math.floor(ev.max_players / 2);
         const oppositeCount = g === '여' ? counts.male : counts.female;
@@ -5147,7 +5161,7 @@ async function promoteWaitingForCapacity(ev){
         if(v.status !== 'waiting') return false;
         if(['gwae_review','late_request','gwae_wait'].includes(v.type)) return false;
         if(isPeakSeason() && v.type === 'consecutive') return false; // 성수기엔 연참이 정오 자동승급 대상에서 제외 — 시작 1시간전에 별도로 승급 기회를 줌
-        if(ev.court_count === 2){
+        if(ev.court_count === 2 && !isDawnEvent(ev)){
           // 성별 유연승급이 아직 결정되지 않았다면(또는 반대 성별로 결정됐다면), 성별당 6명 상한을 넘는 승급은 11:50 판정까지 보류
           const myGenderCount = v.gender === '여' ? counts.female : counts.male;
           const flexFavorsThisGender = flex === v.gender;
@@ -5213,7 +5227,7 @@ async function forcePromoteWaitingNow(ev){
     .filter(([,v]) => {
       if(v.status !== 'waiting') return false;
       if(['gwae_review','late_request','gwae_wait'].includes(v.type)) return false;
-      if(ev.court_count === 2){
+      if(ev.court_count === 2 && !isDawnEvent(ev)){
         const myGenderCount = v.gender === '여' ? counts.female : counts.male;
         const flexFavorsThisGender = flex === v.gender;
         if(myGenderCount >= 6 && !flexFavorsThisGender) return false;
@@ -5250,7 +5264,7 @@ async function adminForcePromote(eventId){
 
   let changed = false;
 
-  if(ev.court_count === 2){
+  if(ev.court_count === 2 && !isDawnEvent(ev)){
     const flex = state.data.genderFlex && state.data.genderFlex[ev.id];
     if(!flex || flex === '균형'){
       const c = computedCounts(ev);
