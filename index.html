@@ -531,7 +531,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.121</span>
+      <span id="buildVersionTop" class="build-version-top">v.122</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -2897,6 +2897,11 @@ document.getElementById('warnPanelToggle').onclick = async () => {
 };
 
 const SITE_LOG = [
+  { ts:'2026-08-09 21:30', t:'🐛 3번코트 확보 확인 팝업 — 이미 끝난 일정에도 밤늦게 뜨던 버그 수정', important:true, d:[
+    '제보: 일요일 12-14 유니온 일정인데, 일정이 끝난 지 한참 지난 밤 9시 반에 "3번코트가 확보되었나요?" 팝업이 뜸',
+    '원인: 기존엔 "낮 12시부터"라는 하루 단위 고정 조건만 있어서, 그날 안에 앱을 처음 여는 시점이 언제든(자정 직전이라도) 계속 물어보던 구조였음',
+    '수정: 일정 시작 2시간 전 ~ 시작 전 구간에서만 팝업이 뜨도록 변경(토요일 3번코트 리마인더와 동일한 패턴). 일요일뿐 아니라 모든 요일의 3번코트 포함 일정에 동일 적용 — 근본 조건이 요일과 무관했기 때문',
+  ]},
   { ts:'2026-08-09 21:29', t:'🌅 새벽테니스 — 성별 상한(성별대기) 완전 제외', important:true, d:[
     '새벽테니스(06:00~08:00)는 이제 성별별 상한(예: 미확보시 여/남 각 3명)을 적용하지 않고, 전체 정원 기준으로만 대기/승급을 처리하도록 변경 — 한쪽 성별이 정원을 다 차지해도 등록 가능',
     '등록 시 "성별대기"로 자동 전환되던 로직, 자동승급 4개 함수(tryAutoPromote/promoteWaitingForCapacity/forcePromoteWaitingNow)의 성별 상한 필터, 성별 유연승급 판정(checkGenderFlexPromotions)까지 새벽코트는 모두 제외 처리',
@@ -6216,10 +6221,14 @@ function checkSaturdayCourt3Reminder(){
 
 function checkCourt3ConfirmPopup(){
   const now = new Date();
-  if(now.getHours() < 12) return; // 통일: 낮 12시부터
   const t = todayIso();
   const candidates = getInstances().filter(ev => ev.event_date === t && ev.includesCourt3 && !ev.court3Confirmed && ev.start_time !== '06:00');
   candidates.forEach(ev => {
+    // 예전엔 "낮 12시부터"만 체크해서, 참여도 안 한 낮 12-14 일정이 밤 9시 반에도 계속 물어보는 문제가 있었음(이미 끝난 일정인데 뒤늦게 팝업).
+    // 이제는 일정 시작 2시간 전 ~ 시작 전 구간에서만 발동 — 코트에 도착하기 전, 실제로 확인 가능한 타이밍에만 물어봄
+    const startDt = getEventDateTime(ev);
+    const twoHoursBefore = new Date(startDt.getTime() - 2 * 60 * 60 * 1000);
+    if(now < twoHoursBefore || now >= startDt) return;
     // 관리자이거나, 이 일정에 실제로 참석중인 회원이면 확인 대상 (관리자가 매번 직접 안 봐도 되게)
     const myVote = getVote(ev.id);
     const isAttendingThis = myVote && myVote.status === 'attend';
