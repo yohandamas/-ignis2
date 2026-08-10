@@ -532,7 +532,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.123</span>
+      <span id="buildVersionTop" class="build-version-top">v.124</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -1187,7 +1187,7 @@ function buildTemplates(){
 }
 
 function defaultData(){
-  return { templates: buildTemplates(), votes: {}, skippedDates: {}, capacityOverrides: {}, memberPins: {}, comments: {}, notifications: [], notifiedFlags: {}, fingerprintChecks: {}, extraMembers: [], removedMembers: [], fingerprintExtraTargets: [], dawnSemiAdmins: [], court3Confirmed: {}, cancelStats: {}, sameDayCancelStats: {}, genderFlex: {}, preClosed: {}, inviteCourts: {}, inviteClosed: {}, genderClosed: {}, penalties: {}, warnings: {}, monthlyChampions: {}, titleChoice: {}, pendingApproval: {}, removedTemplateIds: [], approvedAt: {}, districtOverrides: {}, wholeCancelled: {}, voteHistory: {}, ballStock: { '종합운동장': 0, '유니온': 0, '창고': 0 }, ballStockLastRefill: {} };
+  return { templates: buildTemplates(), votes: {}, skippedDates: {}, capacityOverrides: {}, memberPins: {}, comments: {}, notifications: [], notifiedFlags: {}, fingerprintChecks: {}, extraMembers: [], removedMembers: {}, fingerprintExtraTargets: [], dawnSemiAdmins: {}, court3Confirmed: {}, cancelStats: {}, sameDayCancelStats: {}, genderFlex: {}, preClosed: {}, inviteCourts: {}, inviteClosed: {}, genderClosed: {}, penalties: {}, warnings: {}, monthlyChampions: {}, titleChoice: {}, pendingApproval: {}, removedTemplateIds: [], approvedAt: {}, districtOverrides: {}, wholeCancelled: {}, voteHistory: {}, ballStock: { '종합운동장': 0, '유니온': 0, '창고': 0 }, ballStockLastRefill: {} };
 }
 
 function getFingerprintTargets(){
@@ -1396,8 +1396,8 @@ async function saveData(){
         //  아무 저장이나 하면 다른 사람이 방금 바꾼 값을 되돌려버리는 문제가 있었음)
         // null 값은 "명시적으로 삭제됨"을 의미하며, 병합 후 실제로 키를 제거한다.
         const MERGE_MAP_FIELDS = ['memberPins','fingerprintChecks','court3Confirmed','genderFlex','preClosed',
-          'inviteCourts','inviteClosed','genderClosed','capacityOverrides','cancelStats','sameDayCancelStats','notifiedFlags','skippedDates','monthlyChampions','titleChoice','pendingApproval','approvedAt','districtOverrides','wholeCancelled','voteHistory','ballStock','ballStockLastRefill'];
-        const MERGE_ARRAY_FIELDS = ['fingerprintExtraTargets','removedMembers','dawnSemiAdmins'];
+          'inviteCourts','inviteClosed','genderClosed','capacityOverrides','cancelStats','sameDayCancelStats','notifiedFlags','skippedDates','monthlyChampions','titleChoice','pendingApproval','approvedAt','districtOverrides','wholeCancelled','voteHistory','ballStock','ballStockLastRefill','removedMembers','dawnSemiAdmins'];
+        const MERGE_ARRAY_FIELDS = ['fingerprintExtraTargets'];
         MERGE_ARRAY_FIELDS.forEach(field => {
           // 배열 필드는 합집합으로 병합 (둘 중 하나라도 추가했으면 유지)
           const serverArr = fresh.value[field] || [];
@@ -1438,7 +1438,7 @@ async function saveData(){
         });
       }
     }catch(e){ console.error('저장 전 최신값 병합 실패 (계속 진행)', e); }
-    const { votes, comments, notifications, ...blobData } = state.data;
+    const { votes, comments, notifications, penalties, warnings, ...blobData } = state.data; // penalties/warnings는 ignis_penalties/ignis_warnings 정규테이블이 진짜 소스이고, 매 로드시 refreshWarningDataFromServer()로 재구성되는 파생 캐시라 JSON blob 저장 대상에서 제외
     const { error } = await sb.from('ignis_state').upsert({ key: STATE_ROW_KEY, value: blobData, updated_at: new Date().toISOString() });
     if(error) throw error;
     for(const field in pendingDirtyKeys){ delete pendingDirtyKeys[field]; } // 성공적으로 저장됐으니 dirty 표시 해제
@@ -1537,7 +1537,7 @@ function isDawnEvent(ev){
 }
 
 function isDawnSemiAdmin(name){
-  return !!(name && state.data.dawnSemiAdmins && state.data.dawnSemiAdmins.includes(name));
+  return !!(name && state.data.dawnSemiAdmins && state.data.dawnSemiAdmins[name]);
 }
 
 function canConfirmCourt3(ev){
@@ -1548,9 +1548,9 @@ function canConfirmCourt3(ev){
 
 function getActiveMembers(){
   const extra = (state.data && state.data.extraMembers) ? state.data.extraMembers : [];
-  const removed = (state.data && state.data.removedMembers) ? state.data.removedMembers : [];
+  const removed = (state.data && state.data.removedMembers) ? state.data.removedMembers : {};
   const districtOverrides = (state.data && state.data.districtOverrides) ? state.data.districtOverrides : {};
-  return [...MEMBERS, ...extra].filter(m => !removed.includes(m.name))
+  return [...MEMBERS, ...extra].filter(m => !removed[m.name])
     .map(m => districtOverrides[m.name] ? Object.assign({}, m, { district: districtOverrides[m.name] }) : m);
 }
 
@@ -2582,7 +2582,7 @@ async function checkHeavyWaitingList(){
         changed = true;
       }
     } else if(state.data.notifiedFlags[flagKey]){
-      delete state.data.notifiedFlags[flagKey];
+      state.data.notifiedFlags[flagKey] = null;
       markDirty('notifiedFlags', flagKey);
     }
   }
@@ -2899,6 +2899,15 @@ document.getElementById('warnPanelToggle').onclick = async () => {
 };
 
 const SITE_LOG = [
+  { ts:'2026-08-10 15:00', t:'🚨 새벽준관리자 "해제" 안 되던 버그 — 회원관리 저장로직 전체 재점검', important:true, d:[
+    '제보: 새벽준관리자 해제 버튼을 눌러도 실제로 해제가 안 됨. 조사 결과 dawnSemiAdmins가 "합집합 전용" 병합방식(MERGE_ARRAY_FIELDS)에 들어있어서, 해제(배열에서 제거)해도 저장 직후 서버의 예전값과 다시 합쳐지며 원상복구되는 구조적 문제였음',
+    '실제 Supabase 조회 결과 새벽준관리자 10명이 계속 누적되어 있던 것으로 버그를 직접 확인(해제 시도가 전부 무력화되고 있었다는 증거)',
+    '근본 수정: dawnSemiAdmins를 배열→객체(map) 방식으로 전환해서, "이번 세션이 실제로 바꾼 키만 정확히 반영"하는 MERGE_MAP_FIELDS 방식으로 이동. 해제는 값을 null로 설정(서버에서도 명시적 삭제로 처리됨)',
+    '연쇄발견①: removedMembers(회원 탈퇴/복구)도 동일한 구조적 문제 — 탈퇴 취소(복구) 기능이 있는데 같은 합집합병합 방식이었음. 동일하게 객체방식으로 전환, 게다가 관련 3곳 전부 markDirty 호출 자체가 누락되어 있던 것도 함께 발견해서 추가',
+    '연쇄발견②: delete로 직접 키를 지우던 3곳(notifiedFlags, wholeCancelled, pendingApproval) — delete는 병합로직에서 undefined가 되어 null체크를 통과 못할 수 있는 잠재 위험 코드였음, 전부 명시적 null 설정으로 안전하게 변경',
+    '연쇄발견③(버그아님, 정리): penalties/warnings가 JSON blob에도 저장되고 있었는데, 실제로는 매 접속시 정규테이블(ignis_penalties/warnings)에서 항상 재구성되는 파생캐시라 JSON blob 쪽은 아무도 안 읽는 죽은 데이터였음 — 불필요한 중복저장 방지 위해 저장대상에서 제외',
+    'Supabase 직접 연동으로 기존 배열데이터(dawnSemiAdmins 10명, removedMembers 2명)를 객체형태로 안전하게 마이그레이션 완료, 이후 memberPins(65건)·fingerprintChecks(32건)·votes(최근2일 실데이터) 전부 정상 저장 확인'
+  ]},
   { ts:'2026-08-09 21:30', t:'🐛 3번코트 확보 확인 팝업 — 이미 끝난 일정에도 밤늦게 뜨던 버그 수정', important:true, d:[
     '제보: 일요일 12-14 유니온 일정인데, 일정이 끝난 지 한참 지난 밤 9시 반에 "3번코트가 확보되었나요?" 팝업이 뜸',
     '원인: 기존엔 "낮 12시부터"라는 하루 단위 고정 조건만 있어서, 그날 안에 앱을 처음 여는 시점이 언제든(자정 직전이라도) 계속 물어보던 구조였음',
@@ -3322,7 +3331,7 @@ const SITE_LOG = [
   ]},
   { ts:'2026-07-21 22:00', t:'🎾 금요일 안내 · 이력조회 보강 · 칭호아이콘 위치조정 · 마일스톤 확장', important:true, d:[
     '금요일 20-22시 유니온·종합운동장 동시 일정시, 시작 6시간 전부터 "같은 성별끼리 모여서, 유니온 우선 이용" 안내 자동 발송 (유니온 코트 이용기록 유지 목적)',
-    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.123 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
+    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.124 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
     '관리자 "지금 자동승급 실행"의 일반 대기열 승급에도 AI관리자 댓글이 빠져있던 것 발견, 추가',
     '이름 옆 칭호 아이콘(럭키/최초달성/월간메달)을 참석목록·랭킹에서 제거하고 댓글에만 표시하도록 위치 조정',
     '럭키방문 마일스톤 5종에서 2000/2222/3000/3333/4000/4444 추가해 총 11종으로 확대'
@@ -5324,7 +5333,7 @@ async function restoreWholeCancelledEvent(eventId){
     await saveVoteRow(eventId, name, votes[name]);
   }
 
-  delete state.data.wholeCancelled[eventId];
+  state.data.wholeCancelled[eventId] = null;
   markDirty('wholeCancelled', eventId);
 
   pushNotification(`✅ ${state.myName}(관리자)님이 ${label} 일정의 코트취소를 취소하고 이전 상태로 복구했습니다. (상황이 좋아져서 코트 재사용 가능)`, {eventId, actor: state.myName, category:'announcement'});
@@ -5505,7 +5514,7 @@ async function toggleMemberDistrict(name){
 async function approveMember(name){
   if(!confirm(`"${name}" 님의 가입을 승인하시겠습니까? 승인하면 바로 로그인해서 이용할 수 있어요.`)) return;
   if(!state.data.pendingApproval) state.data.pendingApproval = {};
-  delete state.data.pendingApproval[name];
+  state.data.pendingApproval[name] = null;
   markDirty('pendingApproval', name);
   if(!state.data.approvedAt) state.data.approvedAt = {};
   state.data.approvedAt[name] = Date.now();
@@ -5858,7 +5867,8 @@ function renderMemberMgmt(){
     if(!name){ alert('이름을 입력해 주세요.'); return; }
     if(getActiveMembers().some(m => m.name === name)){ alert('이미 등록된 이름입니다.'); return; }
     state.data.extraMembers.push({ name, gender, district, is_staff:false, role:"" });
-    state.data.removedMembers = state.data.removedMembers.filter(n => n !== name);
+    if(!state.data.removedMembers) state.data.removedMembers = {};
+    if(state.data.removedMembers[name]){ state.data.removedMembers[name] = null; markDirty('removedMembers', name); }
     if(!state.data.pendingApproval) state.data.pendingApproval = {};
     state.data.pendingApproval[name] = true;
     markDirty('pendingApproval', name);
@@ -5881,10 +5891,13 @@ function renderMemberMgmt(){
     btn.onclick = async () => {
       const name = btn.getAttribute('data-remove-member');
       if(!confirm(`"${name}" 님을 탈퇴 처리하시겠습니까? (기존 참석/댓글 기록은 그대로 유지되고, 앞으로 회원 목록에서만 제외됩니다)`)) return;
-      if(!state.data.removedMembers.includes(name)) state.data.removedMembers.push(name);
+      if(!state.data.removedMembers) state.data.removedMembers = {};
+      state.data.removedMembers[name] = true;
+      markDirty('removedMembers', name);
       pushNotification(`${state.myName}(관리자)님이 "${name}"님을 탈퇴 처리했습니다.`);
       pushUndoAction(`"${name}"님 탈퇴처리`, async () => {
-        state.data.removedMembers = state.data.removedMembers.filter(n => n !== name);
+        state.data.removedMembers[name] = null;
+        markDirty('removedMembers', name);
         await saveData();
         renderMemberMgmt();
         renderMeBox();
@@ -5928,13 +5941,12 @@ function renderMemberMgmt(){
   box.querySelectorAll('[data-toggle-dawn-semi]').forEach(btn => {
     btn.onclick = async () => {
       const name = btn.getAttribute('data-toggle-dawn-semi');
-      if(!state.data.dawnSemiAdmins) state.data.dawnSemiAdmins = [];
-      const idx = state.data.dawnSemiAdmins.indexOf(name);
-      if(idx >= 0){
-        state.data.dawnSemiAdmins.splice(idx, 1);
+      if(!state.data.dawnSemiAdmins) state.data.dawnSemiAdmins = {};
+      if(state.data.dawnSemiAdmins[name]){
+        state.data.dawnSemiAdmins[name] = null; // null = 서버에서도 명시적으로 삭제됨
         pushNotification(`${state.myName}(관리자)님이 ${name}님의 새벽코트 준관리자 권한을 해제했습니다.`);
       } else {
-        state.data.dawnSemiAdmins.push(name);
+        state.data.dawnSemiAdmins[name] = true;
         pushNotification(`${state.myName}(관리자)님이 ${name}님을 새벽코트 준관리자로 지정했습니다. (새벽 일정의 3번코트 확보 확인 가능)`);
       }
       markDirty('dawnSemiAdmins', name);

@@ -1073,3 +1073,17 @@
 | 조치 | 표준 빌드로직(마커 기반 균등분할)으로 재구성 — header 136KB · body 255KB · footer 200KB로 재조정. 코드 내용은 원본과 100% 동일(공백 제외 완전 일치 확인) |
 | 빌드스크립트 버그 발견·수정 | 재분할 과정에서, footer 뒷부분(`</script>` 이후의 `</body></html>`)을 빠뜨릴 뻔한 걸 자체 검증(`assembled.rstrip().endswith("</html>")`)으로 잡아냄 — 표준 빌드스크립트에 `after_script` 변수로 이 부분을 명시적으로 보존하도록 보강. 앞으로도 이 태그 누락 여부를 배포 전 필수 체크 항목에 추가 |
 | 교훈 | 3분할 파일을 만들 때 "코드 내용이 맞는가"뿐 아니라 "세 파일의 크기가 균형 잡혀 있는가"도 반드시 함께 확인해야 함 — 특정 파일이 과도하게 크면 호스팅 플랫폼의 파일 크기 제한에 걸려 로딩 자체가 실패할 수 있음 |
+
+## v124. 새벽준관리자 "해제" 불가 버그 + 회원관리 저장로직 전체 재점검
+
+| 항목 | 내용 |
+|---|---|
+| 제보 | 새벽준관리자 지정은 되는데 해제가 안 됨 |
+| 근본원인 | `dawnSemiAdmins`가 배열+"합집합 전용" 병합(MERGE_ARRAY_FIELDS)에 있어, 해제해도 저장시 서버 예전값과 합쳐지며 원상복구되는 구조 |
+| 증거 | 실제 Supabase 조회 결과 10명이 계속 누적되어 있었음 |
+| 수정 | dawnSemiAdmins를 배열→객체(map)로 전환, MERGE_MAP_FIELDS(dirty-key 기반 정확병합)로 이동. 해제는 null 설정 |
+| 연쇄발견1 | removedMembers(탈퇴/복구)도 동일 문제 + markDirty 3곳 누락 → 동일하게 객체방식+markDirty 추가 |
+| 연쇄발견2 | delete 직접사용 3곳(notifiedFlags, wholeCancelled, pendingApproval) → 병합로직과 안 맞는 위험코드, null설정으로 안전화 |
+| 연쇄발견3(버그아님) | penalties/warnings가 JSON blob에도 저장되고 있었으나, 실제로는 정규테이블에서 매번 재구성되는 죽은데이터 확인 → 저장대상서 제외 |
+| DB작업 | Supabase 직접연동으로 기존 배열데이터(새벽준관리자10명, 탈퇴회원2명) 객체로 마이그레이션, memberPins/fingerprintChecks/votes 실데이터 정상저장 확인 |
+| 파일크기 | header 136KB / body 257KB / footer 201KB로 균형 유지, `</body></html>` 보존 확인 |
