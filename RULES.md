@@ -1087,3 +1087,35 @@
 | 연쇄발견3(버그아님) | penalties/warnings가 JSON blob에도 저장되고 있었으나, 실제로는 정규테이블에서 매번 재구성되는 죽은데이터 확인 → 저장대상서 제외 |
 | DB작업 | Supabase 직접연동으로 기존 배열데이터(새벽준관리자10명, 탈퇴회원2명) 객체로 마이그레이션, memberPins/fingerprintChecks/votes 실데이터 정상저장 확인 |
 | 파일크기 | header 136KB / body 257KB / footer 201KB로 균형 유지, `</body></html>` 보존 확인 |
+
+## v125. "새벽코트 준관리자" → "VIP3"로 확장 개편
+
+| 항목 | 규칙 |
+|---|---|
+| 명칭 | dawnSemiAdmins(배열/객체) → vip3Members(객체) 완전 전환, 화면표시도 전부 "VIP3"로 |
+| 범위확장 | canConfirmCourt3(ev): 기존 `ev.start_time==='06:00'` 조건 제거 → `ev.includesCourt3`(새벽 포함 유니온 3번코트 전체 일정)로 확장 |
+| 운영진 포함 | `state.myIsStaff`(★스태프) 체크 추가 — 운영진은 별도 지정 없이 자동으로 모든 3번코트 일정 확인 가능 |
+| 실시간 확인 강화 | `checkCourt3ConfirmPopup`의 대상 조건에 `hasAdminPower() OR state.myIsStaff OR isVip3(state.myName)` 추가 — VIP3/운영진은 해당 일정 참석 여부와 무관하게 항상 팝업 대상(기존엔 참석중이어야만 대상이었음) |
+| UI | 회원관리에 "VIP3 지정/해제" 버튼(+설명 툴팁), 회원 이름 옆 "VIP3" 태그. 3번코트 확보 알림 문구도 관리자/운영진/VIP3 3단계로 세분화 |
+| DB 마이그레이션 | Supabase 직접 연동 — 기존 dawnSemiAdmins 데이터(7명, v124 배포후 실제 해제 작동 확인됨 — 10명에서 7명으로 정상 감소) 그대로 vip3Members로 이전 |
+| 검증 | 6가지 케이스(일반회원/VIP3-새벽/VIP3-저녁/운영진/관리자/VIP3인데3번코트아닌일정) 시뮬레이션 전부 정확 |
+
+## v126. VIP3 지정시 환영팝업 신설 + 유사버그 재점검
+
+| 항목 | 내용 |
+|---|---|
+| 재점검 결과 | VIP3 관련 코드(markDirty 5건 의심 재검색) 포함 전체 재검사 — 전부 정상, 추가 발견 없음(오탐 확인) |
+| 신설 필드 | `vip3WelcomePending`(MERGE_MAP_FIELDS 추가) — VIP3 지정시 `true`로 설정, 팝업 표시 후 `null`로 삭제되는 1회성 플래그 |
+| 신설 함수 | `checkVip3WelcomePopup()` — 본인이 vip3WelcomePending 대상이면 alert로 환영메시지 표시(권한설명+"다른회원이 확보해도 대신체크 가능"+감사인사), 표시 즉시 플래그 삭제+저장 |
+| 호출 위치 | `init()`(최초 로드) + 20초 주기 setInterval(이미 접속중인데 지정된 경우도 곧 반영) 2곳 |
+| 검증 | Node.js 시뮬레이션으로 "지정→1회 표시→플래그삭제→재접속시 다시 안뜸" 전체 흐름 확인 |
+
+## v127. 운영진 접속시 자동 관리자모드 진입
+
+| 항목 | 내용 |
+|---|---|
+| 요청 | 운영진(★스태프)은 접속하면 버튼 클릭 없이 바로 관리자모드로 시작, 버튼도 "켜짐" 상태로 표시 |
+| 수정 | `applyMemberInfo(name)`에서 `m.is_staff`이면 `state.adminMode = true` 자동 설정 — 로그인(PIN확인후)과 자동재접속(init()) 양쪽 호출 지점 모두에서 이후 `syncAdminUI()`가 호출되어 버튼/패널 전부 자동 반영됨 |
+| 버튼 스타일 | 별도 CSS 수정 불필요 — 기존 `.admin-toggle.on`(진한배경+흰텍스트) 스타일이 `syncAdminUI()`를 통해 자동 적용됨 |
+| 동작 방식 | 수동으로 끄면 그 세션에서는 꺼진 채 유지, 재접속시 다시 자동으로 켜짐(의도된 동작) |
+| 검증 | 운영진로그인/일반회원로그인/운영진재접속 3케이스 시뮬레이션 전부 정확 |

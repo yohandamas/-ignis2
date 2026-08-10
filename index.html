@@ -532,7 +532,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.124</span>
+      <span id="buildVersionTop" class="build-version-top">v.127</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -1187,7 +1187,7 @@ function buildTemplates(){
 }
 
 function defaultData(){
-  return { templates: buildTemplates(), votes: {}, skippedDates: {}, capacityOverrides: {}, memberPins: {}, comments: {}, notifications: [], notifiedFlags: {}, fingerprintChecks: {}, extraMembers: [], removedMembers: {}, fingerprintExtraTargets: [], dawnSemiAdmins: {}, court3Confirmed: {}, cancelStats: {}, sameDayCancelStats: {}, genderFlex: {}, preClosed: {}, inviteCourts: {}, inviteClosed: {}, genderClosed: {}, penalties: {}, warnings: {}, monthlyChampions: {}, titleChoice: {}, pendingApproval: {}, removedTemplateIds: [], approvedAt: {}, districtOverrides: {}, wholeCancelled: {}, voteHistory: {}, ballStock: { '종합운동장': 0, '유니온': 0, '창고': 0 }, ballStockLastRefill: {} };
+  return { templates: buildTemplates(), votes: {}, skippedDates: {}, capacityOverrides: {}, memberPins: {}, comments: {}, notifications: [], notifiedFlags: {}, fingerprintChecks: {}, extraMembers: [], removedMembers: {}, fingerprintExtraTargets: [], vip3Members: {}, vip3WelcomePending: {}, court3Confirmed: {}, cancelStats: {}, sameDayCancelStats: {}, genderFlex: {}, preClosed: {}, inviteCourts: {}, inviteClosed: {}, genderClosed: {}, penalties: {}, warnings: {}, monthlyChampions: {}, titleChoice: {}, pendingApproval: {}, removedTemplateIds: [], approvedAt: {}, districtOverrides: {}, wholeCancelled: {}, voteHistory: {}, ballStock: { '종합운동장': 0, '유니온': 0, '창고': 0 }, ballStockLastRefill: {} };
 }
 
 function getFingerprintTargets(){
@@ -1396,7 +1396,7 @@ async function saveData(){
         //  아무 저장이나 하면 다른 사람이 방금 바꾼 값을 되돌려버리는 문제가 있었음)
         // null 값은 "명시적으로 삭제됨"을 의미하며, 병합 후 실제로 키를 제거한다.
         const MERGE_MAP_FIELDS = ['memberPins','fingerprintChecks','court3Confirmed','genderFlex','preClosed',
-          'inviteCourts','inviteClosed','genderClosed','capacityOverrides','cancelStats','sameDayCancelStats','notifiedFlags','skippedDates','monthlyChampions','titleChoice','pendingApproval','approvedAt','districtOverrides','wholeCancelled','voteHistory','ballStock','ballStockLastRefill','removedMembers','dawnSemiAdmins'];
+          'inviteCourts','inviteClosed','genderClosed','capacityOverrides','cancelStats','sameDayCancelStats','notifiedFlags','skippedDates','monthlyChampions','titleChoice','pendingApproval','approvedAt','districtOverrides','wholeCancelled','voteHistory','ballStock','ballStockLastRefill','removedMembers','vip3Members','vip3WelcomePending'];
         const MERGE_ARRAY_FIELDS = ['fingerprintExtraTargets'];
         MERGE_ARRAY_FIELDS.forEach(field => {
           // 배열 필드는 합집합으로 병합 (둘 중 하나라도 추가했으면 유지)
@@ -1536,13 +1536,14 @@ function isDawnEvent(ev){
   return !!(ev && ev.start_time === '06:00' && ev.end_time === '08:00');
 }
 
-function isDawnSemiAdmin(name){
-  return !!(name && state.data.dawnSemiAdmins && state.data.dawnSemiAdmins[name]);
+function isVip3(name){
+  return !!(name && state.data.vip3Members && state.data.vip3Members[name]);
 }
 
 function canConfirmCourt3(ev){
   if(hasAdminPower()) return true;
-  if(ev.start_time === '06:00' && isDawnSemiAdmin(state.myName)) return true;
+  if(state.myIsStaff) return true; // 운영진은 새벽 포함 모든 3번코트 일정 확인 가능
+  if(ev.includesCourt3 && isVip3(state.myName)) return true; // VIP3는 새벽을 포함해 유니온 3번코트 전체 일정 확인 가능
   return false;
 }
 
@@ -1556,7 +1557,10 @@ function getActiveMembers(){
 
 function applyMemberInfo(name){
   const m = getActiveMembers().find(x => x.name === name);
-  if(m){ state.myGender = m.gender; state.myDistrict = m.district; state.myIsStaff = m.is_staff; state.myRole = m.role; }
+  if(m){
+    state.myGender = m.gender; state.myDistrict = m.district; state.myIsStaff = m.is_staff; state.myRole = m.role;
+    if(m.is_staff) state.adminMode = true; // 운영진은 접속(로그인) 시 자동으로 관리자모드로 진입
+  }
   else { state.myGender = ""; state.myDistrict = ""; state.myIsStaff = false; state.myRole = ""; }
 }
 
@@ -2899,6 +2903,25 @@ document.getElementById('warnPanelToggle').onclick = async () => {
 };
 
 const SITE_LOG = [
+  { ts:'2026-08-10 17:00', t:'🔓 운영진(★스태프) — 접속시 자동으로 관리자모드 진입', important:true, d:[
+    '기존엔 운영진도 접속 후 "관리자 모드" 버튼을 직접 눌러야 켜졌음(비밀번호는 면제였지만 클릭은 필요) — 이제 로그인/자동재접속 시점에 is_staff 회원이면 자동으로 관리자모드가 켜진 채로 시작됨',
+    '버튼도 별도 처리 없이 기존 syncAdminUI() 로직이 자동으로 "🔓 관리자 모드 (켜짐)" 스타일로 표시(진한 배경+흰 텍스트)',
+    '수동으로 끄면 그 세션 안에서는 꺼진 채로 유지되고, 재접속시엔 다시 자동으로 켜짐 (의도된 동작)',
+    '3가지 케이스(운영진로그인/일반회원로그인/운영진재접속) 시뮬레이션 검증 완료'
+  ]},
+  { ts:'2026-08-10 16:30', t:'🎉 VIP3 지정시 환영팝업 신설 + 유사버그 재점검', important:true, d:[
+    '재점검: VIP3 코드(markDirty 호출, delete 패턴)를 포함해 전체를 다시 훑어봤으나 추가 발견사항 없음(오탐 5건 확인, 전부 정상 로직)',
+    'VIP3로 지정되면, 그 회원이 다음 접속시 자동으로 환영 팝업이 뜨도록 신설 — 권한 설명(3번코트 확보시 확인버튼), "다른 회원이 확보해도 대신 체크 가능"이라는 안내, 감사 인사 포함',
+    '이미 접속 중인 상태에서 지정돼도 20초 주기 체크로 곧 반영되도록 처리, 한 번 표시되면 플래그가 삭제되어 다시 안 뜸(시뮬레이션 검증 완료)'
+  ]},
+  { ts:'2026-08-10 16:00', t:'🎖️ "새벽코트 준관리자" → "VIP3"로 확장 개편 — 유니온 3번코트 전체 + 운영진 포함', important:true, d:[
+    '명칭 변경: 새벽코트 준관리자 → VIP3 (내부 데이터필드도 dawnSemiAdmins → vip3Members로 완전히 정리, 기존 지정자 7명 그대로 마이그레이션)',
+    '범위 확장: 기존엔 "새벽 일정"에서만 3번코트 확보 확인 가능했는데, 이제 새벽을 포함한 유니온 3번코트 전체 일정(저녁 등)에서 VIP3 권한이 적용됨',
+    '운영진(★스태프) 자동 포함: is_staff 회원은 별도 지정 없이도 관리자처럼 모든 3번코트 일정 확보 확인 가능',
+    '놓치지 않는 확인: 3번코트 확인 팝업 대상에 VIP3·운영진을 추가 — 기존엔 "그 일정에 참석 중"이어야만 팝업이 떴는데, 이제 VIP3·운영진은 참석 여부와 무관하게 항상 확인 팝업 대상에 포함(실시간으로 놓치지 않고 확인)',
+    '회원관리 화면에 "VIP3 지정/해제" 버튼 및 VIP3 태그 표시로 변경, 알림 문구도 관리자/운영진/VIP3 세 가지로 구분 표시',
+    'Supabase 직접 연동으로 기존 dawnSemiAdmins 데이터(7명)를 vip3Members로 마이그레이션 완료, 권한로직 6가지 케이스 시뮬레이션 검증'
+  ]},
   { ts:'2026-08-10 15:00', t:'🚨 새벽준관리자 "해제" 안 되던 버그 — 회원관리 저장로직 전체 재점검', important:true, d:[
     '제보: 새벽준관리자 해제 버튼을 눌러도 실제로 해제가 안 됨. 조사 결과 dawnSemiAdmins가 "합집합 전용" 병합방식(MERGE_ARRAY_FIELDS)에 들어있어서, 해제(배열에서 제거)해도 저장 직후 서버의 예전값과 다시 합쳐지며 원상복구되는 구조적 문제였음',
     '실제 Supabase 조회 결과 새벽준관리자 10명이 계속 누적되어 있던 것으로 버그를 직접 확인(해제 시도가 전부 무력화되고 있었다는 증거)',
@@ -3331,7 +3354,7 @@ const SITE_LOG = [
   ]},
   { ts:'2026-07-21 22:00', t:'🎾 금요일 안내 · 이력조회 보강 · 칭호아이콘 위치조정 · 마일스톤 확장', important:true, d:[
     '금요일 20-22시 유니온·종합운동장 동시 일정시, 시작 6시간 전부터 "같은 성별끼리 모여서, 유니온 우선 이용" 안내 자동 발송 (유니온 코트 이용기록 유지 목적)',
-    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.124 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
+    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.127 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
     '관리자 "지금 자동승급 실행"의 일반 대기열 승급에도 AI관리자 댓글이 빠져있던 것 발견, 추가',
     '이름 옆 칭호 아이콘(럭키/최초달성/월간메달)을 참석목록·랭킹에서 제거하고 댓글에만 표시하도록 위치 조정',
     '럭키방문 마일스톤 5종에서 2000/2222/3000/3333/4000/4444 추가해 총 11종으로 확대'
@@ -5220,7 +5243,7 @@ async function toggleCourt3Confirmed(eventId){
   }
   const ev = getInstances().find(e => e.id === eventId);
   const label = ev ? shortEventLabel(ev) : '';
-  const roleLabel = hasAdminPower() ? '관리자' : '새벽코트 준관리자';
+  const roleLabel = hasAdminPower() ? '관리자' : (state.myIsStaff ? '운영진' : 'VIP3');
   pushNotification(`${state.myName}(${roleLabel})님이 ${label} 3번코트를 ${nowConfirmed ? '확보 확인' : '미확보로 되돌림'} 처리했습니다.`, {eventId, actor: state.myName, category:'court_status'});
   if(ev && nowConfirmed){
     const addedSlots = Math.max(0, ev.max_players - prevMaxPlayers);
@@ -5845,10 +5868,10 @@ function renderMemberMgmt(){
         const isPending = state.data.pendingApproval && state.data.pendingApproval[m.name];
         return `
         <div class="member-row">
-          <span class="m-name">${escapeHtml(m.name)}${m.is_staff?' ★':''}${isDawnSemiAdmin(m.name) ? ' <span class="chip-invite-tag" style="background:var(--accent-soft);color:var(--accent-dark);">🌅준관리자</span>' : ''}${isPending ? ' <span class="chip-invite-tag guest">⏳승인대기</span>' : ''}${isPenalized ? ' <span class="chip-invite-tag guest">🚫페널티중</span>' : ''}${warnCount > 0 ? ` <span class="chip-invite-tag guest">⚠️${warnCount}</span>` : ''}</span>
+          <span class="m-name">${escapeHtml(m.name)}${m.is_staff?' ★':''}${isVip3(m.name) ? ' <span class="chip-invite-tag" style="background:var(--accent-soft);color:var(--accent-dark);">VIP3</span>' : ''}${isPending ? ' <span class="chip-invite-tag guest">⏳승인대기</span>' : ''}${isPenalized ? ' <span class="chip-invite-tag guest">🚫페널티중</span>' : ''}${warnCount > 0 ? ` <span class="chip-invite-tag guest">⚠️${warnCount}</span>` : ''}</span>
           <span class="m-meta">${m.gender}/${m.district}</span>
           <button class="pin-reset-btn" data-toggle-district="${escapeHtml(m.name)}">${m.district === '관내' ? '→관외로' : '→관내로'}</button>
-          <button class="pin-reset-btn" data-toggle-dawn-semi="${escapeHtml(m.name)}">${isDawnSemiAdmin(m.name) ? '🌅준관리자 해제' : '🌅새벽준관리자 지정'}</button>
+          <button class="pin-reset-btn" data-toggle-vip3="${escapeHtml(m.name)}" title="유니온 3번코트(새벽 포함) 확보 확인 권한">${isVip3(m.name) ? 'VIP3 해제' : 'VIP3 지정'}</button>
           <span class="m-pin">PIN ${pins[m.name] ? '설정됨 🔒' : '미설정'}</span>
           ${isPending ? `<button class="pin-reset-btn" data-approve-member="${escapeHtml(m.name)}" style="background:var(--brand-soft);color:var(--brand-dark);">✅승인</button>` : ''}
           ${pins[m.name] ? `<button class="pin-reset-btn" data-reset-pin="${escapeHtml(m.name)}">PIN초기화</button>` : ''}
@@ -5938,18 +5961,21 @@ function renderMemberMgmt(){
   box.querySelectorAll('[data-toggle-district]').forEach(btn => {
     btn.onclick = () => toggleMemberDistrict(btn.getAttribute('data-toggle-district'));
   });
-  box.querySelectorAll('[data-toggle-dawn-semi]').forEach(btn => {
+  box.querySelectorAll('[data-toggle-vip3]').forEach(btn => {
     btn.onclick = async () => {
-      const name = btn.getAttribute('data-toggle-dawn-semi');
-      if(!state.data.dawnSemiAdmins) state.data.dawnSemiAdmins = {};
-      if(state.data.dawnSemiAdmins[name]){
-        state.data.dawnSemiAdmins[name] = null; // null = 서버에서도 명시적으로 삭제됨
-        pushNotification(`${state.myName}(관리자)님이 ${name}님의 새벽코트 준관리자 권한을 해제했습니다.`);
+      const name = btn.getAttribute('data-toggle-vip3');
+      if(!state.data.vip3Members) state.data.vip3Members = {};
+      if(state.data.vip3Members[name]){
+        state.data.vip3Members[name] = null; // null = 서버에서도 명시적으로 삭제됨
+        pushNotification(`${state.myName}(관리자)님이 ${name}님의 VIP3 권한을 해제했습니다.`);
       } else {
-        state.data.dawnSemiAdmins[name] = true;
-        pushNotification(`${state.myName}(관리자)님이 ${name}님을 새벽코트 준관리자로 지정했습니다. (새벽 일정의 3번코트 확보 확인 가능)`);
+        state.data.vip3Members[name] = true;
+        if(!state.data.vip3WelcomePending) state.data.vip3WelcomePending = {};
+        state.data.vip3WelcomePending[name] = true;
+        markDirty('vip3WelcomePending', name);
+        pushNotification(`${state.myName}(관리자)님이 ${name}님을 VIP3로 지정했습니다. (새벽 포함 유니온 3번코트 확보 확인 가능)`);
       }
-      markDirty('dawnSemiAdmins', name);
+      markDirty('vip3Members', name);
       await saveData();
       renderMemberMgmt();
     };
@@ -6233,6 +6259,17 @@ function checkSaturdayCourt3Reminder(){
   });
 }
 
+function checkVip3WelcomePopup(){
+  if(!state.myName) return;
+  if(!state.data.vip3WelcomePending || !state.data.vip3WelcomePending[state.myName]) return;
+  state.data.vip3WelcomePending[state.myName] = null; // 한번 보여주면 다시 안 뜨도록 삭제
+  markDirty('vip3WelcomePending', state.myName);
+  saveData();
+  setTimeout(() => {
+    alert(`🎖️ VIP3로 지정되셨어요!\n\n앞으로 유니온 3번코트(새벽 포함) 일정에서, 3번코트가 확보되면 "확보 확인" 버튼을 직접 눌러주시면 정원이 자동으로 확대돼요.\n\n※ 꼭 본인이 직접 확보하지 않으셔도 괜찮아요 — 다른 회원이 확보한 걸 보셨다면 대신 체크해 주셔도 돼요!\n\n소중한 역할 맡아주셔서 감사해요, VIP3로 모시겠습니다 🙏`);
+  }, 800);
+}
+
 function checkCourt3ConfirmPopup(){
   const now = new Date();
   const t = todayIso();
@@ -6243,10 +6280,12 @@ function checkCourt3ConfirmPopup(){
     const startDt = getEventDateTime(ev);
     const twoHoursBefore = new Date(startDt.getTime() - 2 * 60 * 60 * 1000);
     if(now < twoHoursBefore || now >= startDt) return;
-    // 관리자이거나, 이 일정에 실제로 참석중인 회원이면 확인 대상 (관리자가 매번 직접 안 봐도 되게)
+    // 관리자·운영진·VIP3이거나, 이 일정에 실제로 참석중인 회원이면 확인 대상
+    // (VIP3·운영진은 참석 여부와 무관하게 항상 대상 — "놓치지 않고 확인"하는 취지)
     const myVote = getVote(ev.id);
     const isAttendingThis = myVote && myVote.status === 'attend';
-    if(!hasAdminPower() && !isAttendingThis) return;
+    const isPrivileged = hasAdminPower() || state.myIsStaff || isVip3(state.myName);
+    if(!isPrivileged && !isAttendingThis) return;
     const key = 'court3-popup-asked-' + ev.id + '-' + (state.myName || '');
     let asked = '';
     try{ asked = localStorage.getItem(key) || ''; }catch(e){}
@@ -7259,6 +7298,7 @@ async function init(){
   try{ checkFingerprintReminderForLocal(); }catch(e){ console.error('관내 지문 리마인더 오류', e); }
   try{ checkMonthlyRankingAnnouncement(); }catch(e){ console.error('월간랭킹발표 오류', e); }
   try{ checkCourt3ConfirmPopup(); }catch(e){ console.error('3번코트 확인 팝업 오류', e); }
+  try{ checkVip3WelcomePopup(); }catch(e){ console.error('VIP3 환영팝업 오류', e); }
   try{ checkSaturdayCourt3Reminder(); }catch(e){ console.error('토요일 3번코트 리마인더 오류', e); }
   try{ scheduleTodayPanelAutoClose(); }catch(e){ console.error('scheduleTodayPanelAutoClose 오류', e); }
   try{ subscribeRealtime(); }catch(e){ console.error('subscribeRealtime 오류', e); }
@@ -7268,6 +7308,7 @@ async function init(){
       if(changed){ lastDataSnapshot = JSON.stringify(state.data); renderEventList(); renderNotifBell(); }
       await pollForUpdates();
       try{ checkCourt3ConfirmPopup(); }catch(e){ console.error('3번코트 확인 팝업 오류', e); }
+      try{ checkVip3WelcomePopup(); }catch(e){ console.error('VIP3 환영팝업 오류', e); }
       try{ checkSaturdayCourt3Reminder(); }catch(e){ console.error('토요일 3번코트 리마인더 오류', e); }
     }catch(e){ console.error('주기적 갱신 오류', e); }
   }, 20000);
