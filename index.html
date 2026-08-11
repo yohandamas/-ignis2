@@ -532,7 +532,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.127</span>
+      <span id="buildVersionTop" class="build-version-top">v.129</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -858,7 +858,7 @@
     <div class="field">코트(콤마구분)<input id="newCourts" placeholder="예: 1,2"></div>
     <div class="field">시작<input id="newStart" type="time" value="19:00"></div>
     <div class="field">종료<input id="newEnd" type="time" value="21:00"></div>
-    <div class="field">반복 요일
+    <div class="field">반복 요일 (아래 "특정 날짜"를 입력하면 이 선택은 무시돼요)
       <div class="dow-check">
         <label><input type="checkbox" value="1">월</label>
         <label><input type="checkbox" value="2">화</label>
@@ -869,8 +869,10 @@
         <label><input type="checkbox" value="0">일</label>
       </div>
     </div>
+    <div class="field">또는 특정 날짜 1회만 (갑자기 생긴 이벤트성 일정용)<input id="newSpecificDate" type="date"></div>
+    <div class="field">정원 직접 지정(선택, 월례대회 등 대규모 이벤트용 — 비우면 코트수×6명 자동계산)<input id="newCustomCapacity" type="number" min="1" placeholder="예: 40"></div>
     <button id="addEventBtn">반복 일정 추가</button>
-    <div class="hint">코트당 정원 6명 기준으로 자동 계산됩니다(유니온 3번코트 포함 복수코트는 확보 전까지 임시 축소, 확보 후 정상 정원). 일정은 올해 12월 31일까지 생성됩니다.</div>
+    <div class="hint">코트당 정원 6명 기준으로 자동 계산됩니다(유니온 3번코트 포함 복수코트는 확보 전까지 임시 축소, 확보 후 정상 정원). 반복 일정은 올해 12월 31일까지 생성됩니다. 특정 날짜를 입력하면 그 날 하루만 생성돼요. 월례대회처럼 여러 코트를 묶어 큰 규모로 진행할 땐 "코트" 칸에 콤마로 여러 코트를 입력하고(예: 1,2,3), "정원 직접 지정"에 실제 참석 규모(예: 40)를 넣어주세요.</div>
   </div></details>
 
   <div class="calendar" id="calendar"></div>
@@ -1187,7 +1189,7 @@ function buildTemplates(){
 }
 
 function defaultData(){
-  return { templates: buildTemplates(), votes: {}, skippedDates: {}, capacityOverrides: {}, memberPins: {}, comments: {}, notifications: [], notifiedFlags: {}, fingerprintChecks: {}, extraMembers: [], removedMembers: {}, fingerprintExtraTargets: [], vip3Members: {}, vip3WelcomePending: {}, court3Confirmed: {}, cancelStats: {}, sameDayCancelStats: {}, genderFlex: {}, preClosed: {}, inviteCourts: {}, inviteClosed: {}, genderClosed: {}, penalties: {}, warnings: {}, monthlyChampions: {}, titleChoice: {}, pendingApproval: {}, removedTemplateIds: [], approvedAt: {}, districtOverrides: {}, wholeCancelled: {}, voteHistory: {}, ballStock: { '종합운동장': 0, '유니온': 0, '창고': 0 }, ballStockLastRefill: {} };
+  return { templates: buildTemplates(), votes: {}, skippedDates: {}, capacityOverrides: {}, memberPins: {}, comments: {}, notifications: [], notifiedFlags: {}, fingerprintChecks: {}, extraMembers: [], removedMembers: {}, fingerprintExtraTargets: [], vip3Members: {}, vip3WelcomePending: {}, court3Confirmed: {}, cancelStats: {}, sameDayCancelStats: {}, genderFlex: {}, preClosed: {}, inviteCourts: {}, inviteClosed: {}, genderClosed: {}, penalties: {}, warnings: {}, monthlyChampions: {}, titleChoice: {}, pendingApproval: {}, removedTemplateIds: [], approvedAt: {}, districtOverrides: {}, staffOverrides: {}, wholeCancelled: {}, voteHistory: {}, ballStock: { '종합운동장': 0, '유니온': 0, '창고': 0 }, ballStockLastRefill: {} };
 }
 
 function getFingerprintTargets(){
@@ -1396,7 +1398,7 @@ async function saveData(){
         //  아무 저장이나 하면 다른 사람이 방금 바꾼 값을 되돌려버리는 문제가 있었음)
         // null 값은 "명시적으로 삭제됨"을 의미하며, 병합 후 실제로 키를 제거한다.
         const MERGE_MAP_FIELDS = ['memberPins','fingerprintChecks','court3Confirmed','genderFlex','preClosed',
-          'inviteCourts','inviteClosed','genderClosed','capacityOverrides','cancelStats','sameDayCancelStats','notifiedFlags','skippedDates','monthlyChampions','titleChoice','pendingApproval','approvedAt','districtOverrides','wholeCancelled','voteHistory','ballStock','ballStockLastRefill','removedMembers','vip3Members','vip3WelcomePending'];
+          'inviteCourts','inviteClosed','genderClosed','capacityOverrides','cancelStats','sameDayCancelStats','notifiedFlags','skippedDates','monthlyChampions','titleChoice','pendingApproval','approvedAt','districtOverrides','staffOverrides','wholeCancelled','voteHistory','ballStock','ballStockLastRefill','removedMembers','vip3Members','vip3WelcomePending'];
         const MERGE_ARRAY_FIELDS = ['fingerprintExtraTargets'];
         MERGE_ARRAY_FIELDS.forEach(field => {
           // 배열 필드는 합집합으로 병합 (둘 중 하나라도 추가했으면 유지)
@@ -1470,8 +1472,9 @@ function computeCapacity(t, id, opts){
   const generalCourtCount = Math.max(0, t.courts.length - inviteN);
   const generalQuota = inviteN > 0 ? generalCourtCount * 6 : quota;
   const generalMax = (capacityOverrides && capacityOverrides[id] != null) ? capacityOverrides[id] : (inviteN > 0 ? generalQuota : computedDefault);
+  const displayQuota = (capacityOverrides && capacityOverrides[id] != null) ? capacityOverrides[id] : generalQuota; // 정원 직접지정(월례대회 등) 시 "정원 N명" 표시도 동일하게 맞춤
   return {
-    quota: generalQuota,
+    quota: displayQuota,
     max_players: generalMax,
     includesCourt3,
     court3Confirmed: isConfirmed,
@@ -1488,7 +1491,12 @@ function generateInstances(templates, startDate, days, skippedDates, capacityOve
     const iso = localIso(d);
     const dow = d.getDay();
     templates.forEach(t => {
-      if(!t.daysOfWeek.includes(dow)) return;
+      if(t.specificDate){
+        if(t.specificDate !== iso) return; // 1회성 이벤트는 지정된 그 날짜에만 생성
+      } else {
+        if(!t.daysOfWeek || !t.daysOfWeek.includes(dow)) return;
+        if(t.endDate && iso > t.endDate) return; // "이후 반복일정 삭제"로 종료일이 설정된 경우, 그 이후엔 생성 안 함
+      }
       const id = t.id + '_' + iso;
       if(skippedDates && skippedDates[id]) return;
       const cap = computeCapacity(t, id, { capacityOverrides, court3Confirmed, inviteCourts });
@@ -1551,8 +1559,12 @@ function getActiveMembers(){
   const extra = (state.data && state.data.extraMembers) ? state.data.extraMembers : [];
   const removed = (state.data && state.data.removedMembers) ? state.data.removedMembers : {};
   const districtOverrides = (state.data && state.data.districtOverrides) ? state.data.districtOverrides : {};
+  const staffOverrides = (state.data && state.data.staffOverrides) ? state.data.staffOverrides : {};
   return [...MEMBERS, ...extra].filter(m => !removed[m.name])
-    .map(m => districtOverrides[m.name] ? Object.assign({}, m, { district: districtOverrides[m.name] }) : m);
+    .map(m => districtOverrides[m.name] ? Object.assign({}, m, { district: districtOverrides[m.name] }) : m)
+    .map(m => staffOverrides[m.name] !== undefined && staffOverrides[m.name] !== null
+      ? Object.assign({}, m, { is_staff: !!staffOverrides[m.name].on, role: staffOverrides[m.name].on ? (staffOverrides[m.name].role || m.role) : '' })
+      : m);
 }
 
 function applyMemberInfo(name){
@@ -2558,11 +2570,17 @@ async function buildMonthlySummary(startDate, endDate){
   });
   const top5 = Object.entries(attendCountByName).sort((a,b)=>b[1]-a[1]).slice(0,5)
     .map(([n,c],i) => `${i+1}. ${n} (${c}회)`).join('\n');
+  const rankReport = computeMemberRankingReport(startDate, endDate);
+  const shortList = (arr) => arr.slice(0,3).map(r => `${r.name}(${r.count}회)`).join(', ') || '-';
+  const rankLine = `· 남자 상위3: ${shortList(rankReport.maleTop10)} / 하위3: ${shortList(rankReport.maleBottom10)}\n` +
+    `· 여자 상위3: ${shortList(rankReport.femaleTop10)} / 하위3: ${shortList(rankReport.femaleBottom10)}\n` +
+    `· 전체 랭킹(상위·하위 10명씩)은 앱 내 "회원별 상세통계"에서 CSV로 받아보실 수 있어요`;
   const ballLine = await buildBallUsageSummary(startDate, endDate, true);
   return `📅 ${startIso} ~ ${endIso}\n` +
     `· 진행된 일정 ${totalEvents}개, 총 참석 연인원 ${totalAttend}명\n` +
     `· 활동 회원(1회 이상 참석) ${activeMemberCount}명\n` +
     (top5 ? `· 참석 top5\n${top5}\n` : '') +
+    rankLine + '\n' +
     `· 이번 달 신규 경고 ${newWarnings}건 (월간 랭킹 메달은 별도로 안내됩니다)` +
     (ballLine ? `\n${ballLine}` : '');
 }
@@ -2903,6 +2921,23 @@ document.getElementById('warnPanelToggle').onclick = async () => {
 };
 
 const SITE_LOG = [
+  { ts:'2026-08-10 18:00', t:'📅 1회성 이벤트 일정 + 개별삭제 3단계 옵션 + 월례대회 커스텀정원 신설', important:true, d:[
+    '일정추가 폼에 "특정 날짜 1회만" 입력란 신설 — 반복요일 대신 날짜 하나를 지정하면 그 날만 생성되는 1회성 이벤트(specificDate) 등록 가능',
+    '"이 날짜만 취소" 버튼을 3가지 선택 다이얼로그로 확장: ①이 날짜만 ②이 날짜부터 이후 반복 전체 중단(과거분은 유지) ③반복일정 전체 삭제. 1회성 이벤트는 "이 일정 삭제" 하나만(어차피 재사용 없는 템플릿이라 완전삭제)',
+    '"이 날짜부터 이후" 삭제는 템플릿에 endDate를 설정하는 방식으로 구현 — generateInstances가 이 날짜 이후엔 해당 템플릿을 건너뛰도록 확장',
+    '월례대회(3코트·6시간·40명 규모) 같은 대규모 이벤트를 위해 "정원 직접 지정" 입력란 신설 — 코트수×6 자동계산 대신 실제 참석규모를 그대로 지정 가능(capacityOverrides 활용), 화면표시(quota)도 커스텀값에 맞춰 통일',
+    '회원별 참석 랭킹(월간/분기/연간, 남녀 각각 상위·하위 10명) 리포트 신설 — 참석 0회 회원도 정확히 하위권에 포함되도록 전체 활성회원 기준으로 계산, CSV 다운로드 지원',
+    '매월1일 자동 리포트 알림에도 남녀 상위3/하위3 요약 추가, 전체 10명씩은 앱 내 상세통계에서 CSV로 안내',
+    '⚠️ 개발과정 자체점검: 함수 삽입 도중 기존 함수(toggleMemberDistrict, classifyEventCategory) 선언부가 사라지는 동일유형 실수가 이번에도 2건 발생 — 매번 즉시 node --check로 발견해 배포 전 복구, 함수 목록 전수 재확인으로 최종 검증 강화'
+  ]},
+  { ts:'2026-08-10 17:30', t:'👥 운영진(★스태프) — 관리자가 직접 지정/해제 가능하게', important:true, d:[
+    '기존엔 운영진 여부가 코드에 하드코딩된 MEMBERS 배열(is_staff)로만 결정되어, 관리자가 화면에서 바꿀 방법이 없었음',
+    'districtOverrides(관내/관외 재지정)와 동일한 패턴으로 staffOverrides 신설 — 회원관리에서 "운영진 지정/해제" 버튼으로 누구든 운영진으로 만들거나 해제 가능',
+    '지정시 직책(예: 총무, 회계 등)도 함께 입력 가능, 미입력시 "운영진"으로 표시',
+    '운영진으로 지정되면 자동으로 접속시 관리자모드 자동진입 대상에도 포함됨(v127 기능과 연동)',
+    '⚠️ 개발과정 자체점검: 함수 삽입 도중 실수로 기존 toggleMemberDistrict 함수 선언부가 통째로 사라지는 구문오류를 자체 구문검증(node --check)으로 즉시 발견, 배포 전 복구 완료 — 매 변경 후 전체 검증을 거치는 습관 덕분에 사전에 걸러짐',
+    '해제시 직책도 명확히 비워지도록 fallback 로직 보완, 3가지 케이스(지정/해제/미변경) 시뮬레이션 전부 검증'
+  ]},
   { ts:'2026-08-10 17:00', t:'🔓 운영진(★스태프) — 접속시 자동으로 관리자모드 진입', important:true, d:[
     '기존엔 운영진도 접속 후 "관리자 모드" 버튼을 직접 눌러야 켜졌음(비밀번호는 면제였지만 클릭은 필요) — 이제 로그인/자동재접속 시점에 is_staff 회원이면 자동으로 관리자모드가 켜진 채로 시작됨',
     '버튼도 별도 처리 없이 기존 syncAdminUI() 로직이 자동으로 "🔓 관리자 모드 (켜짐)" 스타일로 표시(진한 배경+흰 텍스트)',
@@ -3354,7 +3389,7 @@ const SITE_LOG = [
   ]},
   { ts:'2026-07-21 22:00', t:'🎾 금요일 안내 · 이력조회 보강 · 칭호아이콘 위치조정 · 마일스톤 확장', important:true, d:[
     '금요일 20-22시 유니온·종합운동장 동시 일정시, 시작 6시간 전부터 "같은 성별끼리 모여서, 유니온 우선 이용" 안내 자동 발송 (유니온 코트 이용기록 유지 목적)',
-    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.127 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
+    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.129 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
     '관리자 "지금 자동승급 실행"의 일반 대기열 승급에도 AI관리자 댓글이 빠져있던 것 발견, 추가',
     '이름 옆 칭호 아이콘(럭키/최초달성/월간메달)을 참석목록·랭킹에서 제거하고 댓글에만 표시하도록 위치 조정',
     '럭키방문 마일스톤 5종에서 2000/2222/3000/3333/4000/4444 추가해 총 11종으로 확대'
@@ -5519,6 +5554,27 @@ async function issueWarning(name){
   renderNotifBell();
 }
 
+async function toggleMemberStaff(name){
+  const m = getActiveMembers().find(x => x.name === name);
+  if(!m) return;
+  if(!state.data.staffOverrides) state.data.staffOverrides = {};
+  if(m.is_staff){
+    if(!confirm(`"${name}" 님의 운영진 권한을 해제하시겠습니까?`)) return;
+    state.data.staffOverrides[name] = { on: false, role: '' };
+    pushNotification(`${state.myName}(관리자)님이 "${name}"님의 운영진 권한을 해제했습니다.`);
+  } else {
+    const role = prompt(`"${name}" 님을 운영진으로 지정합니다. 직책을 입력해 주세요 (예: 총무, 회계, 홍보이사 등, 비워두면 "운영진"으로 표시)`, '');
+    if(role === null) return;
+    state.data.staffOverrides[name] = { on: true, role: role.trim() };
+    pushNotification(`${state.myName}(관리자)님이 "${name}"님을 운영진으로 지정했습니다.${role.trim() ? ` (${role.trim()})` : ''}`);
+  }
+  markDirty('staffOverrides', name);
+  if(state.myName === name){ state.myIsStaff = state.data.staffOverrides[name].on; state.myRole = state.data.staffOverrides[name].role; if(state.myIsStaff) state.adminMode = true; }
+  const ok = await saveData();
+  if(!ok) alert('저장에 실패했습니다. 다시 시도해 주세요.');
+  renderMemberMgmt();
+}
+
 async function toggleMemberDistrict(name){
   const m = getActiveMembers().find(x => x.name === name);
   if(!m) return;
@@ -5600,9 +5656,41 @@ async function adjustMax(ev, delta){
 }
 
 async function skipOccurrence(eventId){
-  if(!confirm('이 날짜의 일정만 취소하시겠습니까? (반복 일정 자체는 유지됩니다)')) return;
-  state.data.skippedDates[eventId] = true;
-  markDirty('skippedDates', eventId);
+  const ev = getInstances().find(e => e.id === eventId);
+  const t = ev ? state.data.templates.find(x => x.id === ev.templateId) : null;
+  const isOneTime = t && t.specificDate; // 1회성 이벤트는 "이후반복" 개념이 없음
+
+  const options = isOneTime ? ['이 일정 삭제', '취소'] : ['이 날짜만', '이 날짜부터 이후 전체', '반복일정 전체', '취소'];
+  const choice = await showChoiceDialog(
+    isOneTime ? '이 일정을 삭제하시겠습니까?' : '어떻게 삭제하시겠습니까?',
+    options
+  );
+  if(!choice || choice === '취소') return;
+
+  if(choice === '이 일정 삭제'){
+    // 1회성 이벤트는 skippedDates로 숨기는 대신 템플릿 자체를 완전히 삭제(어차피 재사용 안 되는 1회용이라 죽은 템플릿으로 남는 걸 방지)
+    state.data.templates = state.data.templates.filter(x => x.id !== t.id);
+    if(!state.data.removedTemplateIds) state.data.removedTemplateIds = [];
+    state.data.removedTemplateIds.push(t.id);
+    pushNotification(`${state.myName}(관리자)님이 ${shortEventLabel(ev)} 일정을 삭제했습니다.`);
+  } else if(choice === '이 날짜만'){
+    state.data.skippedDates[eventId] = true;
+    markDirty('skippedDates', eventId);
+    pushNotification(`${state.myName}(관리자)님이 ${shortEventLabel(ev)} 일정(이 날짜만)을 삭제했습니다.`);
+  } else if(choice === '이 날짜부터 이후 전체'){
+    if(!t) return;
+    const prevDay = localIso(new Date(new Date(ev.event_date + 'T00:00:00').getTime() - 86400000));
+    t.endDate = prevDay; // 이 날짜 전날까지만 생성되도록 종료일 설정 (과거 발생분은 그대로 유지)
+    markDirty('templates', t.id);
+    pushNotification(`${state.myName}(관리자)님이 ${shortEventLabel(ev)} 일정을 이 날짜부터 이후 반복 중단했습니다. (그 이전 일정은 유지)`);
+  } else if(choice === '반복일정 전체'){
+    if(!t) return;
+    if(!confirm(`"${t.title}" 반복일정 전체(과거·미래 모든 발생)를 완전히 삭제하시겠습니까?`)) return;
+    state.data.templates = state.data.templates.filter(x => x.id !== t.id); // 로컬 즉시반영
+    if(!state.data.removedTemplateIds) state.data.removedTemplateIds = [];
+    state.data.removedTemplateIds.push(t.id); // removedTemplateIds는 saveData()가 자동으로 합집합 병합함(markDirty 불필요)
+    pushNotification(`${state.myName}(관리자)님이 "${t.title}" 반복일정 전체를 삭제했습니다.`);
+  }
   await saveData();
   renderAll();
 }
@@ -5710,6 +5798,41 @@ function renderDashboard(){
     <div class="manual-divider" style="margin-top:14px;">⚠️ 경고 현황 (회원별 관리)</div>
   ` + renderDisciplinaryHtml();
   wireDisciplinaryButtons(box);
+}
+
+function computeMemberRankingReport(start, end){
+  const { stats } = computeDetailedMemberStats(start, end);
+  const totalOf = (s) => s ? Object.values(s.categories).reduce((a,b)=>a+b,0) : 0;
+  const members = getActiveMembers().filter(m => !m.is_staff || true); // 운영진도 포함(참석은 회원 자격으로 하니까)
+  const rows = members.map(m => ({ name: m.name, gender: m.gender, count: totalOf(stats[m.name]) }));
+  const male = rows.filter(r => r.gender === '남').sort((a,b) => b.count - a.count);
+  const female = rows.filter(r => r.gender === '여').sort((a,b) => b.count - a.count);
+  return {
+    maleTop10: male.slice(0, 10),
+    maleBottom10: male.slice(-10).reverse(), // 적은 순 → 많은 순으로 뒤집어서, 항상 "가장 적은 사람이 위"로
+    femaleTop10: female.slice(0, 10),
+    femaleBottom10: female.slice(-10).reverse(),
+    allMale: male, allFemale: female
+  };
+}
+
+function downloadMemberRankingCsv(report, periodLabel){
+  const header = '구분,순위,이름,참석횟수\n';
+  const section = (label, arr) => arr.map((r,i) => `${label},${i+1},${r.name},${r.count}`).join('\n') + '\n';
+  const csv = '\uFEFF' + header
+    + section('남자 상위', report.maleTop10)
+    + section('남자 하위', report.maleBottom10)
+    + section('여자 상위', report.femaleTop10)
+    + section('여자 하위', report.femaleBottom10);
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `이그니스_회원참석랭킹_${periodLabel}_${localIso(new Date())}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 function classifyEventCategory(ev){
@@ -5823,6 +5946,29 @@ function renderMonthlyMemberStats(period){
   const topConsecutive = [...entries].sort((a,b) => consecutiveTotal(b[1]) - consecutiveTotal(a[1])).slice(0,5)
     .map(([n,s]) => `${escapeHtml(n)}(${consecutiveTotal(s)}회)`).join(', ');
 
+  const rankReport = computeMemberRankingReport(start, end);
+  const rankList = (arr, emptyLabel) => arr.length
+    ? arr.map((r,i) => `${i+1}. ${escapeHtml(r.name)} (${r.count}회)`).join('<br>')
+    : `<span style="color:var(--ink-faint);">${emptyLabel}</span>`;
+  const rankingHtml = `
+    <div class="manual-divider" style="margin-top:14px;">🏅 회원별 참석 랭킹 (상위·하위 10명, 남녀 각각)</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0;">
+      <div style="background:var(--brand-soft);border-radius:8px;padding:8px 10px;font-size:calc(11px * var(--font-scale, 1));">
+        <b>🚹 남자 상위 10명</b><br>${rankList(rankReport.maleTop10, '데이터 없음')}
+      </div>
+      <div style="background:var(--rose-soft, #fde8ef);border-radius:8px;padding:8px 10px;font-size:calc(11px * var(--font-scale, 1));">
+        <b>🚺 여자 상위 10명</b><br>${rankList(rankReport.femaleTop10, '데이터 없음')}
+      </div>
+      <div style="background:var(--danger-soft);border-radius:8px;padding:8px 10px;font-size:calc(11px * var(--font-scale, 1));">
+        <b>🚹 남자 하위 10명</b><br>${rankList(rankReport.maleBottom10, '데이터 없음')}
+      </div>
+      <div style="background:var(--danger-soft);border-radius:8px;padding:8px 10px;font-size:calc(11px * var(--font-scale, 1));">
+        <b>🚺 여자 하위 10명</b><br>${rankList(rankReport.femaleBottom10, '데이터 없음')}
+      </div>
+    </div>
+    <button id="memberRankCsvBtn" style="width:100%;background:var(--brand);color:#fff;border:none;border-radius:8px;padding:8px;font-weight:700;cursor:pointer;">⬇️ 참석랭킹 CSV로 다운로드 (엑셀에서 열기)</button>
+  `;
+
   body.innerHTML = `
     <div style="display:flex;gap:6px;margin-bottom:10px;">${periodBtns}</div>
     <div style="font-size:calc(11px * var(--font-scale, 1));color:var(--ink-faint);margin-bottom:8px;">${localIso(start)} ~ ${localIso(end)}</div>
@@ -5830,6 +5976,8 @@ function renderMonthlyMemberStats(period){
       🏆 <b>20-22시(황금시간대) TOP5</b>: ${top20to22 || '데이터 없음'}<br>
       🔁 <b>연속참석(당일2회+연속일수) TOP5</b>: ${topConsecutive || '데이터 없음'}
     </div>
+    ${rankingHtml}
+    <div class="manual-divider" style="margin-top:14px;">📋 회원별 상세 (기간내 전체)</div>
     <div style="overflow-x:auto;">
       <table style="width:100%;border-collapse:collapse;font-size:calc(10px * var(--font-scale, 1));text-align:center;">
         <thead><tr style="border-bottom:1px solid var(--line);font-weight:700;">
@@ -5840,6 +5988,8 @@ function renderMonthlyMemberStats(period){
       </table>
     </div>
   `;
+  const rankCsvBtn = document.getElementById('memberRankCsvBtn');
+  if(rankCsvBtn) rankCsvBtn.onclick = () => downloadMemberRankingCsv(rankReport, period);
   body.querySelectorAll('[data-stats-period]').forEach(btn => {
     btn.onclick = () => renderMonthlyMemberStats(btn.getAttribute('data-stats-period'));
   });
@@ -5872,6 +6022,7 @@ function renderMemberMgmt(){
           <span class="m-meta">${m.gender}/${m.district}</span>
           <button class="pin-reset-btn" data-toggle-district="${escapeHtml(m.name)}">${m.district === '관내' ? '→관외로' : '→관내로'}</button>
           <button class="pin-reset-btn" data-toggle-vip3="${escapeHtml(m.name)}" title="유니온 3번코트(새벽 포함) 확보 확인 권한">${isVip3(m.name) ? 'VIP3 해제' : 'VIP3 지정'}</button>
+          <button class="pin-reset-btn" data-toggle-staff="${escapeHtml(m.name)}" title="운영진 지정시 접속시 자동 관리자모드 진입">${m.is_staff ? '★운영진 해제' : '운영진 지정'}</button>
           <span class="m-pin">PIN ${pins[m.name] ? '설정됨 🔒' : '미설정'}</span>
           ${isPending ? `<button class="pin-reset-btn" data-approve-member="${escapeHtml(m.name)}" style="background:var(--brand-soft);color:var(--brand-dark);">✅승인</button>` : ''}
           ${pins[m.name] ? `<button class="pin-reset-btn" data-reset-pin="${escapeHtml(m.name)}">PIN초기화</button>` : ''}
@@ -5961,6 +6112,9 @@ function renderMemberMgmt(){
   box.querySelectorAll('[data-toggle-district]').forEach(btn => {
     btn.onclick = () => toggleMemberDistrict(btn.getAttribute('data-toggle-district'));
   });
+  box.querySelectorAll('[data-toggle-staff]').forEach(btn => {
+    btn.onclick = () => toggleMemberStaff(btn.getAttribute('data-toggle-staff'));
+  });
   box.querySelectorAll('[data-toggle-vip3]').forEach(btn => {
     btn.onclick = async () => {
       const name = btn.getAttribute('data-toggle-vip3');
@@ -6032,21 +6186,39 @@ document.getElementById('addEventBtn').onclick = async () => {
   const start = document.getElementById('newStart').value;
   const end = document.getElementById('newEnd').value;
   const days = Array.from(document.querySelectorAll('.dow-check input:checked')).map(i => parseInt(i.value,10));
-  if(!title || !courtsRaw || days.length === 0){ alert('제목, 코트, 반복 요일을 입력해 주세요.'); return; }
+  const specificDate = document.getElementById('newSpecificDate').value; // "" 또는 "YYYY-MM-DD"
+  const customCapacityRaw = document.getElementById('newCustomCapacity').value.trim();
+  const customCapacity = customCapacityRaw ? parseInt(customCapacityRaw, 10) : null;
+  if(!title || !courtsRaw || (days.length === 0 && !specificDate)){ alert('제목, 코트와, "반복 요일" 또는 "특정 날짜" 중 하나를 입력해 주세요.'); return; }
+  if(customCapacity && !specificDate){ alert('"정원 직접 지정"은 "특정 날짜 1회만" 이벤트에만 사용할 수 있어요.'); return; }
   const courts = courtsRaw.split(',').map(c => c.trim().replace(/번$/,'') + '번');
+  const templateFields = specificDate
+    ? { title, daysOfWeek: [], specificDate, startTime: start, endTime: end, location, courts }
+    : { title, daysOfWeek: days, specificDate: null, startTime: start, endTime: end, location, courts };
+  let newTemplateId = null;
   if(state.editingTemplateId){
     const t = state.data.templates.find(x => x.id === state.editingTemplateId);
-    if(t){ Object.assign(t, { title, daysOfWeek: days, startTime: start, endTime: end, location, courts }); }
+    if(t){ Object.assign(t, templateFields); }
     markDirty('templates', state.editingTemplateId);
+    newTemplateId = state.editingTemplateId;
     state.editingTemplateId = null;
     document.getElementById('addEventBtn').textContent = '반복 일정 추가';
   } else {
     const id = 'tpl' + Date.now();
-    state.data.templates.push({ id, title, daysOfWeek: days, startTime: start, endTime: end, location, courts });
+    state.data.templates.push(Object.assign({ id }, templateFields));
     markDirty('templates', id);
+    newTemplateId = id;
+  }
+  if(customCapacity && specificDate){
+    const eventId = newTemplateId + '_' + specificDate;
+    state.data.capacityOverrides[eventId] = customCapacity;
+    markDirty('capacityOverrides', eventId);
+    pushNotification(`📢 "${title}"(${specificDate}) 대규모 이벤트 일정이 등록되었습니다. 정원 ${customCapacity}명으로 지정됨.`, {category:'announcement'});
   }
   document.getElementById('newTitle').value = "";
   document.getElementById('newCourts').value = "";
+  document.getElementById('newSpecificDate').value = "";
+  document.getElementById('newCustomCapacity').value = "";
   document.querySelectorAll('.dow-check input').forEach(i => i.checked = false);
   await saveData();
   renderTemplateList();

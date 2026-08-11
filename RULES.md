@@ -1119,3 +1119,29 @@
 | 버튼 스타일 | 별도 CSS 수정 불필요 — 기존 `.admin-toggle.on`(진한배경+흰텍스트) 스타일이 `syncAdminUI()`를 통해 자동 적용됨 |
 | 동작 방식 | 수동으로 끄면 그 세션에서는 꺼진 채 유지, 재접속시 다시 자동으로 켜짐(의도된 동작) |
 | 검증 | 운영진로그인/일반회원로그인/운영진재접속 3케이스 시뮬레이션 전부 정확 |
+
+## v128. 운영진 지정/해제 기능 신설 (관리자 재량)
+
+| 항목 | 내용 |
+|---|---|
+| 배경 | 기존엔 운영진(is_staff)이 MEMBERS 배열에 하드코딩되어 있어 관리자가 화면에서 바꿀 방법이 없었음 |
+| 신설 필드 | `staffOverrides`(MERGE_MAP_FIELDS) — `{name: {on: true/false, role: "직책"}}` 구조 |
+| 적용 로직 | `getActiveMembers()`에서 districtOverrides와 동일한 패턴으로 적용 — override 있으면 is_staff/role을 덮어씀, 해제(on:false)시 role도 명확히 빈 문자열로 처리 |
+| 신설 함수 | `toggleMemberStaff(name)` — 지정시 직책 prompt 입력(선택), 해제시 확인 후 처리. 본인이 스스로를 변경한 경우 state.myIsStaff/myRole 즉시 갱신 + 운영진 지정시 state.adminMode도 즉시 true(v127 자동진입과 연동) |
+| UI | 회원관리 목록에 "운영진 지정/★운영진 해제" 버튼 (VIP3 버튼 옆) |
+| ⚠️ 개발중 자체발견 | 함수 삽입 과정에서 기존 `toggleMemberDistrict` 함수 선언부(`async function toggleMemberDistrict(name){`)가 실수로 통째로 사라지는 구문오류 발생 — 매 변경 후 필수인 `node --check` 구문검증에서 즉시 포착, 원인 특정 후 복구. 배포 전 항상 전체 검증을 거치는 프로세스가 실제로 오류를 걸러낸 사례 |
+| 검증 | 지정/해제/미변경 3케이스 시뮬레이션 전부 정확, 최종 구문검증 통과 |
+
+## v129. 1회성 이벤트 + 개별삭제3단계 + 월례대회 커스텀정원 + 회원참석랭킹
+
+| 항목 | 규칙 |
+|---|---|
+| 1회성 이벤트 | templates에 `specificDate`(YYYY-MM-DD) 필드 지원 — generateInstances가 daysOfWeek 대신 이 날짜에만 매칭. 폼에 date input 추가 |
+| 개별삭제 3단계 | `skipOccurrence(eventId)`를 showChoiceDialog 기반으로 확장 — 이날짜만(skippedDates)/이날짜부터이후(templates.endDate)/전체삭제(removedTemplateIds). 1회성이벤트는 "이 일정 삭제" 하나만(템플릿 자체 완전삭제) |
+| endDate 지원 | generateInstances에 `if(t.endDate && iso > t.endDate) return;` 추가 — 과거 발생분은 유지하고 그 날짜 이후만 중단 |
+| 월례대회 커스텀정원 | 1회성 이벤트에 한해 "정원 직접 지정" 입력 가능 — capacityOverrides[templateId_date]에 즉시 반영. computeCapacity에서 quota/max_players 둘 다 커스텀값으로 통일(표시 혼란 방지) |
+| 회원참석랭킹 | `computeMemberRankingReport(start,end)` — getActiveMembers 전체 기준(참석0회 포함)으로 성별 정렬, 상위/하위 10명. `downloadMemberRankingCsv`로 CSV 다운로드. renderMonthlyMemberStats에 UI 통합(기존 이번달/이번분기/올해 기간선택 재사용) |
+| 매월1일 알림 확장 | buildMonthlySummary에 남녀 상위3/하위3 요약 추가 |
+| DB 변경 | 없음 — 전부 기존 ignis_state(JSON blob) 안의 templates/capacityOverrides 필드 확장이라 SQL 마이그레이션 불필요 |
+| ⚠️ 개발중 반복실수 | 함수 삽입시 기존 함수 선언부가 사라지는 동일유형 실수 2건(toggleMemberDistrict, classifyEventCategory) 발생 — 매번 node --check로 즉시 발견·복구, 최종적으로 관련 함수 14개 전수 존재확인으로 재검증 |
+| 검증 | 월례대회(3코트+커스텀40명), 회원랭킹(참석0회 포함 정확한 하위권), endDate/specificDate 매칭 전부 시뮬레이션 통과 |
