@@ -534,7 +534,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.131</span>
+      <span id="buildVersionTop" class="build-version-top">v.132</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -2387,7 +2387,8 @@ async function promoteGenderFlexWaiting(ev, flexGender){
       .filter(([,v]) => {
         if(v.status !== 'waiting' || v.gender !== flexGender) return false;
         if(!['gender_wait','regular','consecutive','late'].includes(v.type)) return false;
-        if(isPeakSeason() && v.type === 'consecutive') return false; // 성수기엔 연참이 정오 자동승급 대상에서 제외
+        if(v.type === 'late_consecutive') return false; // 늦참+연참 동시는 계절 무관 항상 제외 — 시작1시간전 전용경로(checkConsecutiveWaitingLatePromotion)로만 승급
+        if(isPeakSeason() && v.type === 'consecutive') return false; // 순수 연참은 성수기에만 제외 — 시작 1시간전에 별도 승급 기회를 줌
         return true;
       })
       .sort((a,b) => waitingSortKey(a[1]) - waitingSortKey(b[1]));
@@ -2432,7 +2433,8 @@ async function tryAutoPromote(ev){
     .filter(([,v]) => {
       if(v.status !== 'waiting') return false;
       if(['gwae_review','late_request','gwae_wait'].includes(v.type)) return false;
-      if(isPeakSeason() && v.type === 'consecutive') return false; // 성수기엔 연참이 정오 자동승급 대상에서 제외 — 시작 1시간전에 별도로 승급 기회를 줌
+      if(v.type === 'late_consecutive') return false; // 늦참+연참 동시는 계절 무관 항상 제외 — 시작1시간전 전용경로(checkConsecutiveWaitingLatePromotion)로만 승급
+        if(isPeakSeason() && v.type === 'consecutive') return false; // 순수 연참은 성수기에만 제외 — 시작 1시간전에 별도 승급 기회를 줌
       if(ev.court_count === 2 && !isDawnEvent(ev) && !(ev.includesCourt3 && ev.court3Confirmed)){
         const myGenderCount = v.gender === '여' ? counts.female : counts.male;
         const flexFavorsThisGender = flex === v.gender;
@@ -2935,6 +2937,12 @@ document.getElementById('warnPanelToggle').onclick = async () => {
 };
 
 const SITE_LOG = [
+  { ts:'2026-08-13 21:00', t:'🐛 3번코트 확보시 늦참+연참(late_consecutive)이 잘못 자동승급되던 오류 수정', important:true, d:[
+    '제보: 3번코트 확보시, 늦참이면서 동시에 연참인 대기자가 원래 규칙(시작 1시간전 전용경로로만 승급)을 무시하고 즉시 자동승급되는 문제 발견',
+    '원인: promoteGenderFlexWaiting/tryAutoPromote/promoteWaitingForCapacity 3곳의 성수기 필터가 consecutive 타입만 걸러내고 late_consecutive는 빠져있었음 — 코드 주석엔 이미 "늦참+연참은 항상 전용경로로만 승급되어야 한다"는 설계의도가 있었는데 실제 필터엔 반영이 안 되어 있던 상태',
+    '수정: 3곳 모두 late_consecutive는 계절 무관 항상 제외, consecutive는 기존대로 성수기에만 제외하도록 분리',
+    '성수기/비수기 각각 4가지 타입(regular/late/consecutive/late_consecutive) 시뮬레이션으로 전부 검증'
+  ]},
   { ts:'2026-08-13 20:30', t:'🐛 3번코트 확보시 "성별대기가 먼저인데 일반대기가 먼저 승급"되던 버그 수정', important:true, d:[
     '제보: 3번코트 확보 버튼을 누르니, 성별대기로 먼저 등록한 사람보다 나중에 등록한 일반대기자가 먼저 승급되는 상황 발견',
     '원인: 유니온 2코트 템플릿(예: 2번,3번 코트)에 3번코트가 포함된 경우, 확보되어도 court_count(코트 개수)는 그대로 2로 유지됨 — 승급함수 4곳(tryAutoPromote/promoteWaitingForCapacity/forcePromoteWaitingNow/adminForcePromote) 모두 "court_count===2면 성별당 6명 상한을 넘는 승급을 보류"하는 규칙을 갖고 있었는데, 이 규칙이 3번코트 확보 여부와 무관하게 계속 적용되고 있었음',
@@ -3433,7 +3441,7 @@ const SITE_LOG = [
   ]},
   { ts:'2026-07-21 22:00', t:'🎾 금요일 안내 · 이력조회 보강 · 칭호아이콘 위치조정 · 마일스톤 확장', important:true, d:[
     '금요일 20-22시 유니온·종합운동장 동시 일정시, 시작 6시간 전부터 "같은 성별끼리 모여서, 유니온 우선 이용" 안내 자동 발송 (유니온 코트 이용기록 유지 목적)',
-    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.131 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
+    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.132 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
     '관리자 "지금 자동승급 실행"의 일반 대기열 승급에도 AI관리자 댓글이 빠져있던 것 발견, 추가',
     '이름 옆 칭호 아이콘(럭키/최초달성/월간메달)을 참석목록·랭킹에서 제거하고 댓글에만 표시하도록 위치 조정',
     '럭키방문 마일스톤 5종에서 2000/2222/3000/3333/4000/4444 추가해 총 11종으로 확대'
@@ -5283,7 +5291,8 @@ async function promoteWaitingForCapacity(ev){
       .filter(([,v]) => {
         if(v.status !== 'waiting') return false;
         if(['gwae_review','late_request','gwae_wait'].includes(v.type)) return false;
-        if(isPeakSeason() && v.type === 'consecutive') return false; // 성수기엔 연참이 정오 자동승급 대상에서 제외 — 시작 1시간전에 별도로 승급 기회를 줌
+        if(v.type === 'late_consecutive') return false; // 늦참+연참 동시는 계절 무관 항상 제외 — 시작1시간전 전용경로(checkConsecutiveWaitingLatePromotion)로만 승급
+        if(isPeakSeason() && v.type === 'consecutive') return false; // 순수 연참은 성수기에만 제외 — 시작 1시간전에 별도 승급 기회를 줌
         if(ev.court_count === 2 && !isDawnEvent(ev) && !(ev.includesCourt3 && ev.court3Confirmed)){
           // 성별 유연승급이 아직 결정되지 않았다면(또는 반대 성별로 결정됐다면), 성별당 6명 상한을 넘는 승급은 11:50 판정까지 보류
           const myGenderCount = v.gender === '여' ? counts.female : counts.male;

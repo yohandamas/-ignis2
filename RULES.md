@@ -1177,3 +1177,12 @@
 | 수정 | tryAutoPromote/promoteWaitingForCapacity/forcePromoteWaitingNow/adminForcePromote 4곳 모두 조건에 `&& !(ev.includesCourt3 && ev.court3Confirmed)` 추가 — 3번코트 확보시엔 이 상한 체크를 건너뜀, 미확보시엔 기존 규칙 유지 |
 | 검증 | 확보/미확보 대조군 시뮬레이션으로 수정 전(버그 재현)/후(정상) 확인 |
 | 특별이벤트 표시 | v129에서 이미 구현되어 있었음을 확인 — isSpecialEvent(1회성 이벤트)에 골드테두리+"✨특별이벤트" 배지 자동 적용. wkhtmltoimage로 실제 렌더링 확인(추가 작업 불필요) |
+
+## v132. 3번코트 확보시 늦참+연참(late_consecutive) 잘못 자동승급되던 오류 수정
+
+| 항목 | 내용 |
+|---|---|
+| 제보 | 3번코트 확보시, 늦참이면서 동시에 연참인 대기자가 원래 규칙(시작1시간전 전용경로로만 승급)을 무시하고 즉시 자동승급됨 |
+| 원인 | promoteGenderFlexWaiting/tryAutoPromote/promoteWaitingForCapacity 3곳의 성수기 필터가 `v.type==='consecutive'`만 걸러내고 `late_consecutive`는 누락 — 코드 주석엔 "늦참+연참은 항상 전용경로로만 승급"이라는 설계의도가 이미 있었는데 실제 필터엔 반영 안 됨(checkConsecutiveWaitingLatePromotion의 2260번 주석 참고) |
+| 수정 | 3곳 모두 `v.type==='late_consecutive'`는 계절 무관 항상 제외, `consecutive`는 기존대로 성수기에만 제외로 분리 |
+| 검증 | 성수기/비수기 × 4개 타입(regular/late/consecutive/late_consecutive) 시뮬레이션 전부 정확 |
