@@ -534,7 +534,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.130</span>
+      <span id="buildVersionTop" class="build-version-top">v.131</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -2433,7 +2433,7 @@ async function tryAutoPromote(ev){
       if(v.status !== 'waiting') return false;
       if(['gwae_review','late_request','gwae_wait'].includes(v.type)) return false;
       if(isPeakSeason() && v.type === 'consecutive') return false; // 성수기엔 연참이 정오 자동승급 대상에서 제외 — 시작 1시간전에 별도로 승급 기회를 줌
-      if(ev.court_count === 2 && !isDawnEvent(ev)){
+      if(ev.court_count === 2 && !isDawnEvent(ev) && !(ev.includesCourt3 && ev.court3Confirmed)){
         const myGenderCount = v.gender === '여' ? counts.female : counts.male;
         const flexFavorsThisGender = flex === v.gender;
         if(myGenderCount >= 6 && !flexFavorsThisGender) return false;
@@ -2935,6 +2935,18 @@ document.getElementById('warnPanelToggle').onclick = async () => {
 };
 
 const SITE_LOG = [
+  { ts:'2026-08-13 20:30', t:'🐛 3번코트 확보시 "성별대기가 먼저인데 일반대기가 먼저 승급"되던 버그 수정', important:true, d:[
+    '제보: 3번코트 확보 버튼을 누르니, 성별대기로 먼저 등록한 사람보다 나중에 등록한 일반대기자가 먼저 승급되는 상황 발견',
+    '원인: 유니온 2코트 템플릿(예: 2번,3번 코트)에 3번코트가 포함된 경우, 확보되어도 court_count(코트 개수)는 그대로 2로 유지됨 — 승급함수 4곳(tryAutoPromote/promoteWaitingForCapacity/forcePromoteWaitingNow/adminForcePromote) 모두 "court_count===2면 성별당 6명 상한을 넘는 승급을 보류"하는 규칙을 갖고 있었는데, 이 규칙이 3번코트 확보 여부와 무관하게 계속 적용되고 있었음',
+    '즉 3번코트로 정원이 실질적으로 늘어났는데도, 옛 2코트 기준 성별상한이 계속 걸려서 성별대기자만 승급이 막히고, 상한에 안 걸리는 일반대기자가 대신 먼저 승급되던 구조적 문제',
+    '수정: 4곳 모두 "3번코트가 포함되고 이미 확보된 경우"에는 이 성별상한 체크를 건너뛰도록 조건 추가 — 미확보 상태에서는 기존 규칙 그대로 유지',
+    '버그 재현/수정 전후 및 미확보 대조군까지 시뮬레이션으로 검증'
+  ]},
+  { ts:'2026-08-13 20:40', t:'✨ 특별 이벤트(월례대회 등) 카드 테두리 표시 — 이미 구현되어 있음을 확인', d:[
+    '요청: 월례대회 등 특별 이벤트 카드에 색깔 테두리/특별표시 추가',
+    '확인 결과 v129에서 1회성 이벤트 기능을 만들 때 이미 함께 구현되어 있었음 — isSpecialEvent(specificDate 있는 이벤트)에 골드색 테두리+그림자+"✨ 특별 이벤트" 리본 배지가 자동으로 붙는 구조',
+    '실제 렌더링 이미지로 일반 일정과 나란히 비교해 정상 작동 확인'
+  ]},
   { ts:'2026-08-10 18:30', t:'✏️ 개별 일정 수정/삭제 버튼을 카드 오른쪽 위로 이동 + "수정"(시간·코트) 기능 신설', important:true, d:[
     '제보: 기존 일정을 개별적으로 삭제할 방법을 못 찾겠다는 피드백 — 실제로는 "이 날짜만 취소" 버튼이 카드 중하단(정원조절 옆)에 있어 눈에 잘 안 띄었고, "수정"(시간/코트 변경) 기능 자체가 없었음',
     '카드 최상단(제목 영역) 오른쪽에 "✏️ 수정" / "🗑️ 삭제" 버튼 신설 — 관리자 모드에서 각 일정 카드마다 항상 눈에 띄게 표시',
@@ -3421,7 +3433,7 @@ const SITE_LOG = [
   ]},
   { ts:'2026-07-21 22:00', t:'🎾 금요일 안내 · 이력조회 보강 · 칭호아이콘 위치조정 · 마일스톤 확장', important:true, d:[
     '금요일 20-22시 유니온·종합운동장 동시 일정시, 시작 6시간 전부터 "같은 성별끼리 모여서, 유니온 우선 이용" 안내 자동 발송 (유니온 코트 이용기록 유지 목적)',
-    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.130 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
+    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.131 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
     '관리자 "지금 자동승급 실행"의 일반 대기열 승급에도 AI관리자 댓글이 빠져있던 것 발견, 추가',
     '이름 옆 칭호 아이콘(럭키/최초달성/월간메달)을 참석목록·랭킹에서 제거하고 댓글에만 표시하도록 위치 조정',
     '럭키방문 마일스톤 5종에서 2000/2222/3000/3333/4000/4444 추가해 총 11종으로 확대'
@@ -5272,7 +5284,7 @@ async function promoteWaitingForCapacity(ev){
         if(v.status !== 'waiting') return false;
         if(['gwae_review','late_request','gwae_wait'].includes(v.type)) return false;
         if(isPeakSeason() && v.type === 'consecutive') return false; // 성수기엔 연참이 정오 자동승급 대상에서 제외 — 시작 1시간전에 별도로 승급 기회를 줌
-        if(ev.court_count === 2 && !isDawnEvent(ev)){
+        if(ev.court_count === 2 && !isDawnEvent(ev) && !(ev.includesCourt3 && ev.court3Confirmed)){
           // 성별 유연승급이 아직 결정되지 않았다면(또는 반대 성별로 결정됐다면), 성별당 6명 상한을 넘는 승급은 11:50 판정까지 보류
           const myGenderCount = v.gender === '여' ? counts.female : counts.male;
           const flexFavorsThisGender = flex === v.gender;
@@ -5338,7 +5350,7 @@ async function forcePromoteWaitingNow(ev){
     .filter(([,v]) => {
       if(v.status !== 'waiting') return false;
       if(['gwae_review','late_request','gwae_wait'].includes(v.type)) return false;
-      if(ev.court_count === 2 && !isDawnEvent(ev)){
+      if(ev.court_count === 2 && !isDawnEvent(ev) && !(ev.includesCourt3 && ev.court3Confirmed)){
         const myGenderCount = v.gender === '여' ? counts.female : counts.male;
         const flexFavorsThisGender = flex === v.gender;
         if(myGenderCount >= 6 && !flexFavorsThisGender) return false;
@@ -5375,7 +5387,7 @@ async function adminForcePromote(eventId){
 
   let changed = false;
 
-  if(ev.court_count === 2 && !isDawnEvent(ev)){
+  if(ev.court_count === 2 && !isDawnEvent(ev) && !(ev.includesCourt3 && ev.court3Confirmed)){
     const flex = state.data.genderFlex && state.data.genderFlex[ev.id];
     if(!flex || flex === '균형'){
       const c = computedCounts(ev);
