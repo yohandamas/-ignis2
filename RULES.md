@@ -1145,3 +1145,25 @@
 | DB 변경 | 없음 — 전부 기존 ignis_state(JSON blob) 안의 templates/capacityOverrides 필드 확장이라 SQL 마이그레이션 불필요 |
 | ⚠️ 개발중 반복실수 | 함수 삽입시 기존 함수 선언부가 사라지는 동일유형 실수 2건(toggleMemberDistrict, classifyEventCategory) 발생 — 매번 node --check로 즉시 발견·복구, 최종적으로 관련 함수 14개 전수 존재확인으로 재검증 |
 | 검증 | 월례대회(3코트+커스텀40명), 회원랭킹(참석0회 포함 정확한 하위권), endDate/specificDate 매칭 전부 시뮬레이션 통과 |
+
+## v130. 성별대기 우선순위버그 수정 + 이벤트카드 금빛스타일
+
+| 항목 | 내용 |
+|---|---|
+| 버그 | waitingSortKey에서 gender_wait(성별대기)가 명시적으로 분류 안 되어 else분기로 consecutive(우선순위2)와 동급 취급 → regular(0)보다 항상 늦게 승급되던 문제. 8/13 김정현님 사례로 발견 |
+| 수정 | `v.type === 'regular' \|\| v.type === 'gender_wait'`이면 우선순위 0으로 통일 — "정원부족으로 대기중"이라는 동일 성격이므로 순수 대기시각(ts) 선착순으로만 비교. 늦참(1)/연참(2)/늦참연참(3) 체계는 그대로 유지 |
+| 영향범위 | waitingSortKey를 쓰는 모든 승급함수(tryAutoPromote/promoteWaitingForCapacity/promoteGenderFlexWaiting 등)에 자동 반영 |
+| 검증 | 시나리오 재현(먼저대기한 성별대기가 이제 먼저 승급)+기존규칙유지(늦참/연참 순위 안 바뀜) 2가지 시뮬레이션 |
+| 이벤트카드 스타일 | isSpecialEvent(1회성 이벤트) 필드를 generateInstances 출력에 추가, 카드에 special-event-card 클래스 부여 → 금빛 테두리(#d4af37)+은은한 그라데이션+"✨ 특별 이벤트" 뱃지로 시각적 구분 |
+
+## v130. 개별일정 수정/삭제 버튼 위치개선 + 수정기능 신설
+
+| 항목 | 내용 |
+|---|---|
+| 배경 | "개별삭제가 안 된다"는 피드백 — 실제론 있었지만 카드 중하단(정원조절 옆)에 있어 눈에 안 띄었음. "수정"(시간/코트변경) 기능은 애초에 없었음 |
+| 버튼 위치 | 카드 최상단(제목 영역) 오른쪽에 "✏️ 수정"/"🗑️ 삭제" 고정 배치(관리자 전용) |
+| 삭제 | 기존 skipOccurrence(3단계 선택) 그대로 재사용 |
+| 수정(신규) | `editOccurrence(eventId)` — prompt 3연쇄(시작/종료시간, 코트)로 입력받아 `eventOverrides[eventId] = {startTime,endTime,courts}` 저장. `generateInstances`가 인스턴스 생성시 이 override를 템플릿 원본보다 우선 적용 — 그 날짜만 바뀌고 반복템플릿과 다른 날짜는 전혀 영향없음. 1회성 이벤트는 템플릿 자체가 그 일정 하나뿐이라 템플릿을 직접 수정 |
+| 신설 필드 | `eventOverrides`(MERGE_MAP_FIELDS) |
+| DB 변경 | 없음(JSON blob 확장) |
+| 검증 | 함수 17개 전수 존재확인, override 적용/미적용/원본템플릿 불변 3케이스 시뮬레이션 |
