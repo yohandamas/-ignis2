@@ -534,7 +534,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.139</span>
+      <span id="buildVersionTop" class="build-version-top">v.140</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -2305,7 +2305,8 @@ async function checkConsecutiveWaitingLatePromotion(){
             // — 이 체크가 빠져있어서, 이미 한쪽 성별이 상한에 도달했는데도 연참 대기자만 상한 없이 계속 승급되던 버그가 있었음
             const flex = state.data.genderFlex && state.data.genderFlex[ev.id];
             const myGenderCount = v.gender === '여' ? counts.female : counts.male;
-            const flexFavorsThisGender = flex === v.gender;
+            const oppositeGenderCount = v.gender === '여' ? counts.male : counts.female;
+            const flexFavorsThisGender = oppositeGenderCount <= 2; // 실시간 판정: 반대성별이 2명 이하일 때만 예외(영구고정된 genderFlex 대신 매번 현재 카운트로 재판정 — 반대성별이 회복되면 예외도 즉시 사라짐)
             const genderCap = Math.floor(ev.max_players / 2);
             if(myGenderCount >= genderCap && !flexFavorsThisGender) return false;
           }
@@ -2322,7 +2323,8 @@ async function checkConsecutiveWaitingLatePromotion(){
         if(liveGenderCounts){
           const myLiveCount = v.gender === '여' ? liveGenderCounts.female : liveGenderCounts.male;
           const genderCap = Math.floor(ev.max_players / 2);
-          const flexFavorsThisGender = flex === v.gender;
+          const oppositeLiveCount = v.gender === '여' ? liveGenderCounts.male : liveGenderCounts.female;
+          const flexFavorsThisGender = oppositeLiveCount <= 2; // 실시간 반대성별 카운트로 판정(영구고정 genderFlex 대신)
           if((myLiveCount >= genderCap || (state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender])) && !flexFavorsThisGender) break;
         } else break;
       }
@@ -2482,7 +2484,8 @@ async function tryAutoPromote(ev){
       if(ev.court_count === 2 && !isDawnEvent(ev)){
         // 성별당 상한은 코트수에 비례(quota의 절반) — 3번코트 확보시엔 상한 자체를 없애는 게 아니라 늘어난 정원만큼만 비례 확대
         const myGenderCount = v.gender === '여' ? counts.female : counts.male;
-        const flexFavorsThisGender = flex === v.gender;
+        const oppositeGenderCount = v.gender === '여' ? counts.male : counts.female;
+        const flexFavorsThisGender = oppositeGenderCount <= 2; // 실시간 판정: 반대성별이 2명 이하일 때만 예외(영구고정된 genderFlex 대신 매번 현재 카운트로 재판정 — 반대성별이 회복되면 예외도 즉시 사라짐)
         const genderCap = Math.floor(ev.max_players / 2); // 신규등록(setVote)과 동일 공식 — 확보상태 반영한 현재 정원 기준으로 통일(quota 고정값 쓰면 미확보 구간에서 신규등록과 충돌)
         if(myGenderCount >= genderCap && !flexFavorsThisGender) return false;
       }
@@ -2503,7 +2506,8 @@ async function tryAutoPromote(ev){
       if(liveGenderCounts){
         const myLiveCount = v.gender === '여' ? liveGenderCounts.female : liveGenderCounts.male;
         const genderCap = Math.floor(ev.max_players / 2);
-        const flexFavorsThisGender = flex === v.gender;
+        const oppositeLiveCount = v.gender === '여' ? liveGenderCounts.male : liveGenderCounts.female;
+        const flexFavorsThisGender = oppositeLiveCount <= 2; // 실시간 반대성별 카운트로 판정(영구고정 genderFlex 대신)
         if((myLiveCount >= genderCap || (state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender])) && !flexFavorsThisGender) continue; // 이미 상한 도달 또는 관리자 수동마감 — 이 사람은 건너뛰고 다음 후보로
       } else {
         continue; // 실시간 조회 실패시 안전을 위해 이번엔 승급 보류
@@ -2997,6 +3001,12 @@ document.getElementById('warnPanelToggle').onclick = async () => {
 };
 
 const SITE_LOG = [
+  { ts:'2026-08-14 00:40', t:'🎯 성별 예외규칙 근본 재설계: "영구고정 flex" → "실시간 반대성별 판정"으로 전환', important:true, d:[
+    '제보: 8/20 테스트에서 v139에도 여전히 여5·남7 같은 상황이 생길 수 있음을 지적, 정확한 규칙 재정의 요청 — "반대성별 2명 이하일 때만 6명 초과 허용, 반대성별 4명 이상이면 무조건 6명 하드캡(관리자 개별추가 제외)"',
+    '진짜 원인: 지금까지 승급함수들이 "genderFlex"(전날 낮12시에 한 번 판정되어 영구 고정되는 필드)로 예외 여부를 판단했음 — 한번 반대성별이 2명 이하라 예외가 걸리면, 그 후 반대성별이 3·4·5명으로 회복돼도 예외가 절대 안 풀리는 구조였음(checkGenderFlexPromotions가 남/여로 확정되면 재판정 자체를 스킵하도록 설계되어 있었기 때문)',
+    '근본 수정: 8개 지점(5개 함수의 필터링단계+실시간재확인단계) 전부에서 flex 필드 참조를 완전히 제거하고, "그 순간의 실시간 반대성별 카운트 ≤ 2"를 직접 계산해서 판정하도록 전면 교체 — 반대성별이 언제든 3명 이상으로 회복되면 예외도 즉시 사라짐',
+    '5가지 시나리오(반대성별4명이상 차단/2명이하 허용/3명 경계값 차단/반대성별 회복시 예외 자동해제/수동마감 최우선) 전부 시뮬레이션 검증 완료'
+  ]},
   { ts:'2026-08-14 00:10', t:'🚫 "남자참석 마감" 수동설정이 자동승급 함수들에서 전혀 지켜지지 않던 버그 수정', important:true, d:[
     '제보: 관리자가 특정 성별 참석을 수동으로 마감해도, 이미 대기중이던 사람이 자동승급될 수 있는지 확인 요청',
     '확인 결과: genderClosed(관리자 수동마감 플래그)는 신규 참석시도(setVote)만 대기로 돌리고, tryAutoPromote/promoteWaitingForCapacity/checkConsecutiveWaitingLatePromotion/forcePromoteWaitingNow/promoteGenderFlexWaiting 5개 승급함수 어디에도 이 체크가 전혀 없었음 — 즉 수동마감을 걸어도 이미 대기중인 사람은 그냥 자동승급될 수 있던 심각한 누락',
@@ -3550,7 +3560,7 @@ const SITE_LOG = [
   ]},
   { ts:'2026-07-21 22:00', t:'🎾 금요일 안내 · 이력조회 보강 · 칭호아이콘 위치조정 · 마일스톤 확장', important:true, d:[
     '금요일 20-22시 유니온·종합운동장 동시 일정시, 시작 6시간 전부터 "같은 성별끼리 모여서, 유니온 우선 이용" 안내 자동 발송 (유니온 코트 이용기록 유지 목적)',
-    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.139 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
+    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.140 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
     '관리자 "지금 자동승급 실행"의 일반 대기열 승급에도 AI관리자 댓글이 빠져있던 것 발견, 추가',
     '이름 옆 칭호 아이콘(럭키/최초달성/월간메달)을 참석목록·랭킹에서 제거하고 댓글에만 표시하도록 위치 조정',
     '럭키방문 마일스톤 5종에서 2000/2222/3000/3333/4000/4444 추가해 총 11종으로 확대'
@@ -5415,7 +5425,8 @@ async function promoteWaitingForCapacity(ev){
         if(ev.court_count === 2 && !isDawnEvent(ev)){
           // 성별당 상한은 코트수에 비례(quota의 절반) — 3번코트 확보시엔 상한 자체를 없애는 게 아니라 늘어난 정원만큼만 비례 확대
           const myGenderCount = v.gender === '여' ? counts.female : counts.male;
-          const flexFavorsThisGender = flex === v.gender;
+          const oppositeGenderCount = v.gender === '여' ? counts.male : counts.female;
+          const flexFavorsThisGender = oppositeGenderCount <= 2; // 실시간 판정: 반대성별이 2명 이하일 때만 예외(영구고정된 genderFlex 대신 매번 현재 카운트로 재판정 — 반대성별이 회복되면 예외도 즉시 사라짐)
           const genderCap = Math.floor(ev.max_players / 2); // 신규등록(setVote)과 동일 공식 — 확보상태 반영한 현재 정원 기준으로 통일(quota 고정값 쓰면 미확보 구간에서 신규등록과 충돌)
           if(myGenderCount >= genderCap && !flexFavorsThisGender) return false;
         }
@@ -5432,7 +5443,8 @@ async function promoteWaitingForCapacity(ev){
       if(liveGenderCounts){
         const myLiveCount = v.gender === '여' ? liveGenderCounts.female : liveGenderCounts.male;
         const genderCap = Math.floor(ev.max_players / 2);
-        const flexFavorsThisGender = flex === v.gender;
+        const oppositeLiveCount = v.gender === '여' ? liveGenderCounts.male : liveGenderCounts.female;
+        const flexFavorsThisGender = oppositeLiveCount <= 2; // 실시간 반대성별 카운트로 판정(영구고정 genderFlex 대신)
         if((myLiveCount >= genderCap || (state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender])) && !flexFavorsThisGender) break; // 실시간 기준 이미 상한 도달 또는 관리자 수동마감 — 이번 사이클은 여기서 중단
       } else break;
     }
@@ -5495,7 +5507,8 @@ async function forcePromoteWaitingNow(ev){
       if(ev.court_count === 2 && !isDawnEvent(ev)){
         // 성별당 상한은 코트수에 비례(quota의 절반) — 3번코트 확보시엔 상한 자체를 없애는 게 아니라 늘어난 정원만큼만 비례 확대
         const myGenderCount = v.gender === '여' ? counts.female : counts.male;
-        const flexFavorsThisGender = flex === v.gender;
+        const oppositeGenderCount = v.gender === '여' ? counts.male : counts.female;
+        const flexFavorsThisGender = oppositeGenderCount <= 2; // 실시간 판정: 반대성별이 2명 이하일 때만 예외(영구고정된 genderFlex 대신 매번 현재 카운트로 재판정 — 반대성별이 회복되면 예외도 즉시 사라짐)
         const genderCap = Math.floor(ev.max_players / 2); // 신규등록(setVote)과 동일 공식 — 확보상태 반영한 현재 정원 기준으로 통일(quota 고정값 쓰면 미확보 구간에서 신규등록과 충돌)
         if(myGenderCount >= genderCap && !flexFavorsThisGender) return false;
       }
@@ -5515,7 +5528,8 @@ async function forcePromoteWaitingNow(ev){
       if(liveGenderCounts){
         const myLiveCount = v.gender === '여' ? liveGenderCounts.female : liveGenderCounts.male;
         const genderCap = Math.floor(ev.max_players / 2);
-        const flexFavorsThisGender = flex === v.gender;
+        const oppositeLiveCount = v.gender === '여' ? liveGenderCounts.male : liveGenderCounts.female;
+        const flexFavorsThisGender = oppositeLiveCount <= 2; // 실시간 반대성별 카운트로 판정(영구고정 genderFlex 대신)
         if((myLiveCount >= genderCap || (state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender])) && !flexFavorsThisGender) continue;
       } else {
         continue;
