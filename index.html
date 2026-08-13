@@ -534,7 +534,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.134</span>
+      <span id="buildVersionTop" class="build-version-top">v.135</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -2939,6 +2939,14 @@ document.getElementById('warnPanelToggle').onclick = async () => {
 };
 
 const SITE_LOG = [
+  { ts:'2026-08-13 22:30', t:'🚨 "늦참 등록했는데 리스트에 안 보임" — 원인은 참석이 조용히 취소되고 있었음 (김진주님 사례)', important:true, d:[
+    '제보: 8/13 11:40에 늦참 10분으로 체크했는데 리스트에 안 보임',
+    '실제 알림 로그로 정확히 추적: 11:40:24 "참석 체크"→"늦참(10분) 참석 등록"(정상 저장됨)까지는 성공, 근데 3초 뒤(11:40:27) "참석을 취소했습니다"라는 알림이 발생 — 결국 완전히 삭제됨',
+    '근본원인: checkLateArrival(늦참등록)이 내부적으로 setVote(eventId,attend,gender)를 호출하는데, setVote에는 이미 참석중인데 attend를 다시 호출하면 취소 처리하는 토글 로직이 있음. 이미 참석(늦참) 등록된 상태에서 늦참 버튼을 다시 누르거나 중복클릭하면, 이 토글에 걸려 참석 자체가 삭제되어버림',
+    '수정: checkLateArrival에서 이미 참석중인 상태라면 setVote를 아예 호출하지 않고, 기존 참석기록에 늦참정보만 안전하게 덧붙이도록 변경 — 토글(취소) 로직에 걸릴 가능성 원천 차단',
+    '실데이터 정정: 김진주님의 8/13 목요일밤 유니온 기록을 늦참10분으로 Supabase 직접 수정 완료',
+    '토글버그 재현/수정 시뮬레이션으로 명확히 검증'
+  ]},
   { ts:'2026-08-13 22:00', t:'🚨 3번코트 확보시 성별상한이 완전히 무시되던 심각한 버그 발견/수정 (남6/여5인데 대기2명 모두 승급→남8)', important:true, d:[
     '제보: 남6·여5로 이미 남자쪽이 가득 찼는데도, 3번코트 확보 후 대기중이던 남자 2명이 둘 다 참석으로 승급되어 남8·여5가 됨. "대기=무조건 승급"이 아닌데 왜 상한을 넘겼는지 원인 분석 요청',
     '진짜 원인: v131에서 "3번코트 확보시엔 2코트기준 성별상한(6명) 체크를 건너뛴다"고 수정했었는데, 이게 "상한을 코트수에 비례해서 늘리는" 게 아니라 "상한 체크 자체를 완전히 꺼버리는" 방식이었음 — 3번코트만 확보되면 사실상 무제한으로 한쪽 성별이 채워질 수 있었던 심각한 회귀버그',
@@ -3456,7 +3464,7 @@ const SITE_LOG = [
   ]},
   { ts:'2026-07-21 22:00', t:'🎾 금요일 안내 · 이력조회 보강 · 칭호아이콘 위치조정 · 마일스톤 확장', important:true, d:[
     '금요일 20-22시 유니온·종합운동장 동시 일정시, 시작 6시간 전부터 "같은 성별끼리 모여서, 유니온 우선 이용" 안내 자동 발송 (유니온 코트 이용기록 유지 목적)',
-    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.134 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
+    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.135 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
     '관리자 "지금 자동승급 실행"의 일반 대기열 승급에도 AI관리자 댓글이 빠져있던 것 발견, 추가',
     '이름 옆 칭호 아이콘(럭키/최초달성/월간메달)을 참석목록·랭킹에서 제거하고 댓글에만 표시하도록 위치 조정',
     '럭키방문 마일스톤 5종에서 2000/2222/3000/3333/4000/4444 추가해 총 11종으로 확대'
@@ -4908,14 +4916,23 @@ async function checkLateArrival(eventId){
 
   try{
     if(isWithin30){
-      // 30분 이내: 일반 참석과 "동등한 절차"로 처리 — setVote를 그대로 재사용해서
-      // 정원이 차있으면 정상적으로 대기로 가고(새치기 방지), 자리가 있을 때만 바로 참석됨
-      await setVote(eventId, 'attend', state.myGender);
-      const votesAfter = state.data.votes[eventId] || {};
-      if(votesAfter[state.myName]){
-        votesAfter[state.myName].lateArrival = true;
-        votesAfter[state.myName].lateMinutes = lateMinutes;
-        await saveVoteRow(eventId, state.myName, votesAfter[state.myName]);
+      // 30분 이내: 일반 참석과 "동등한 절차"로 처리하되, 이미 참석(늦참 포함) 중이라면
+      // setVote를 다시 호출하지 않음 — setVote(eventId,'attend',...)는 "이미 참석중이면 취소로 토글"하는 로직이 있어서,
+      // 이미 참석 중인 사람이 늦참을 다시 등록/수정하려다가 오히려 참석이 취소되어버리는 버그가 있었음(김진주님 사례로 발견)
+      const existingVote = state.data.votes[eventId] && state.data.votes[eventId][state.myName];
+      if(existingVote && existingVote.status === 'attend'){
+        existingVote.lateArrival = true;
+        existingVote.lateMinutes = lateMinutes;
+        await saveVoteRow(eventId, state.myName, existingVote);
+      } else {
+        // 아직 참석 전이면 기존대로 setVote 재사용 — 정원이 차있으면 정상적으로 대기로 가고(새치기 방지), 자리가 있을 때만 바로 참석됨
+        await setVote(eventId, 'attend', state.myGender);
+        const votesAfter = state.data.votes[eventId] || {};
+        if(votesAfter[state.myName]){
+          votesAfter[state.myName].lateArrival = true;
+          votesAfter[state.myName].lateMinutes = lateMinutes;
+          await saveVoteRow(eventId, state.myName, votesAfter[state.myName]);
+        }
       }
     } else {
       // 30분 초과(60분 이상 포함): 선대기(대기>늦참>연참>늦참+연참 우선순위), 자리 나면 자동승급
