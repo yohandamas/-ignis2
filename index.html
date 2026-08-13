@@ -534,7 +534,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.133</span>
+      <span id="buildVersionTop" class="build-version-top">v.134</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -2435,10 +2435,12 @@ async function tryAutoPromote(ev){
       if(['gwae_review','late_request','gwae_wait'].includes(v.type)) return false;
       if(v.type === 'late_consecutive') return false; // 늦참+연참 동시는 계절 무관 항상 제외 — 시작1시간전 전용경로(checkConsecutiveWaitingLatePromotion)로만 승급
         if(isPeakSeason() && v.type === 'consecutive') return false; // 순수 연참은 성수기에만 제외 — 시작 1시간전에 별도 승급 기회를 줌
-      if(ev.court_count === 2 && !isDawnEvent(ev) && !(ev.includesCourt3 && ev.court3Confirmed)){
+      if(!isDawnEvent(ev)){
+        // 성별당 상한은 코트수에 비례(quota의 절반) — 3번코트 확보시엔 상한 자체를 없애는 게 아니라 늘어난 정원만큼만 비례 확대
         const myGenderCount = v.gender === '여' ? counts.female : counts.male;
         const flexFavorsThisGender = flex === v.gender;
-        if(myGenderCount >= 6 && !flexFavorsThisGender) return false;
+        const genderCap = Math.ceil(ev.quota / 2);
+        if(myGenderCount >= genderCap && !flexFavorsThisGender) return false;
       }
       return true;
     })
@@ -2937,6 +2939,12 @@ document.getElementById('warnPanelToggle').onclick = async () => {
 };
 
 const SITE_LOG = [
+  { ts:'2026-08-13 22:00', t:'🚨 3번코트 확보시 성별상한이 완전히 무시되던 심각한 버그 발견/수정 (남6/여5인데 대기2명 모두 승급→남8)', important:true, d:[
+    '제보: 남6·여5로 이미 남자쪽이 가득 찼는데도, 3번코트 확보 후 대기중이던 남자 2명이 둘 다 참석으로 승급되어 남8·여5가 됨. "대기=무조건 승급"이 아닌데 왜 상한을 넘겼는지 원인 분석 요청',
+    '진짜 원인: v131에서 "3번코트 확보시엔 2코트기준 성별상한(6명) 체크를 건너뛴다"고 수정했었는데, 이게 "상한을 코트수에 비례해서 늘리는" 게 아니라 "상한 체크 자체를 완전히 꺼버리는" 방식이었음 — 3번코트만 확보되면 사실상 무제한으로 한쪽 성별이 채워질 수 있었던 심각한 회귀버그',
+    '수정: tryAutoPromote/promoteWaitingForCapacity/forcePromoteWaitingNow 3곳 모두, "상한을 아예 없애는" 대신 "상한 자체를 quota(코트수×6)의 절반으로 비례 확대"하도록 근본적으로 재설계 — 2코트면 여전히 6명, 3코트 확보시엔 9명까지만(무제한 아님)',
+    '수정 전(버그 재현: 남6→상한체크 스킵→승급 가능) / 수정 후(2코트 quota=12→상한6, 이미 도달이라 승급 차단 / 3코트 quota=18→상한9, 비례확대된 한도 안에서만 승급) 시뮬레이션으로 명확히 검증'
+  ]},
   { ts:'2026-08-13 21:30', t:'🔍 승급 관련 함수 9개 전체 전수점검 — 선착순/우선순위 일관성 재검증', important:true, d:[
     '요청: 3번코트 확보로 인한 연참·늦참 대기 승급순위에 다른 문제가 더 없는지 전체 점검, 선착순 원칙이 깨지는 곳이 있는지 확인',
     '점검 대상 9개 함수 전부 확인: tryPromoteGwaeWaiting/checkConsecutiveWaitingLatePromotion/promoteGenderFlexWaiting/tryAutoPromote/promoteWaitingForCapacity(3번코트확보 담당)/forcePromoteWaitingNow/approveGwaeReview/approveLateRequest/checkEmergencyRequestTimeout',
@@ -3448,7 +3456,7 @@ const SITE_LOG = [
   ]},
   { ts:'2026-07-21 22:00', t:'🎾 금요일 안내 · 이력조회 보강 · 칭호아이콘 위치조정 · 마일스톤 확장', important:true, d:[
     '금요일 20-22시 유니온·종합운동장 동시 일정시, 시작 6시간 전부터 "같은 성별끼리 모여서, 유니온 우선 이용" 안내 자동 발송 (유니온 코트 이용기록 유지 목적)',
-    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.133 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
+    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.134 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
     '관리자 "지금 자동승급 실행"의 일반 대기열 승급에도 AI관리자 댓글이 빠져있던 것 발견, 추가',
     '이름 옆 칭호 아이콘(럭키/최초달성/월간메달)을 참석목록·랭킹에서 제거하고 댓글에만 표시하도록 위치 조정',
     '럭키방문 마일스톤 5종에서 2000/2222/3000/3333/4000/4444 추가해 총 11종으로 확대'
@@ -5300,11 +5308,12 @@ async function promoteWaitingForCapacity(ev){
         if(['gwae_review','late_request','gwae_wait'].includes(v.type)) return false;
         if(v.type === 'late_consecutive') return false; // 늦참+연참 동시는 계절 무관 항상 제외 — 시작1시간전 전용경로(checkConsecutiveWaitingLatePromotion)로만 승급
         if(isPeakSeason() && v.type === 'consecutive') return false; // 순수 연참은 성수기에만 제외 — 시작 1시간전에 별도 승급 기회를 줌
-        if(ev.court_count === 2 && !isDawnEvent(ev) && !(ev.includesCourt3 && ev.court3Confirmed)){
-          // 성별 유연승급이 아직 결정되지 않았다면(또는 반대 성별로 결정됐다면), 성별당 6명 상한을 넘는 승급은 11:50 판정까지 보류
+        if(!isDawnEvent(ev)){
+          // 성별당 상한은 코트수에 비례(quota의 절반) — 3번코트 확보시엔 상한 자체를 없애는 게 아니라 늘어난 정원만큼만 비례 확대
           const myGenderCount = v.gender === '여' ? counts.female : counts.male;
           const flexFavorsThisGender = flex === v.gender;
-          if(myGenderCount >= 6 && !flexFavorsThisGender) return false;
+          const genderCap = Math.ceil(ev.quota / 2);
+          if(myGenderCount >= genderCap && !flexFavorsThisGender) return false;
         }
         return true;
       })
@@ -5368,10 +5377,12 @@ async function forcePromoteWaitingNow(ev){
       if(['gwae_review','late_request','gwae_wait'].includes(v.type)) return false;
       if(v.type === 'late_consecutive') return false; // 늦참+연참 동시는 계절 무관 항상 제외 — 시작1시간전 전용경로(checkConsecutiveWaitingLatePromotion)로만 승급 (관리자 수동실행도 이 규칙은 동일 적용해 다른 자동경로와 일관성 유지)
       if(isPeakSeason() && v.type === 'consecutive') return false; // 순수 연참은 성수기에만 제외
-      if(ev.court_count === 2 && !isDawnEvent(ev) && !(ev.includesCourt3 && ev.court3Confirmed)){
+      if(!isDawnEvent(ev)){
+        // 성별당 상한은 코트수에 비례(quota의 절반) — 3번코트 확보시엔 상한 자체를 없애는 게 아니라 늘어난 정원만큼만 비례 확대
         const myGenderCount = v.gender === '여' ? counts.female : counts.male;
         const flexFavorsThisGender = flex === v.gender;
-        if(myGenderCount >= 6 && !flexFavorsThisGender) return false;
+        const genderCap = Math.ceil(ev.quota / 2);
+        if(myGenderCount >= genderCap && !flexFavorsThisGender) return false;
       }
       return true;
     })
