@@ -534,7 +534,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.132</span>
+      <span id="buildVersionTop" class="build-version-top">v.133</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -2937,6 +2937,13 @@ document.getElementById('warnPanelToggle').onclick = async () => {
 };
 
 const SITE_LOG = [
+  { ts:'2026-08-13 21:30', t:'🔍 승급 관련 함수 9개 전체 전수점검 — 선착순/우선순위 일관성 재검증', important:true, d:[
+    '요청: 3번코트 확보로 인한 연참·늦참 대기 승급순위에 다른 문제가 더 없는지 전체 점검, 선착순 원칙이 깨지는 곳이 있는지 확인',
+    '점검 대상 9개 함수 전부 확인: tryPromoteGwaeWaiting/checkConsecutiveWaitingLatePromotion/promoteGenderFlexWaiting/tryAutoPromote/promoteWaitingForCapacity(3번코트확보 담당)/forcePromoteWaitingNow/approveGwaeReview/approveLateRequest/checkEmergencyRequestTimeout',
+    '결과: waitingSortKey(선착순+우선순위) 정렬을 쓰는 7개 함수 전부 정상 — 선착순 원칙 위반 없음. 개별승인 액션 2개(approveGwaeReview/approveLateRequest)는 정렬 개념 자체가 해당 없음(관리자가 특정 회원을 지목하는 방식)',
+    '유일한 불일치 발견: forcePromoteWaitingNow(관리자 "지금 즉시 실행" 버튼)만 정렬은 정확했지만, 다른 6개 함수와 달리 늦참+연참/성수기연참 제외 필터가 없었음 — 선착순 위반은 아니었지만 일관성을 위해 동일하게 필터 추가',
+    '실제 5명(우선순위 뒤섞인 등록시각) 시나리오로 전체 정렬 로직 최종 검증 — 등록시각과 무관하게 항상 우선순위 그룹 내에서만 선착순이 정확히 적용됨을 확인'
+  ]},
   { ts:'2026-08-13 21:00', t:'🐛 3번코트 확보시 늦참+연참(late_consecutive)이 잘못 자동승급되던 오류 수정', important:true, d:[
     '제보: 3번코트 확보시, 늦참이면서 동시에 연참인 대기자가 원래 규칙(시작 1시간전 전용경로로만 승급)을 무시하고 즉시 자동승급되는 문제 발견',
     '원인: promoteGenderFlexWaiting/tryAutoPromote/promoteWaitingForCapacity 3곳의 성수기 필터가 consecutive 타입만 걸러내고 late_consecutive는 빠져있었음 — 코드 주석엔 이미 "늦참+연참은 항상 전용경로로만 승급되어야 한다"는 설계의도가 있었는데 실제 필터엔 반영이 안 되어 있던 상태',
@@ -3441,7 +3448,7 @@ const SITE_LOG = [
   ]},
   { ts:'2026-07-21 22:00', t:'🎾 금요일 안내 · 이력조회 보강 · 칭호아이콘 위치조정 · 마일스톤 확장', important:true, d:[
     '금요일 20-22시 유니온·종합운동장 동시 일정시, 시작 6시간 전부터 "같은 성별끼리 모여서, 유니온 우선 이용" 안내 자동 발송 (유니온 코트 이용기록 유지 목적)',
-    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.132 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
+    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.133 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
     '관리자 "지금 자동승급 실행"의 일반 대기열 승급에도 AI관리자 댓글이 빠져있던 것 발견, 추가',
     '이름 옆 칭호 아이콘(럭키/최초달성/월간메달)을 참석목록·랭킹에서 제거하고 댓글에만 표시하도록 위치 조정',
     '럭키방문 마일스톤 5종에서 2000/2222/3000/3333/4000/4444 추가해 총 11종으로 확대'
@@ -5359,6 +5366,8 @@ async function forcePromoteWaitingNow(ev){
     .filter(([,v]) => {
       if(v.status !== 'waiting') return false;
       if(['gwae_review','late_request','gwae_wait'].includes(v.type)) return false;
+      if(v.type === 'late_consecutive') return false; // 늦참+연참 동시는 계절 무관 항상 제외 — 시작1시간전 전용경로(checkConsecutiveWaitingLatePromotion)로만 승급 (관리자 수동실행도 이 규칙은 동일 적용해 다른 자동경로와 일관성 유지)
+      if(isPeakSeason() && v.type === 'consecutive') return false; // 순수 연참은 성수기에만 제외
       if(ev.court_count === 2 && !isDawnEvent(ev) && !(ev.includesCourt3 && ev.court3Confirmed)){
         const myGenderCount = v.gender === '여' ? counts.female : counts.male;
         const flexFavorsThisGender = flex === v.gender;

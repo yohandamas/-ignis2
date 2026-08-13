@@ -1186,3 +1186,13 @@
 | 원인 | promoteGenderFlexWaiting/tryAutoPromote/promoteWaitingForCapacity 3곳의 성수기 필터가 `v.type==='consecutive'`만 걸러내고 `late_consecutive`는 누락 — 코드 주석엔 "늦참+연참은 항상 전용경로로만 승급"이라는 설계의도가 이미 있었는데 실제 필터엔 반영 안 됨(checkConsecutiveWaitingLatePromotion의 2260번 주석 참고) |
 | 수정 | 3곳 모두 `v.type==='late_consecutive'`는 계절 무관 항상 제외, `consecutive`는 기존대로 성수기에만 제외로 분리 |
 | 검증 | 성수기/비수기 × 4개 타입(regular/late/consecutive/late_consecutive) 시뮬레이션 전부 정확 |
+
+## v133. 승급함수 9개 전체 전수점검 — 선착순 원칙 일관성 재검증
+
+| 항목 | 내용 |
+|---|---|
+| 요청 | 3번코트 확보로 인한 연참·늦참 우선순위 문제가 더 없는지 전체 점검, 선착순 원칙 위반 여부 확인 |
+| 점검 대상 | tryPromoteGwaeWaiting/checkConsecutiveWaitingLatePromotion/promoteGenderFlexWaiting/tryAutoPromote/promoteWaitingForCapacity/forcePromoteWaitingNow/approveGwaeReview/approveLateRequest/checkEmergencyRequestTimeout (9개) |
+| 결과 | waitingSortKey 정렬을 쓰는 7개 함수 전부 정상, 선착순 위반 없음. 개별승인 2개는 정렬 개념 자체가 무관 |
+| 수정 | forcePromoteWaitingNow(관리자 수동실행)만 다른 6개와 달리 늦참+연참/성수기연참 제외 필터가 없어 일관성 위해 추가(선착순 자체는 원래도 정확했음) |
+| 검증 | 5명(우선순위 뒤섞인 등록시각) 시나리오로 전체 정렬 최종 확인 — 그룹 내에서만 선착순 정확 적용 |
