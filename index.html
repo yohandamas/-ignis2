@@ -534,7 +534,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.138</span>
+      <span id="buildVersionTop" class="build-version-top">v.139</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -2299,6 +2299,7 @@ async function checkConsecutiveWaitingLatePromotion(){
       const waiting = Object.entries(votes)
         .filter(([,v]) => {
           if(v.status !== 'waiting' || !(v.type === 'late_consecutive' || (v.type === 'consecutive' && isPeakSeason()))) return false;
+          if(state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender]) return false; // 관리자가 이 성별을 수동마감했으면 연참 전용경로도 예외 없이 금지
           if(ev.court_count === 2 && !isDawnEvent(ev)){
             // 연참·늦참연참 전용경로도 다른 승급함수(tryAutoPromote 등)와 동일하게 성별상한을 적용해야 함
             // — 이 체크가 빠져있어서, 이미 한쪽 성별이 상한에 도달했는데도 연참 대기자만 상한 없이 계속 승급되던 버그가 있었음
@@ -2322,7 +2323,7 @@ async function checkConsecutiveWaitingLatePromotion(){
           const myLiveCount = v.gender === '여' ? liveGenderCounts.female : liveGenderCounts.male;
           const genderCap = Math.floor(ev.max_players / 2);
           const flexFavorsThisGender = flex === v.gender;
-          if(myLiveCount >= genderCap && !flexFavorsThisGender) break;
+          if((myLiveCount >= genderCap || (state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender])) && !flexFavorsThisGender) break;
         } else break;
       }
       votes[name] = { status:'attend', gender: v.gender, district: v.district, hidden:false, promotedFrom: v.type, lateArrival: v.lateArrival || false, lateMinutes: v.lateMinutes || null, ts: Date.now() };
@@ -2428,6 +2429,7 @@ async function promoteGenderFlexWaiting(ev, flexGender){
       .filter(([,v]) => {
         if(v.status !== 'waiting' || v.gender !== flexGender) return false;
         if(!['gender_wait','regular','consecutive','late'].includes(v.type)) return false;
+        if(state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender]) return false; // 관리자가 이 성별을 수동마감했으면, 이미 대기중인 사람도 자동승급 절대 금지(관리자가 이동▾으로 개별 추가하는 것만 예외)
         if(v.type === 'late_consecutive') return false; // 늦참+연참 동시는 계절 무관 항상 제외 — 시작1시간전 전용경로(checkConsecutiveWaitingLatePromotion)로만 승급
         if(isPeakSeason() && v.type === 'consecutive') return false; // 순수 연참은 성수기에만 제외 — 시작 1시간전에 별도 승급 기회를 줌
         return true;
@@ -2474,7 +2476,8 @@ async function tryAutoPromote(ev){
     .filter(([,v]) => {
       if(v.status !== 'waiting') return false;
       if(['gwae_review','late_request','gwae_wait'].includes(v.type)) return false;
-      if(v.type === 'late_consecutive') return false; // 늦참+연참 동시는 계절 무관 항상 제외 — 시작1시간전 전용경로(checkConsecutiveWaitingLatePromotion)로만 승급
+      if(state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender]) return false; // 관리자가 이 성별을 수동마감했으면, 이미 대기중인 사람도 자동승급 절대 금지(관리자가 이동▾으로 개별 추가하는 것만 예외)
+        if(v.type === 'late_consecutive') return false; // 늦참+연참 동시는 계절 무관 항상 제외 — 시작1시간전 전용경로(checkConsecutiveWaitingLatePromotion)로만 승급
         if(isPeakSeason() && v.type === 'consecutive') return false; // 순수 연참은 성수기에만 제외 — 시작 1시간전에 별도 승급 기회를 줌
       if(ev.court_count === 2 && !isDawnEvent(ev)){
         // 성별당 상한은 코트수에 비례(quota의 절반) — 3번코트 확보시엔 상한 자체를 없애는 게 아니라 늘어난 정원만큼만 비례 확대
@@ -2501,7 +2504,7 @@ async function tryAutoPromote(ev){
         const myLiveCount = v.gender === '여' ? liveGenderCounts.female : liveGenderCounts.male;
         const genderCap = Math.floor(ev.max_players / 2);
         const flexFavorsThisGender = flex === v.gender;
-        if(myLiveCount >= genderCap && !flexFavorsThisGender) continue; // 이미 상한 도달 — 이 사람은 건너뛰고 다음 후보로
+        if((myLiveCount >= genderCap || (state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender])) && !flexFavorsThisGender) continue; // 이미 상한 도달 또는 관리자 수동마감 — 이 사람은 건너뛰고 다음 후보로
       } else {
         continue; // 실시간 조회 실패시 안전을 위해 이번엔 승급 보류
       }
@@ -2994,6 +2997,13 @@ document.getElementById('warnPanelToggle').onclick = async () => {
 };
 
 const SITE_LOG = [
+  { ts:'2026-08-14 00:10', t:'🚫 "남자참석 마감" 수동설정이 자동승급 함수들에서 전혀 지켜지지 않던 버그 수정', important:true, d:[
+    '제보: 관리자가 특정 성별 참석을 수동으로 마감해도, 이미 대기중이던 사람이 자동승급될 수 있는지 확인 요청',
+    '확인 결과: genderClosed(관리자 수동마감 플래그)는 신규 참석시도(setVote)만 대기로 돌리고, tryAutoPromote/promoteWaitingForCapacity/checkConsecutiveWaitingLatePromotion/forcePromoteWaitingNow/promoteGenderFlexWaiting 5개 승급함수 어디에도 이 체크가 전혀 없었음 — 즉 수동마감을 걸어도 이미 대기중인 사람은 그냥 자동승급될 수 있던 심각한 누락',
+    '수정: 5개 함수의 필터링 단계 + 실시간 재확인 단계(v138에서 추가한 getLiveGenderCounts 기반) 총 9곳 모두에 genderClosed 체크 추가 — 상한(6명) 여유가 있어도 관리자가 명시적으로 마감했으면 무조건 승급 차단',
+    '예외 유지: adminMoveMember("이동▾" 개별지정)는 genderClosed와 무관하게 그대로 작동 — 관리자가 특정 회원을 직접 골라서 추가하는 것까지 막으면 안 되므로 의도적으로 예외',
+    '상한 여유 있음(5명)에도 수동마감시 차단 vs 마감 없을 때 정상승급 2가지 시뮬레이션으로 검증'
+  ]},
   { ts:'2026-08-13 23:50', t:'🎯 진짜 최종 원인: "필터링은 한 번만, 승급은 순차적으로 여러 명" 구조적 결함 발견 (실배포 v137에서도 재현 확인 후 수정)', important:true, d:[
     '사용자가 실제 배포버전(v137)에서도 문제가 재현됨을 확인시켜줌 — 실제 알림 로그를 시간순 전체 조회해서 재추적, 8/13 새벽 내내(03:00~04:45) 12회 이상 반복 발생한 것 확인',
     '진짜 원인: tryAutoPromote/forcePromoteWaitingNow는 "대기목록을 성별상한 기준으로 한 번 필터링 → 그 결과를 순서대로 승급"하는 구조였음. 필터링 시점엔 카운트가 상한 미만이라 여러 명이 동시에 필터를 통과할 수 있는데, 승급 루프 안에서는 상한을 다시 확인하지 않아 — 한 사이클 안에서 여러 명이 연달아 승급되며 상한을 넘어설 수 있었음(관외비율만 재확인하고 성별상한은 재확인 안 했음)',
@@ -3540,7 +3550,7 @@ const SITE_LOG = [
   ]},
   { ts:'2026-07-21 22:00', t:'🎾 금요일 안내 · 이력조회 보강 · 칭호아이콘 위치조정 · 마일스톤 확장', important:true, d:[
     '금요일 20-22시 유니온·종합운동장 동시 일정시, 시작 6시간 전부터 "같은 성별끼리 모여서, 유니온 우선 이용" 안내 자동 발송 (유니온 코트 이용기록 유지 목적)',
-    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.138 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
+    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.139 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
     '관리자 "지금 자동승급 실행"의 일반 대기열 승급에도 AI관리자 댓글이 빠져있던 것 발견, 추가',
     '이름 옆 칭호 아이콘(럭키/최초달성/월간메달)을 참석목록·랭킹에서 제거하고 댓글에만 표시하도록 위치 조정',
     '럭키방문 마일스톤 5종에서 2000/2222/3000/3333/4000/4444 추가해 총 11종으로 확대'
@@ -5399,6 +5409,7 @@ async function promoteWaitingForCapacity(ev){
       .filter(([,v]) => {
         if(v.status !== 'waiting') return false;
         if(['gwae_review','late_request','gwae_wait'].includes(v.type)) return false;
+        if(state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender]) return false; // 관리자가 이 성별을 수동마감했으면, 이미 대기중인 사람도 자동승급 절대 금지(관리자가 이동▾으로 개별 추가하는 것만 예외)
         if(v.type === 'late_consecutive') return false; // 늦참+연참 동시는 계절 무관 항상 제외 — 시작1시간전 전용경로(checkConsecutiveWaitingLatePromotion)로만 승급
         if(isPeakSeason() && v.type === 'consecutive') return false; // 순수 연참은 성수기에만 제외 — 시작 1시간전에 별도 승급 기회를 줌
         if(ev.court_count === 2 && !isDawnEvent(ev)){
@@ -5422,7 +5433,7 @@ async function promoteWaitingForCapacity(ev){
         const myLiveCount = v.gender === '여' ? liveGenderCounts.female : liveGenderCounts.male;
         const genderCap = Math.floor(ev.max_players / 2);
         const flexFavorsThisGender = flex === v.gender;
-        if(myLiveCount >= genderCap && !flexFavorsThisGender) break; // 실시간 기준 이미 상한 도달 — 이번 사이클은 여기서 중단
+        if((myLiveCount >= genderCap || (state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender])) && !flexFavorsThisGender) break; // 실시간 기준 이미 상한 도달 또는 관리자 수동마감 — 이번 사이클은 여기서 중단
       } else break;
     }
     const promotedFrom = v.type === 'consecutive' ? 'consecutive' : 'wait';
@@ -5478,7 +5489,8 @@ async function forcePromoteWaitingNow(ev){
     .filter(([,v]) => {
       if(v.status !== 'waiting') return false;
       if(['gwae_review','late_request','gwae_wait'].includes(v.type)) return false;
-      if(v.type === 'late_consecutive') return false; // 늦참+연참 동시는 계절 무관 항상 제외 — 시작1시간전 전용경로(checkConsecutiveWaitingLatePromotion)로만 승급 (관리자 수동실행도 이 규칙은 동일 적용해 다른 자동경로와 일관성 유지)
+      if(state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender]) return false; // 관리자가 이 성별을 수동마감했으면, 이미 대기중인 사람도 자동승급 절대 금지(관리자가 이동▾으로 개별 추가하는 것만 예외)
+        if(v.type === 'late_consecutive') return false; // 늦참+연참 동시는 계절 무관 항상 제외 — 시작1시간전 전용경로(checkConsecutiveWaitingLatePromotion)로만 승급 (관리자 수동실행도 이 규칙은 동일 적용해 다른 자동경로와 일관성 유지)
       if(isPeakSeason() && v.type === 'consecutive') return false; // 순수 연참은 성수기에만 제외
       if(ev.court_count === 2 && !isDawnEvent(ev)){
         // 성별당 상한은 코트수에 비례(quota의 절반) — 3번코트 확보시엔 상한 자체를 없애는 게 아니라 늘어난 정원만큼만 비례 확대
@@ -5504,7 +5516,7 @@ async function forcePromoteWaitingNow(ev){
         const myLiveCount = v.gender === '여' ? liveGenderCounts.female : liveGenderCounts.male;
         const genderCap = Math.floor(ev.max_players / 2);
         const flexFavorsThisGender = flex === v.gender;
-        if(myLiveCount >= genderCap && !flexFavorsThisGender) continue;
+        if((myLiveCount >= genderCap || (state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender])) && !flexFavorsThisGender) continue;
       } else {
         continue;
       }
