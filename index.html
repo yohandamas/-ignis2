@@ -535,7 +535,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.142</span>
+      <span id="buildVersionTop" class="build-version-top">v.143</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -3004,6 +3004,12 @@ document.getElementById('warnPanelToggle').onclick = async () => {
 };
 
 const SITE_LOG = [
+  { ts:'2026-08-14 01:40', t:'🎯 성별대기·일반대기 등록기준 명확화 — "전체정원 마감"과 "성별상한 마감"을 정확히 구분', important:true, d:[
+    '요청: 3번코트 확보전(전체8명) 상황에서 성별대기와 일반대기가 나뉘는 기준이 복잡함 — 전체정원(8명)이 넘어가면 성별과 무관하게 선착순 일반대기로, 그 전(전체정원엔 여유 있는데 내 성별만 꽉 찬 경우)의 성별대기는 등록시각 우선순위 그대로 유지해달라는 요청',
+    '기존 문제: 신규등록시 "내 성별이 상한에 도달했는지"만 먼저 체크해서 gender_wait으로 등록했는데, 이때 전체정원이 이미 다 찼는지는 확인하지 않았음 — "전체도 꽉 차고 성별도 꽉 찬" 상황인데도 성별대기로 분류되는 애매함이 있었음',
+    '수정: gender_wait 등록조건에 "전체정원(wouldBeFull)이 아직 안 찼을 때만"이라는 조건 추가 — 전체정원이 이미 다 찼다면 성별과 무관하게 자동으로 일반대기(regular)로 등록됨. 우선순위 로직(waitingSortKey)은 이미 성별대기·일반대기를 동급(등록시각만으로 비교)으로 처리하고 있었으므로 그대로 유지 — 먼저 대기한 사람이 타입과 무관하게 항상 우선',
+    '3가지 등록 시나리오(전체여유+성별꽉참→성별대기 / 전체꽉참→성별무관 일반대기) + 우선순위(먼저등록한 성별대기가 나중등록한 일반대기보다 항상 우선) 시뮬레이션 검증'
+  ]},
   { ts:'2026-08-14 01:20', t:'🔁 "긴급 참석 승인" 완료팝업이 접속할 때마다 반복 표시되던 버그 수정 (박진민님 사례)', important:true, d:[
     '제보: 박진민님이 접속할 때마다 긴급 참석 요청 승인완료 팝업이 계속 뜸',
     '원인: checkMyAutoApprovedPopup()이 "이 팝업 봤음" 플래그를 로컬 메모리에서만 delete하고, 서버(Supabase)에는 전혀 저장하지 않았음 — 재접속시 서버에서 다시 로딩하면 플래그가 여전히 true라서 팝업이 계속 반복됨',
@@ -3575,7 +3581,7 @@ const SITE_LOG = [
   ]},
   { ts:'2026-07-21 22:00', t:'🎾 금요일 안내 · 이력조회 보강 · 칭호아이콘 위치조정 · 마일스톤 확장', important:true, d:[
     '금요일 20-22시 유니온·종합운동장 동시 일정시, 시작 6시간 전부터 "같은 성별끼리 모여서, 유니온 우선 이용" 안내 자동 발송 (유니온 코트 이용기록 유지 목적)',
-    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.142 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
+    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.143 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
     '관리자 "지금 자동승급 실행"의 일반 대기열 승급에도 AI관리자 댓글이 빠져있던 것 발견, 추가',
     '이름 옆 칭호 아이콘(럭키/최초달성/월간메달)을 참석목록·랭킹에서 제거하고 댓글에만 표시하도록 위치 조정',
     '럭키방문 마일스톤 5종에서 2000/2222/3000/3333/4000/4444 추가해 총 11종으로 확대'
@@ -5317,7 +5323,10 @@ async function setVote(eventId, status, gender){
         if(!flexActiveForMe){
           const myGenderCount = g === '여' ? counts.female : counts.male;
           const selfAlreadyCounted = (existing && existing.status === 'attend' && existing.gender === g) ? 1 : 0;
-          if((myGenderCount - selfAlreadyCounted) >= genderCap){
+          // 전체 정원(wouldBeFull)이 이미 다 찼다면, "성별 때문에 대기"가 아니라 "정원 자체가 꽉 차서 대기"가 더 정확한 사유이므로
+          // 이 경우엔 성별대기(gender_wait) 대신 바로 아래 일반대기(regular) 로직으로 자연스럽게 넘어가도록 함
+          // — 성별대기는 오직 "전체 정원엔 아직 여유가 있는데 내 성별만 꽉 찬" 경우에만 사용(우선순위 판단은 동일하게 등록시각 기준 선착순 유지)
+          if((myGenderCount - selfAlreadyCounted) >= genderCap && !wouldBeFull){
             votes[state.myName] = { status:'waiting', type:'gender_wait', gender:g, district: state.myDistrict, ts: Date.now() };
             await saveVoteRow(eventId, state.myName, votes[state.myName]);
             pushNotification(`${state.myName}님이 ${label} 성별 정원 대기로 등록되었습니다.`);
