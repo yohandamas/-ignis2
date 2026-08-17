@@ -535,7 +535,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.143</span>
+      <span id="buildVersionTop" class="build-version-top">v.144</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -3004,6 +3004,13 @@ document.getElementById('warnPanelToggle').onclick = async () => {
 };
 
 const SITE_LOG = [
+  { ts:'2026-08-14 02:00', t:'🔐 일정 삭제 실행 전 관리자 비밀번호 재확인 신설 — 실수 클릭 방지', important:true, d:[
+    '요청: 코트 삭제는 되돌리기 어려운 액션이라 실수로 잘못 누를 수 있으니, 삭제 직전 관리자 비밀번호를 한 번 더 확인하도록 요청',
+    '기존에 이미 있던 전역 관리자 비밀번호 시스템(ADMIN_PASSWORD_HASH, 관리자모드 진입시 사용하는 것과 동일)을 재사용 — 새로운 비밀번호를 따로 만들지 않고 기존 체계와 일관되게 연결',
+    '삭제 옵션(이 날짜만/이후반복전체/전체삭제/1회성삭제) 선택 직후, 실제 삭제 로직이 실행되기 전에 비밀번호 입력창이 뜨고, 정확히 일치할 때만 삭제가 진행됨 — 취소하거나 틀리면 삭제 자체가 취소됨',
+    '"반복일정 전체" 삭제는 기존에 있던 별도 확인창(confirm)도 그대로 유지되어, 비밀번호+확인창 이중 안전장치로 가장 파괴적인 삭제를 보호',
+    '취소/오답/정답 3가지 케이스 시뮬레이션 검증'
+  ]},
   { ts:'2026-08-14 01:40', t:'🎯 성별대기·일반대기 등록기준 명확화 — "전체정원 마감"과 "성별상한 마감"을 정확히 구분', important:true, d:[
     '요청: 3번코트 확보전(전체8명) 상황에서 성별대기와 일반대기가 나뉘는 기준이 복잡함 — 전체정원(8명)이 넘어가면 성별과 무관하게 선착순 일반대기로, 그 전(전체정원엔 여유 있는데 내 성별만 꽉 찬 경우)의 성별대기는 등록시각 우선순위 그대로 유지해달라는 요청',
     '기존 문제: 신규등록시 "내 성별이 상한에 도달했는지"만 먼저 체크해서 gender_wait으로 등록했는데, 이때 전체정원이 이미 다 찼는지는 확인하지 않았음 — "전체도 꽉 차고 성별도 꽉 찬" 상황인데도 성별대기로 분류되는 애매함이 있었음',
@@ -3581,7 +3588,7 @@ const SITE_LOG = [
   ]},
   { ts:'2026-07-21 22:00', t:'🎾 금요일 안내 · 이력조회 보강 · 칭호아이콘 위치조정 · 마일스톤 확장', important:true, d:[
     '금요일 20-22시 유니온·종합운동장 동시 일정시, 시작 6시간 전부터 "같은 성별끼리 모여서, 유니온 우선 이용" 안내 자동 발송 (유니온 코트 이용기록 유지 목적)',
-    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.143 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
+    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.144 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
     '관리자 "지금 자동승급 실행"의 일반 대기열 승급에도 AI관리자 댓글이 빠져있던 것 발견, 추가',
     '이름 옆 칭호 아이콘(럭키/최초달성/월간메달)을 참석목록·랭킹에서 제거하고 댓글에만 표시하도록 위치 조정',
     '럭키방문 마일스톤 5종에서 2000/2222/3000/3333/4000/4444 추가해 총 11종으로 확대'
@@ -5944,6 +5951,12 @@ async function skipOccurrence(eventId){
     options
   );
   if(!choice || choice === '취소') return;
+
+  // 삭제는 되돌리기 어려운 액션이라, 실행 직전 관리자 비밀번호를 한 번 더 확인 (실수 클릭 방지)
+  const confirmPw = prompt('삭제를 진행하려면 관리자 비밀번호를 입력해 주세요.');
+  if(confirmPw === null) return; // 취소
+  const confirmPwHash = await hashSHA256(confirmPw);
+  if(confirmPwHash !== ADMIN_PASSWORD_HASH){ alert('비밀번호가 올바르지 않아 삭제가 취소되었습니다.'); return; }
 
   if(choice === '이 일정 삭제'){
     // 1회성 이벤트는 skippedDates로 숨기는 대신 템플릿 자체를 완전히 삭제(어차피 재사용 안 되는 1회용이라 죽은 템플릿으로 남는 걸 방지)
