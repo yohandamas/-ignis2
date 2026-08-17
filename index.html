@@ -523,6 +523,7 @@
 </style>
 </head>
 
+
 <body>
 <div class="wrap">
   <script>
@@ -534,7 +535,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.141</span>
+      <span id="buildVersionTop" class="build-version-top">v.142</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -902,6 +903,7 @@
     ※ 우천 시 일정은 취소 또는 변경될 수 있습니다.
   </div>
 </div>
+
 
 
 
@@ -2365,14 +2367,15 @@ async function checkEmergencyRequestTimeout(){
   return changed;
 }
 
-function checkMyAutoApprovedPopup(){
+async function checkMyAutoApprovedPopup(){
   if(!state.myName) return false;
   let found = false;
   for(const ev of getInstances()){
     const votes = state.data.votes[ev.id] || {};
     const v = votes[state.myName];
     if(v && v.autoApprovedPopupPending){
-      delete v.autoApprovedPopupPending;
+      v.autoApprovedPopupPending = false; // 로컬뿐 아니라 서버(Supabase)에도 반드시 반영 — 안 그러면 재접속마다 계속 서버에서 true로 다시 로드되어 팝업이 반복됨(박진민님 사례로 발견)
+      await saveVoteRow(ev.id, state.myName, v);
       setTimeout(() => alert(`✅ ${shortEventLabel(ev)} 일정의 긴급 참석 요청이 관리자 승인으로 처리되었습니다. 참석으로 등록되었어요!`), 300);
       found = true;
     }
@@ -3001,6 +3004,13 @@ document.getElementById('warnPanelToggle').onclick = async () => {
 };
 
 const SITE_LOG = [
+  { ts:'2026-08-14 01:20', t:'🔁 "긴급 참석 승인" 완료팝업이 접속할 때마다 반복 표시되던 버그 수정 (박진민님 사례)', important:true, d:[
+    '제보: 박진민님이 접속할 때마다 긴급 참석 요청 승인완료 팝업이 계속 뜸',
+    '원인: checkMyAutoApprovedPopup()이 "이 팝업 봤음" 플래그를 로컬 메모리에서만 delete하고, 서버(Supabase)에는 전혀 저장하지 않았음 — 재접속시 서버에서 다시 로딩하면 플래그가 여전히 true라서 팝업이 계속 반복됨',
+    '수정: delete 대신 false로 명시적으로 바꾸고 saveVoteRow로 서버에도 즉시 저장하도록 변경 — 한 번 확인하면 서버에도 반영되어 다시는 안 뜸',
+    '실데이터 점검: 박진민님 포함 총 5명(이윤재, 정승식, 최강영, 설재훈)이 동일하게 플래그가 true로 남아있던 것 확인, 전부 Supabase에서 직접 정리',
+    '수정전(재접속시 재발)/후(한번 확인하면 끝) 시뮬레이션 검증'
+  ]},
   { ts:'2026-08-14 01:00', t:'📐 성별 예외기준 정교화: "반대성별 2명 이하" → "3명 이하(복식 4명 미만)"으로 명확화', important:true, d:[
     '요청: 복식 게임은 4명이 필요하니, 반대성별이 4명 미만(=3명 이하)이면 자기들끼리 복식조차 못 이루는 상태 — 이 경우엔 상한초과를 허용하고, 4명 이상(자체 복식 가능)이 되면 예외 없이 상한 적용',
     'v140의 실시간 판정 로직(oppositeGenderCount<=2)을 3으로 정확히 조정 — 8개 지점(5개 승급함수의 필터+실시간재확인) 전부 반영. checkGenderFlexPromotions 트리거 조건과 알림·UI 문구도 일관되게 3명 기준으로 통일',
@@ -3565,7 +3575,7 @@ const SITE_LOG = [
   ]},
   { ts:'2026-07-21 22:00', t:'🎾 금요일 안내 · 이력조회 보강 · 칭호아이콘 위치조정 · 마일스톤 확장', important:true, d:[
     '금요일 20-22시 유니온·종합운동장 동시 일정시, 시작 6시간 전부터 "같은 성별끼리 모여서, 유니온 우선 이용" 안내 자동 발송 (유니온 코트 이용기록 유지 목적)',
-    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.141 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
+    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.142 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
     '관리자 "지금 자동승급 실행"의 일반 대기열 승급에도 AI관리자 댓글이 빠져있던 것 발견, 추가',
     '이름 옆 칭호 아이콘(럭키/최초달성/월간메달)을 참석목록·랭킹에서 제거하고 댓글에만 표시하도록 위치 조정',
     '럭키방문 마일스톤 5종에서 2000/2222/3000/3333/4000/4444 추가해 총 11종으로 확대'
@@ -4252,7 +4262,7 @@ async function runAutoPromotions(){
   if(await checkConsecutiveWaitingLatePromotion()) changed = true;
   if(await checkWaitlistToAbsentConversion()) changed = true;
   if(await checkEmergencyRequestTimeout()) changed = true;
-  if(checkMyAutoApprovedPopup()) changed = true;
+  if(await checkMyAutoApprovedPopup()) changed = true;
   if(await checkWeeklyReport()) changed = true;
   if(await checkGenderFlexPromotions()) changed = true;
   if(changed) await saveData();
