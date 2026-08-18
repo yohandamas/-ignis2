@@ -536,7 +536,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.146</span>
+      <span id="buildVersionTop" class="build-version-top">v.147</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -1231,7 +1231,7 @@ async function loadVotesTable(){
   }
 }
 
-async function saveVoteRow(eventId, name, voteObj){
+async function saveVoteRow(eventId, name, voteObj, actorOverride){
   try{
     if(voteObj === null){
       await sb.from('ignis_votes').delete().eq('event_id', eventId).eq('member_name', name);
@@ -1246,10 +1246,13 @@ async function saveVoteRow(eventId, name, voteObj){
         auto_approved_popup_pending: !!voteObj.autoApprovedPopupPending
       });
       // 이력 기록 (참석/대기 클릭시 "언제 처음눌렀는지 / 언제 승급됐는지" 조회용)
+      // ⚠️ actor는 반드시 "이 액션을 실제로 수행한 주체"를 기록해야 함 — state.myName(그 순간 이 브라우저에 로그인된 사람)을
+      // 무조건 쓰면, 자동승급(20초 백그라운드 타이머)이 하필 그 사람 세션에서 실행됐을 때 그 사람이 전혀 관여 안 했는데도
+      // 이력에 "OOO님이 처리"로 잘못 남는 문제가 있었음 (전은지님 사례로 발견 — 본인은 개입한 적 없는데 이력에 승급시킨 사람으로 나옴)
       const histKey = eventId + '|' + name;
       if(!state.data.voteHistory) state.data.voteHistory = {};
       const hist = (state.data.voteHistory[histKey] || []).slice();
-      hist.push({ status: voteObj.status, ts: voteObj.ts || Date.now(), actor: state.myName || name });
+      hist.push({ status: voteObj.status, ts: voteObj.ts || Date.now(), actor: actorOverride || state.myName || name });
       state.data.voteHistory[histKey] = hist.slice(-20); // 너무 길어지지 않게 최근 20개만 유지
       markDirty('voteHistory', histKey);
     }
@@ -2135,7 +2138,7 @@ async function tryPromoteGwaeWaiting(ev){
     if(counts.gwaeAttend >= limit) break; // 아직 관내 비율 미충족, 더 기다려야 함
     const [name, v] = gwaeWaitEntries[0];
     votes[name] = { status:'attend', gender:v.gender, district:'관외', hidden:false, promotedFrom:'wait', lateArrival: v.lateArrival || false, lateMinutes: v.lateMinutes || null, ts: v.ts };
-    await saveVoteRow(ev.id, name, votes[name]);
+    await saveVoteRow(ev.id, name, votes[name], '자동승급(관외비율 시스템)');
     pushNotification(`${name}님이 관외 대기에서 자동 승급되어 ${shortEventLabel(ev)} 참석으로 전환되었습니다.`, {eventId: ev.id, actor: name, category:'promotion'});
     await postAiAdminComment(ev.id, `${name}님이 대기에서 참석으로 자동 승급되었습니다. (사유: 관내 참석 인원 충족으로 관내:관외 비율 조건 통과)`);
     changed = true;
@@ -2268,7 +2271,7 @@ async function checkWaitlistToAbsentConversion(){
     const movedNames = [];
     for(const [name, v] of waitingEntries){
       votes[name] = { status:'absent', gender: v.gender, district: v.district, ts: Date.now() };
-      await saveVoteRow(ev.id, name, votes[name]);
+      await saveVoteRow(ev.id, name, votes[name], '자동전환(대기마감 시스템)');
       movedNames.push(name);
       pushNotification(`😥 정원이 가득 차서 오늘은 참석이 어려워 불참으로 전환되었습니다. 다음에 뵈어요!`, {eventId: ev.id, actor: name});
     }
@@ -2336,7 +2339,7 @@ async function checkConsecutiveWaitingLatePromotion(){
         if((myLiveCount >= genderCap || (state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender])) && !flexFavorsThisGender) break;
       }
       votes[name] = { status:'attend', gender: v.gender, district: v.district, hidden:false, promotedFrom: v.type, lateArrival: v.lateArrival || false, lateMinutes: v.lateMinutes || null, ts: Date.now() };
-      await saveVoteRow(ev.id, name, votes[name]);
+      await saveVoteRow(ev.id, name, votes[name], '자동승급(연속참석 전용, 시작1시간전 시스템)');
       const reasonLabel = v.type === 'late_consecutive' ? '늦참+연속참석' : '연속참석';
       pushNotification(`${name}님이 대기에서 자동 승급되어 ${shortEventLabel(ev)} 참석으로 전환되었습니다. (${reasonLabel}, 시작 1시간전 정원 확인)`, {eventId: ev.id, actor: name, category:'promotion'});
       await postAiAdminComment(ev.id, `🔁 ${name}님이 ${reasonLabel} 대기에서 참석으로 승급되었습니다. (시작 1시간전, 자리가 남아 승급)`);
@@ -2360,7 +2363,7 @@ async function checkEmergencyRequestTimeout(){
       if(counts.regularTotal < ev.max_players){
         // 정원 미달: 관리자 부재시 긴급 프로토콜로 자동승급 (회원에게는 관리자 승인처럼 안내)
         votes[name] = { status:'attend', gender:v.gender, district:v.district, hidden:false, promotedFrom:'wait', autoApprovedPopupPending:true, lateArrival: v.lateArrival || false, lateMinutes: v.lateMinutes || null, ts: Date.now() };
-        await saveVoteRow(ev.id, name, votes[name]);
+        await saveVoteRow(ev.id, name, votes[name], '자동승인(긴급참석 7분 시스템)');
         pushNotification(`운영진(관리자)님이 ${name}님의 긴급 참석 요청(${shortEventLabel(ev)})을 승인했습니다.`, {eventId: ev.id, actor: name});
       }
       // 정원이 꽉 찬 경우는 거절 처리(그대로 대기, 별도 알림 없음)
@@ -2451,7 +2454,7 @@ async function promoteGenderFlexWaiting(ev, flexGender){
     const [name, v] = promotable;
     const promotedFrom = v.type === 'consecutive' ? 'consecutive' : 'wait';
     votes[name] = { status:'attend', gender: v.gender, district: v.district, hidden:false, promotedFrom, lateArrival: v.lateArrival || false, lateMinutes: v.lateMinutes || null, ts: v.ts };
-    await saveVoteRow(ev.id, name, votes[name]);
+    await saveVoteRow(ev.id, name, votes[name], '자동승급(성별균형 시스템)');
     pushNotification(`${name}님이 대기에서 자동 승급되어 ${shortEventLabel(ev)} 참석으로 전환되었습니다. (성별 유연 승급)`, {eventId: ev.id, actor: name, category:'promotion'});
     if(v.type === 'late'){
       await postAiAdminComment(ev.id, `⏰ ${name}님이 늦참 선대기에서 참석으로 자동 승급되었습니다. (사유: 성별 유연승급, 늦참 ${v.lateMinutes || '?'}분 예정)`);
@@ -2522,7 +2525,7 @@ async function tryAutoPromote(ev){
     }
     const promotedFrom = v.type === 'consecutive' ? 'consecutive' : 'wait';
     votes[name] = { status:'attend', gender: v.gender, district: v.district, hidden:false, promotedFrom, lateArrival: v.lateArrival || false, lateMinutes: v.lateMinutes || null, ts: Date.now() };
-    await saveVoteRow(ev.id, name, votes[name]);
+    await saveVoteRow(ev.id, name, votes[name], '자동승급(시스템)');
     pushNotification(`${name}님이 대기에서 자동 승급되어 ${shortEventLabel(ev)} 참석으로 전환되었습니다.`, {eventId: ev.id, actor: name, category:'promotion'});
     if(v.type === 'late'){
       await postAiAdminComment(ev.id, `⏰ ${name}님이 늦참 선대기에서 참석으로 자동 승급되었습니다. (늦참 ${v.lateMinutes || '?'}분 예정, 자리가 나서 정상 승급)`);
@@ -3008,6 +3011,14 @@ document.getElementById('warnPanelToggle').onclick = async () => {
 };
 
 const SITE_LOG = [
+  { ts:'2026-08-18 18:00', t:'🎯 참석 이력에 "자동승급"이 우연히 로그인돼있던 사람이 처리한 것처럼 잘못 표시되던 버그 수정 (전은지님 사례)', important:true, d:[
+    '제보: 8/18 18-20시 코트 회원 참석 히스토리에 "전은지님이 승급시켰다"고 나오는데, 전은지님은 실제로 개입한 적이 없다는 제보',
+    '1차 확인: 일반 알림("전은지님이 대기에서 자동 승급되어...")은 전은지 본인이 승급 대상자였다는 뜻으로, 정상이었음',
+    '2차 확인(진짜 원인): 참석시간 클릭시 뜨는 "OO님 처리 이력" 화면에서, saveVoteRow()가 이력을 기록할 때 actor를 항상 state.myName(그 순간 이 브라우저에 로그인된 사람)으로 기록하고 있었음 — 자동승급 함수들(tryAutoPromote/promoteWaitingForCapacity 등, 20초 백그라운드 타이머로 실행)도 이 함수를 그대로 호출하다보니, 하필 자동승급이 실행된 순간 전은지님이 로그인해 앱을 열어두고 있었다는 이유만으로 "전은지님이 처리"로 이력에 잘못 남음',
+    '수정: saveVoteRow에 actorOverride 매개변수 신설 — 자동으로 실행되는 7개 함수(tryPromoteGwaeWaiting/checkWaitlistToAbsentConversion/checkConsecutiveWaitingLatePromotion/checkEmergencyRequestTimeout/promoteGenderFlexWaiting/tryAutoPromote/promoteWaitingForCapacity)는 각각 명확한 시스템 라벨을 명시적으로 전달하도록 변경. 관리자가 실제로 버튼을 눌러 처리하는 경우(이동▾, 지금자동승급실행 등)는 기존대로 실제 이름 그대로 기록',
+    '이력 표시 화면도 개선 — actor가 "자동승급/시스템" 문구를 포함하면 "(관리자 OOO님이 처리)" 대신 자연스러운 시스템 문구로 표시',
+    '수정전(전은지로 잘못표시) vs 수정후(자동승급 시스템으로 명확히 표시) vs 실제 관리자처리(그대로 이름표시) 3가지 시뮬레이션 검증'
+  ]},
   { ts:'2026-08-18 17:15', t:'🚨 1코트 이벤트에서 정원(6명) 초과 채워지던 동시성 버그 수정 — 8/18 유니온 저녁(정원6→8명) 사례로 발견', important:true, d:[
     '제보: 8/18 유니온 저녁(1코트, 정원 6명)이 실제로는 8명까지 채워짐',
     '실데이터 추적: 시작 1시간전 연참승급 시점(17:04경, 4초 사이)에 3명이 거의 동시에 승급 — 6번째까지는 정원과 정확히 일치했는데, 그 직후 2명이 더 승급되어 8명이 됨',
@@ -3605,7 +3616,7 @@ const SITE_LOG = [
   ]},
   { ts:'2026-07-21 22:00', t:'🎾 금요일 안내 · 이력조회 보강 · 칭호아이콘 위치조정 · 마일스톤 확장', important:true, d:[
     '금요일 20-22시 유니온·종합운동장 동시 일정시, 시작 6시간 전부터 "같은 성별끼리 모여서, 유니온 우선 이용" 안내 자동 발송 (유니온 코트 이용기록 유지 목적)',
-    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.146 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
+    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.147 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
     '관리자 "지금 자동승급 실행"의 일반 대기열 승급에도 AI관리자 댓글이 빠져있던 것 발견, 추가',
     '이름 옆 칭호 아이콘(럭키/최초달성/월간메달)을 참석목록·랭킹에서 제거하고 댓글에만 표시하도록 위치 조정',
     '럭키방문 마일스톤 5종에서 2000/2222/3000/3333/4000/4444 추가해 총 11종으로 확대'
@@ -4322,7 +4333,8 @@ function showVoteHistory(histKey, fallbackTs){
   const lines = hist.map((h,i) => {
     const label = STATUS_LABEL_KR[h.status] || h.status;
     const tag = i === 0 ? '(최초 등록)' : '';
-    const actorNote = (h.actor && h.actor !== name) ? ` (관리자 ${h.actor}님이 처리)` : '';
+    const isSystemActor = h.actor && (h.actor.includes('시스템') || h.actor.includes('자동'));
+    const actorNote = isSystemActor ? ` (${h.actor})` : ((h.actor && h.actor !== name) ? ` (관리자 ${h.actor}님이 처리)` : '');
     return `${formatTimestamp(h.ts)} — ${label} ${tag}${actorNote}`;
   });
   alert(`📜 ${name}님 처리 이력\n\n${lines.join('\n')}`);
@@ -5507,7 +5519,7 @@ async function promoteWaitingForCapacity(ev){
         if((myLiveCount >= genderCap || (state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender])) && !flexFavorsThisGender) continue; // 이 사람만 건너뛰고 다음 후보로 (전체 중단 금지)
       }
       votes[name] = { status:'attend', gender: v.gender, district: v.district, hidden:false, promotedFrom, lateArrival: v.lateArrival || false, lateMinutes: v.lateMinutes || null, ts: v.ts };
-      await saveVoteRow(ev.id, name, votes[name]);
+      await saveVoteRow(ev.id, name, votes[name], '자동승급(정원확대 시스템)');
       pushNotification(`${name}님이 대기에서 자동 승급되어 ${shortEventLabel(ev)} 참석으로 전환되었습니다. (정원 확대)`, {eventId: ev.id, actor: name, category:'promotion'});
       if(v.type === 'late'){
         await postAiAdminComment(ev.id, `⏰ ${name}님이 늦참 선대기에서 참석으로 자동 승급되었습니다. (늦참 ${v.lateMinutes || '?'}분 예정, 정원 확대로 승급)`);
