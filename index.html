@@ -524,6 +524,7 @@
 </head>
 
 
+
 <body>
 <div class="wrap">
   <script>
@@ -535,7 +536,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.144</span>
+      <span id="buildVersionTop" class="build-version-top">v.145</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -903,6 +904,7 @@
     ※ 우천 시 일정은 취소 또는 변경될 수 있습니다.
   </div>
 </div>
+
 
 
 
@@ -3004,6 +3006,12 @@ document.getElementById('warnPanelToggle').onclick = async () => {
 };
 
 const SITE_LOG = [
+  { ts:'2026-08-18 11:02', t:'🎯 3번코트 확보시 대기승급 순서 역전 버그 수정 — 성별대기가 일반대기보다 뒤로 밀리던 문제', important:true, d:[
+    '제보: 성별대기(gender_wait)가 일반대기(regular)보다 먼저 등록되어 있었는데도, 3번코트 확보로 정원이 늘어나는 순간 일반대기(또는 늦참·연참)가 먼저 참석으로 승급되는 경우가 있었음',
+    '원인: 3번코트 확보시 실행되는 promoteWaitingForCapacity() 함수가 대기목록 중 최우선(선착순+우선순위) 후보 딱 1명만 골라 승급을 시도하고, 그 후보가 서버 실시간 재확인에서 (로컬캐시 지연 등으로) 한 번 막히면 그 즉시 전체 승급 절차를 중단해버리는 구조였음 — 이러면 그보다 뒤에 있는 다른 후보(예: 나중에 등록한 일반대기)는 이번 승급 시도에서 아예 기회조차 못 받고, 이후 별도 주기로 도는 다른 승급함수(원래부터 막힌 후보만 건너뛰고 계속 진행하는 정상 구조)가 그 사람들을 먼저 승급시켜버려 순서가 뒤바뀜',
+    '수정: 같은 파일의 다른 4개 승급함수(tryAutoPromote 등)와 동일하게, 막힌 후보는 건너뛰고 다음 후보를 계속 시도하도록 구조 변경 — 선착순+타입별 우선순위(일반·성별대기 동급 > 늦참 > 연참) 정렬은 그대로 유지하면서, 성별정원 상한도 승급 직전마다 실시간으로 계속 확인',
+    '검증: node --check 구문검증 통과, 기존 로직과의 diff로 이 함수 외 다른 코드 변경 없음 확인'
+  ]},
   { ts:'2026-08-14 02:00', t:'🔐 일정 삭제 실행 전 관리자 비밀번호 재확인 신설 — 실수 클릭 방지', important:true, d:[
     '요청: 코트 삭제는 되돌리기 어려운 액션이라 실수로 잘못 누를 수 있으니, 삭제 직전 관리자 비밀번호를 한 번 더 확인하도록 요청',
     '기존에 이미 있던 전역 관리자 비밀번호 시스템(ADMIN_PASSWORD_HASH, 관리자모드 진입시 사용하는 것과 동일)을 재사용 — 새로운 비밀번호를 따로 만들지 않고 기존 체계와 일관되게 연결',
@@ -3588,7 +3596,7 @@ const SITE_LOG = [
   ]},
   { ts:'2026-07-21 22:00', t:'🎾 금요일 안내 · 이력조회 보강 · 칭호아이콘 위치조정 · 마일스톤 확장', important:true, d:[
     '금요일 20-22시 유니온·종합운동장 동시 일정시, 시작 6시간 전부터 "같은 성별끼리 모여서, 유니온 우선 이용" 안내 자동 발송 (유니온 코트 이용기록 유지 목적)',
-    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.144 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
+    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.145 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
     '관리자 "지금 자동승급 실행"의 일반 대기열 승급에도 AI관리자 댓글이 빠져있던 것 발견, 추가',
     '이름 옆 칭호 아이콘(럭키/최초달성/월간메달)을 참석목록·랭킹에서 제거하고 댓글에만 표시하도록 위치 조정',
     '럭키방문 마일스톤 5종에서 2000/2222/3000/3333/4000/4444 추가해 총 11종으로 확대'
@@ -5440,13 +5448,11 @@ function checkDoublesBroken(ev, before, actorName, isAdminExempt){
 
 async function promoteWaitingForCapacity(ev){
   let changed = false;
-  for(let i=0;i<20;i++){
-    const votes = state.data.votes[ev.id] || {};
-    const counts = computedCounts(ev);
-    const available = ev.max_players - counts.regularTotal;
-    if(available <= 0) break;
-    const flex = state.data.genderFlex && state.data.genderFlex[ev.id];
-    const waiting = Object.entries(votes)
+  const votes = state.data.votes[ev.id] || {};
+  const counts = computedCounts(ev);
+  let available = ev.max_players - counts.regularTotal;
+  if(available > 0){
+    const waitingEntries = Object.entries(votes)
       .filter(([,v]) => {
         if(v.status !== 'waiting') return false;
         if(['gwae_review','late_request','gwae_wait'].includes(v.type)) return false;
@@ -5464,29 +5470,42 @@ async function promoteWaitingForCapacity(ev){
         return true;
       })
       .sort((a,b) => waitingSortKey(a[1]) - waitingSortKey(b[1]));
-    if(waiting.length === 0) break;
-    const promotable = waiting.find(([,v]) => canPromoteRespectingGwaeLimit(ev, counts, v));
-    if(!promotable) break; // 남은 대기자가 전부 관외인데 비율이 이미 꽉 찼다면 여기서 중단
-    const [name, v] = promotable;
-    if(ev.court_count === 2 && !isDawnEvent(ev)){
-      // 다른 세션이 동시에 승급을 진행중일 수 있어 로컬캐시가 살짝 뒤쳐질 수 있음 — 실제 저장 직전 서버 실시간 카운트로 최종 재확인
-      const liveGenderCounts = await getLiveGenderCounts(ev.id);
-      if(liveGenderCounts){
-        const myLiveCount = v.gender === '여' ? liveGenderCounts.female : liveGenderCounts.male;
-        const genderCap = Math.floor(ev.max_players / 2);
-        const oppositeLiveCount = v.gender === '여' ? liveGenderCounts.male : liveGenderCounts.female;
-        const flexFavorsThisGender = oppositeLiveCount <= 3; // 복식(4명) 기준 — 반대성별 3명이하일때만 예외(실시간 판정, 영구고정 genderFlex 대신)
-        if((myLiveCount >= genderCap || (state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender])) && !flexFavorsThisGender) break; // 실시간 기준 이미 상한 도달 또는 관리자 수동마감 — 이번 사이클은 여기서 중단
-      } else break;
+
+    // v145: 기존엔 .find()로 최우선(선착순+우선순위) 후보 딱 1명만 골라서, 그 사람이 실시간 재확인(getLiveGenderCounts)에서
+    // 막히면 break로 이번 함수 호출 전체를 중단시켰음 — 이러면 3번코트 확보로 정원이 늘어나는 바로 그 순간,
+    // 가장 먼저 등록했던 성별대기(gender_wait) 후보가 (로컬캐시 지연 등으로) 한 번 막히는 순간 그 뒤의
+    // 다른 후보(예: 나중에 등록한 일반대기)는 이 호출에서 아예 시도조차 못 되고, 이후 별도 주기로 도는
+    // tryAutoPromote(원래부터 continue로 다음 후보를 계속 시도하던 함수)가 그 사람들을 먼저 승급시켜버려서
+    // "성별대기가 더 먼저 등록했는데 일반대기가 먼저 승급되는" 순서 역전이 발생했음 (힘찬님 제보로 발견).
+    // tryAutoPromote/forcePromoteWaitingNow와 동일하게, 막힌 후보는 continue로 건너뛰고 다음 후보를 계속 시도하도록 수정 —
+    // 선착순+우선순위(타입 등급) 정렬은 그대로 유지하면서, 성별정원도 매 승급 직전 실시간으로 계속 지킴.
+    for(const [name, v] of waitingEntries){
+      if(available <= 0) break;
+      const liveCounts = computedCounts(ev); // 매 승급마다 최신 카운트로 재확인
+      if(!canPromoteRespectingGwaeLimit(ev, liveCounts, v)) continue; // 관외비율 초과시 건너뛰고 다음 후보로
+      if(ev.court_count === 2 && !isDawnEvent(ev)){
+        // 다른 세션이 동시에 승급을 진행중일 수 있어 로컬캐시가 살짝 뒤쳐질 수 있음 — 실제 저장 직전 서버 실시간 카운트로 최종 재확인
+        const liveGenderCounts = await getLiveGenderCounts(ev.id);
+        if(liveGenderCounts){
+          const myLiveCount = v.gender === '여' ? liveGenderCounts.female : liveGenderCounts.male;
+          const genderCap = Math.floor(ev.max_players / 2);
+          const oppositeLiveCount = v.gender === '여' ? liveGenderCounts.male : liveGenderCounts.female;
+          const flexFavorsThisGender = oppositeLiveCount <= 3; // 복식(4명) 기준 — 반대성별 3명이하일때만 예외(실시간 판정, 영구고정 genderFlex 대신)
+          if((myLiveCount >= genderCap || (state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender])) && !flexFavorsThisGender) continue; // 이 사람만 건너뛰고 다음 후보로 (전체 중단 금지)
+        } else {
+          continue; // 실시간 조회 실패시 이 후보만 보류, 다음 후보는 계속 시도
+        }
+      }
+      const promotedFrom = v.type === 'consecutive' ? 'consecutive' : 'wait';
+      votes[name] = { status:'attend', gender: v.gender, district: v.district, hidden:false, promotedFrom, lateArrival: v.lateArrival || false, lateMinutes: v.lateMinutes || null, ts: v.ts };
+      await saveVoteRow(ev.id, name, votes[name]);
+      pushNotification(`${name}님이 대기에서 자동 승급되어 ${shortEventLabel(ev)} 참석으로 전환되었습니다. (정원 확대)`, {eventId: ev.id, actor: name, category:'promotion'});
+      if(v.type === 'late'){
+        await postAiAdminComment(ev.id, `⏰ ${name}님이 늦참 선대기에서 참석으로 자동 승급되었습니다. (늦참 ${v.lateMinutes || '?'}분 예정, 정원 확대로 승급)`);
+      }
+      changed = true;
+      available--;
     }
-    const promotedFrom = v.type === 'consecutive' ? 'consecutive' : 'wait';
-    votes[name] = { status:'attend', gender: v.gender, district: v.district, hidden:false, promotedFrom, lateArrival: v.lateArrival || false, lateMinutes: v.lateMinutes || null, ts: v.ts };
-    await saveVoteRow(ev.id, name, votes[name]);
-    pushNotification(`${name}님이 대기에서 자동 승급되어 ${shortEventLabel(ev)} 참석으로 전환되었습니다. (정원 확대)`, {eventId: ev.id, actor: name, category:'promotion'});
-    if(v.type === 'late'){
-      await postAiAdminComment(ev.id, `⏰ ${name}님이 늦참 선대기에서 참석으로 자동 승급되었습니다. (늦참 ${v.lateMinutes || '?'}분 예정, 정원 확대로 승급)`);
-    }
-    changed = true;
   }
   if(ev.location === '종합운동장'){
     if(await tryPromoteGwaeWaiting(ev)) changed = true;
