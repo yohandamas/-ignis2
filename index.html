@@ -536,7 +536,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.148</span>
+      <span id="buildVersionTop" class="build-version-top">v.149</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -1221,6 +1221,7 @@ async function loadVotesTable(){
         isInvite: !!row.is_invite, promotedFrom: row.promoted_from || null, invitedBy: row.invited_by || null,
         displayName: row.display_name || null,
         lateArrival: !!row.late_arrival, lateMinutes: row.late_minutes || null,
+        lessonTime: row.lesson_time || null,
         autoApprovedPopupPending: !!row.auto_approved_popup_pending
       };
     });
@@ -1243,6 +1244,7 @@ async function saveVoteRow(eventId, name, voteObj, actorOverride){
         is_invite: !!voteObj.isInvite, promoted_from: voteObj.promotedFrom || null, invited_by: voteObj.invitedBy || null,
         display_name: voteObj.displayName || null,
         late_arrival: !!voteObj.lateArrival, late_minutes: voteObj.lateMinutes || null,
+        lesson_time: voteObj.lessonTime || null,
         auto_approved_popup_pending: !!voteObj.autoApprovedPopupPending
       });
       // 이력 기록 (참석/대기 클릭시 "언제 처음눌렀는지 / 언제 승급됐는지" 조회용)
@@ -2029,7 +2031,7 @@ function computedCounts(ev){
       return;
     }
     if(v.status==='attend'){
-      const entryWithHidden = Object.assign({}, entry, { hidden: !!v.hidden, promotedFrom: v.promotedFrom || null, lateArrival: !!v.lateArrival, lateMinutes: v.lateMinutes || null });
+      const entryWithHidden = Object.assign({}, entry, { hidden: !!v.hidden, promotedFrom: v.promotedFrom || null, lateArrival: !!v.lateArrival, lateMinutes: v.lateMinutes || null, lessonTime: v.lessonTime || null });
       if(v.gender==='여'){ femaleNames.push(entryWithHidden); if(!v.hidden) female++; }
       else if(v.gender==='남'){ maleNames.push(entryWithHidden); if(!v.hidden) male++; }
       if(v.hidden){ hiddenAttendees.push(name); }
@@ -3011,6 +3013,15 @@ document.getElementById('warnPanelToggle').onclick = async () => {
 };
 
 const SITE_LOG = [
+  { ts:'2026-08-18 18:40', t:'📚 평일 새벽테니스 전용 "레슨참여" 항목 신설 — 레슨시간 표기로 부재시간대 안내', important:true, d:[
+    '요청: 레슨을 받는 회원이 레슨 시간을 등록해서, 그 시간대엔 자리를 비운다는 걸 다른 회원들이 알 수 있게 표시(예: 06:40 레슨이면 "서힘찬 참석 (레 06:40)")',
+    'Supabase ignis_votes 테이블에 lesson_time 컬럼 신설',
+    '늦참 버튼 옆에 "📚레슨" 버튼 추가 — 평일 새벽테니스(daily_union_morning) 일정에서만 노출',
+    '늦참과의 핵심 차이: 늦참은 정원·대기 순위에 영향을 주지만(30분초과시 대기), 레슨참여는 순수 정보성 표시로 정원·순위에 전혀 영향 없음 — 이미 참석중이면 시간만 덧붙이고, 아직 참석전이면 일반참석과 동일하게 처리(정원 차있으면 정상적으로 대기)',
+    '늦참등록의 안전패턴(이미 참석중이면 setVote 재호출 안 함) 동일하게 재사용 — 토글취소 버그 위험 원천 차단',
+    '참석자 목록에 "(레 06:40)" 형태로 태그 표시, AI관리자 코멘트로 등록 사실 안내',
+    '시간형식 검증(6:40→06:40 자동보정, 잘못된 형식 차단), 버튼 노출조건(새벽테니스 전용) 시뮬레이션 검증'
+  ]},
   { ts:'2026-08-18 18:20', t:'🌅 새벽테니스(유니온) 3번코트 미확보 기준 정원 6명→4명으로 조정', important:true, d:[
     '요청: 새벽테니스 3번코트 미확보 상태의 기준 인원을 4명으로, 3번코트 확보시엔 기존대로 8명 유지',
     '확인: computeCapacity()에서 새벽코트(06:00-08:00) 전용 공식이 이미 있었음 — 확보시 8명(변경없음), 미확보시 기존 6명이던 것을 4명으로 수정',
@@ -3622,7 +3633,7 @@ const SITE_LOG = [
   ]},
   { ts:'2026-07-21 22:00', t:'🎾 금요일 안내 · 이력조회 보강 · 칭호아이콘 위치조정 · 마일스톤 확장', important:true, d:[
     '금요일 20-22시 유니온·종합운동장 동시 일정시, 시작 6시간 전부터 "같은 성별끼리 모여서, 유니온 우선 이용" 안내 자동 발송 (유니온 코트 이용기록 유지 목적)',
-    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.148 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
+    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.149 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
     '관리자 "지금 자동승급 실행"의 일반 대기열 승급에도 AI관리자 댓글이 빠져있던 것 발견, 추가',
     '이름 옆 칭호 아이콘(럭키/최초달성/월간메달)을 참석목록·랭킹에서 제거하고 댓글에만 표시하도록 위치 조정',
     '럭키방문 마일스톤 5종에서 2000/2222/3000/3333/4000/4444 추가해 총 11종으로 확대'
@@ -4410,8 +4421,9 @@ function renderNameChips(entries, suffix, showDistrict, eventId){
     const PROMOTED_LABELS = { consecutive:'🔁연참승급', wait:'⬆️대기승급', gwae_wait:'⬆️관외대기승급', gender_wait:'⬆️성별대기승급', late:'⬆️늦참승급', regular:'⬆️일반대기승급', late_consecutive:'🔁늦참+연참승급' };
     const promotedTag = e.promotedFrom && PROMOTED_LABELS[e.promotedFrom] ? `<span class="chip-promoted-tag">${PROMOTED_LABELS[e.promotedFrom]}</span>` : '';
     const lateTag = e.lateArrival ? ` <span class="chip-promoted-tag">(늦${e.lateMinutes ? e.lateMinutes : ''}분)</span>` : '';
+    const lessonTag = e.lessonTime ? ` <span class="chip-promoted-tag">(레 ${escapeHtml(e.lessonTime)})</span>` : '';
     const histAttr = eventId ? ` data-hist-key="${eventId}|${escapeHtml(name)}" data-fallback-ts="${ts||''}"` : '';
-    const label = `${idx+1}. ${escapeHtml(name)}${hiddenTag}${promotedTag}${districtTag}${suffix}${timeStr ? `<span class="chip-ts"${histAttr} style="${eventId?'cursor:pointer;text-decoration:underline dotted;':''}">${timeStr}</span>` : ''}${lateTag}`;
+    const label = `${idx+1}. ${escapeHtml(name)}${hiddenTag}${promotedTag}${districtTag}${suffix}${timeStr ? `<span class="chip-ts"${histAttr} style="${eventId?'cursor:pointer;text-decoration:underline dotted;':''}">${timeStr}</span>` : ''}${lateTag}${lessonTag}`;
     let chipClass = e.hidden ? 'name-chip name-chip-hidden' : 'name-chip';
     if(hasAdminPower()){
       const evForChip = eventId ? getInstances().find(x => x.id === eventId) : null;
@@ -4567,6 +4579,7 @@ function renderEventCard(ev){
     <div class="ev-actions">
       <button class="vote-btn ${isPendingF || isPendingM ? 'pending-sel' : (myStatus==='attend' ? (myHidden ? 'sel-attend-hidden' : (myVote.gender==='여' ? 'sel-attend-f' : 'sel-attend-m')) : '')}" data-status="attend">참석${state.myIsStaff?' ★':''}</button>
       <button class="late-arrival-btn" data-late-arrival="${ev.id}">⏰ 늦참</button>
+      ${ev.templateId === 'daily_union_morning' ? `<button class="late-arrival-btn" data-lesson-participate="${ev.id}">📚 레슨</button>` : ''}
       <button class="vote-btn ${isPendingW ? 'pending-sel' : (myStatus==='waiting'?'sel-waiting':'')}" data-status="waiting">대기</button>
       <button class="vote-btn ${isPendingA ? 'pending-sel' : (myStatus==='absent'?'sel-absent':'')}" data-status="absent">불참</button>
     </div>
@@ -4660,6 +4673,8 @@ function renderEventCard(ev){
   if(ballQuickBtn) ballQuickBtn.onclick = () => checkBallQuickUse(ev.id);
   const lateArrivalBtn = card.querySelector('[data-late-arrival]');
   if(lateArrivalBtn) lateArrivalBtn.onclick = () => checkLateArrival(ev.id);
+  const lessonBtn = card.querySelector('[data-lesson-participate]');
+  if(lessonBtn) lessonBtn.onclick = () => checkLessonParticipation(ev.id);
   const inviteBtn = card.querySelector(`#inviteAddBtn-${ev.id}`);
   if(inviteBtn) inviteBtn.onclick = () => addInviteAttendee(ev.id);
   const inviteSelfBtn = card.querySelector('[data-invite-self]');
@@ -5131,6 +5146,56 @@ async function checkLateArrival(eventId){
   }catch(err){
     console.error('늦참 등록 중 오류', err);
     alert('늦참 등록 중 오류가 발생했습니다. 다시 시도해 주시고, 계속되면 관리자에게 알려주세요.\n(' + (err && err.message ? err.message : '알 수 없는 오류') + ')');
+    renderEventList();
+  }
+}
+
+async function checkLessonParticipation(eventId){
+  // 평일 새벽테니스 전용 — 레슨 시간대에는 자리를 비운다는 걸 다른 회원들에게 알리는 순수 정보성 표시.
+  // 늦참과 달리 정원/대기 순위에는 전혀 영향을 주지 않음(레슨자는 이미 참석 중이거나 참석하며 시간만 표기)
+  const ev = getInstances().find(e => e.id === eventId);
+  if(!ev){ alert('일정 정보를 찾을 수 없어요.'); return; }
+  if(!state.myName){ alert('먼저 이름을 선택해 주세요.'); return; }
+  if(!state.myGender){ alert('성별 정보가 없어요. 관리자에게 문의해주세요.'); return; }
+
+  const input = prompt('레슨 시간을 입력해 주세요. (예: 06:40)', '06:40');
+  if(input === null) return;
+  const trimmed = String(input).trim();
+  if(!/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(trimmed)){
+    alert('시간 형식이 올바르지 않아요. "06:40"처럼 입력해 주세요.');
+    return;
+  }
+  // HH:MM 두자리로 정규화(6:40 -> 06:40)
+  const [hh, mm] = trimmed.split(':');
+  const lessonTime = `${hh.padStart(2,'0')}:${mm}`;
+
+  try{
+    const existingVote = state.data.votes[eventId] && state.data.votes[eventId][state.myName];
+    if(existingVote && existingVote.status === 'attend'){
+      // 이미 참석 중이면 레슨시간만 안전하게 덧붙임 (setVote 재호출 안 함 — 늦참과 동일한 이유로 토글취소 위험 회피)
+      existingVote.lessonTime = lessonTime;
+      await saveVoteRow(eventId, state.myName, existingVote);
+    } else {
+      // 아직 참석 전이면 일반 참석과 동일한 절차로 등록(정원이 차있으면 정상적으로 대기로 감 — 레슨이라고 새치기하지 않음)
+      await setVote(eventId, 'attend', state.myGender);
+      const votesAfter = state.data.votes[eventId] || {};
+      if(votesAfter[state.myName] && votesAfter[state.myName].status === 'attend'){
+        votesAfter[state.myName].lessonTime = lessonTime;
+        await saveVoteRow(eventId, state.myName, votesAfter[state.myName]);
+      } else {
+        alert('현재 정원이 가득 차서 대기로 등록되었어요. 자리가 나서 참석으로 전환되면, 그때 레슨 시간을 다시 등록해 주세요.');
+      }
+    }
+
+    await postAiAdminComment(eventId, `📚 ${state.myName}님이 ${lessonTime} 레슨 예정으로 등록되었습니다. 해당 시간대에는 잠시 자리를 비울 수 있어요.`);
+
+    const ok = await saveData();
+    if(!ok) alert('저장에 실패했습니다. 다시 시도해 주세요.');
+    renderEventList();
+    renderNotifBell();
+  }catch(err){
+    console.error('레슨참여 등록 중 오류', err);
+    alert('레슨참여 등록 중 오류가 발생했습니다. 다시 시도해 주시고, 계속되면 관리자에게 알려주세요.\n(' + (err && err.message ? err.message : '알 수 없는 오류') + ')');
     renderEventList();
   }
 }
