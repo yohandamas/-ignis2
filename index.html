@@ -536,7 +536,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.147</span>
+      <span id="buildVersionTop" class="build-version-top">v.148</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -1474,7 +1474,7 @@ function computeCapacity(t, id, opts){
   const quota = isDawnCourt ? 8 : t.courts.length * 6; // 새벽코트는 레슨생(랠리)+게임조가 섞여있어 표준공식과 다르게 특수 지정
   const fullMax = t.courts.length * 8;
   const includesCourt3 = t.location === '유니온' && t.courts.length > 1 && t.courts.some(c => c.replace(/번/g,'').trim() === '3');
-  const unconfirmedMax = isDawnCourt ? 6 : (includesCourt3 ? (t.courts.length === 3 ? 12 : (t.courts.length - 1) * 8) : fullMax);
+  const unconfirmedMax = isDawnCourt ? 4 : (includesCourt3 ? (t.courts.length === 3 ? 12 : (t.courts.length - 1) * 8) : fullMax); // 새벽코트 미확보 기준 6→4명으로 조정
   const isConfirmed = !!(court3Confirmed && court3Confirmed[id]);
   const computedDefault = includesCourt3 ? (isConfirmed ? quota : unconfirmedMax) : quota;
   const inviteN = (inviteCourts && inviteCourts[id]) ? inviteCourts[id] : 0;
@@ -3011,6 +3011,12 @@ document.getElementById('warnPanelToggle').onclick = async () => {
 };
 
 const SITE_LOG = [
+  { ts:'2026-08-18 18:20', t:'🌅 새벽테니스(유니온) 3번코트 미확보 기준 정원 6명→4명으로 조정', important:true, d:[
+    '요청: 새벽테니스 3번코트 미확보 상태의 기준 인원을 4명으로, 3번코트 확보시엔 기존대로 8명 유지',
+    '확인: computeCapacity()에서 새벽코트(06:00-08:00) 전용 공식이 이미 있었음 — 확보시 8명(변경없음), 미확보시 기존 6명이던 것을 4명으로 수정',
+    '영향범위: 새벽코트는 court_count===2 조건 밖의 성별상한 예외 규칙(isDawnEvent)이 이미 적용중이라, 이번 정원 변경은 전체 인원(max_players) 체크에만 영향 — 성별균형 로직과는 무관',
+    '시뮬레이션 검증: 미확보시 4명, 확보시 8명 정확히 반영 확인'
+  ]},
   { ts:'2026-08-18 18:00', t:'🎯 참석 이력에 "자동승급"이 우연히 로그인돼있던 사람이 처리한 것처럼 잘못 표시되던 버그 수정 (전은지님 사례)', important:true, d:[
     '제보: 8/18 18-20시 코트 회원 참석 히스토리에 "전은지님이 승급시켰다"고 나오는데, 전은지님은 실제로 개입한 적이 없다는 제보',
     '1차 확인: 일반 알림("전은지님이 대기에서 자동 승급되어...")은 전은지 본인이 승급 대상자였다는 뜻으로, 정상이었음',
@@ -3616,7 +3622,7 @@ const SITE_LOG = [
   ]},
   { ts:'2026-07-21 22:00', t:'🎾 금요일 안내 · 이력조회 보강 · 칭호아이콘 위치조정 · 마일스톤 확장', important:true, d:[
     '금요일 20-22시 유니온·종합운동장 동시 일정시, 시작 6시간 전부터 "같은 성별끼리 모여서, 유니온 우선 이용" 안내 자동 발송 (유니온 코트 이용기록 유지 목적)',
-    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.147 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
+    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.148 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
     '관리자 "지금 자동승급 실행"의 일반 대기열 승급에도 AI관리자 댓글이 빠져있던 것 발견, 추가',
     '이름 옆 칭호 아이콘(럭키/최초달성/월간메달)을 참석목록·랭킹에서 제거하고 댓글에만 표시하도록 위치 조정',
     '럭키방문 마일스톤 5종에서 2000/2222/3000/3333/4000/4444 추가해 총 11종으로 확대'
