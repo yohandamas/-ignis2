@@ -536,7 +536,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.149</span>
+      <span id="buildVersionTop" class="build-version-top">v.150</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -3013,6 +3013,13 @@ document.getElementById('warnPanelToggle').onclick = async () => {
 };
 
 const SITE_LOG = [
+  { ts:'2026-08-25 09:00', t:'🌅 새벽 관리자(VIP3)에게 새테(새벽테니스) 정원초과시에도 참석 가능한 권한 부여', important:true, d:[
+    '요청: 새벽 관리자들에게 새테 정원이 찼어도 현재 운영진처럼 참여할 수 있는 권한 부여',
+    '확인: 기존에 운영진(staff)만 정원마감시 "히든석"(hidden:true)으로 예외 참석 가능했음 — 이 로직을 새벽테니스(daily_union_morning, isDawnEvent) 한정으로 VIP3 멤버(새벽관리자)에게도 동일 적용',
+    '부가조정: 새벽관리자는 여러 명이 동시에 이 권한을 쓸 수 있어야 하므로, 새벽테니스에 한해 히든석 인원제한을 성별당 1명→3명으로 완화(다른 일반 이벤트의 운영진 히든석 제한은 기존 1명 그대로 유지)',
+    '범위 제한: isDawnEvent(ev) && isVip3(name) 조건으로 정확히 "새벽테니스 + VIP3" 조합에서만 적용, 다른 유니온 일정에는 영향 없음',
+    '6가지 시나리오(일반회원 대기/VIP3 1~3번째 히든석허용/4번째 거부/새벽아닌곳 VIP3 특권없음/기존운영진 유지) 시뮬레이션 검증'
+  ]},
   { ts:'2026-08-18 18:40', t:'📚 평일 새벽테니스 전용 "레슨참여" 항목 신설 — 레슨시간 표기로 부재시간대 안내', important:true, d:[
     '요청: 레슨을 받는 회원이 레슨 시간을 등록해서, 그 시간대엔 자리를 비운다는 걸 다른 회원들이 알 수 있게 표시(예: 06:40 레슨이면 "서힘찬 참석 (레 06:40)")',
     'Supabase ignis_votes 테이블에 lesson_time 컬럼 신설',
@@ -3633,7 +3640,7 @@ const SITE_LOG = [
   ]},
   { ts:'2026-07-21 22:00', t:'🎾 금요일 안내 · 이력조회 보강 · 칭호아이콘 위치조정 · 마일스톤 확장', important:true, d:[
     '금요일 20-22시 유니온·종합운동장 동시 일정시, 시작 6시간 전부터 "같은 성별끼리 모여서, 유니온 우선 이용" 안내 자동 발송 (유니온 코트 이용기록 유지 목적)',
-    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.149 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
+    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.150 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
     '관리자 "지금 자동승급 실행"의 일반 대기열 승급에도 AI관리자 댓글이 빠져있던 것 발견, 추가',
     '이름 옆 칭호 아이콘(럭키/최초달성/월간메달)을 참석목록·랭킹에서 제거하고 댓글에만 표시하도록 위치 조정',
     '럭키방문 마일스톤 5종에서 2000/2222/3000/3333/4000/4444 추가해 총 11종으로 확대'
@@ -5448,7 +5455,8 @@ async function setVote(eventId, status, gender){
       }
 
       let hidden = false;
-      if(wouldBeFull && !hasAdminPower() && !state.myIsStaff){
+      const isDawnVip3 = isDawnEvent(ev) && isVip3(state.myName); // 새벽테니스(새테) 한정, VIP3(새벽관리자)도 운영진과 동일하게 정원초과 참석 허용
+      if(wouldBeFull && !hasAdminPower() && !state.myIsStaff && !isDawnVip3){
         votes[state.myName] = { status:'waiting', type:'regular', gender:g, district: state.myDistrict, ts: Date.now() };
         await saveVoteRow(eventId, state.myName, votes[state.myName]);
         pushNotification(`${state.myName}님이 ${label} 정원마감으로 대기 등록되었습니다.`, {eventId, actor: state.myName});
@@ -5467,10 +5475,12 @@ async function setVote(eventId, status, gender){
         }
         alert(reasonMsg);
         return;
-      } else if(wouldBeFull && state.myIsStaff){
+      } else if(wouldBeFull && (state.myIsStaff || isDawnVip3)){
+        // 새벽관리자(VIP3)는 여러 명이 동시에 이 권한을 쓸 수 있어야 하므로, 새벽테니스에 한해 히든석 인원제한을 성별당 1명 -> 3명으로 완화
+        const hiddenLimit = isDawnEvent(ev) ? 3 : 1;
         const existingHiddenCount = (g === '여' ? counts.femaleNames : counts.maleNames).filter(n => n.hidden).length;
-        if(existingHiddenCount >= 1){
-          alert(`히든석은 성별당 1자리로 제한되어 있어요. 이미 ${g === '여' ? '여자' : '남자'} 히든석이 1명 있어요.\n\n추가로 참석시키고 싶으시면 관리자 모드에서 대기자를 직접 참석으로 이동해 주세요.`);
+        if(existingHiddenCount >= hiddenLimit){
+          alert(`히든석은 성별당 ${hiddenLimit}자리로 제한되어 있어요. 이미 ${g === '여' ? '여자' : '남자'} 히든석이 ${hiddenLimit}명 있어요.\n\n추가로 참석시키고 싶으시면 관리자 모드에서 대기자를 직접 참석으로 이동해 주세요.`);
           return;
         }
         hidden = true;
