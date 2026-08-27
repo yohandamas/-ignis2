@@ -545,7 +545,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.153</span>
+      <span id="buildVersionTop" class="build-version-top">v.154</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -2310,6 +2310,9 @@ async function checkWaitlistToAbsentConversion(){
 async function checkConsecutiveWaitingLatePromotion(){
   // 순수 연참(consecutive)은 성수기에만 이 특별경로를 탐(비수기엔 tryAutoPromote가 낮12시부터 정상 처리).
   // 늦참+연참 동시(late_consecutive)는 항상 자동승급 대상에서 제외되어 있으므로, 계절 무관하게 이 함수가 유일한 승급 경로임 — 놓치면 영원히 승급 안 되니 계절 체크 없이 항상 실행.
+  // ⚠️ 레슨자 대기(v153, 4인미만이면 대기)도 이 특별경로에 함께 포함 — 시작 1시간전까지도 정원이 안 찼다면,
+  // "4인 미만이라 복식이 안 된다"는 원래 제한보다 "그렇게라도 인원을 채워 게임을 진행하는 게 낫다"는 취지로,
+  // 이 시점부터는 레슨자의 4인 최소인원 조건을 무시하고 승급을 허용함
   let changed = false;
   const t = todayIso();
   for(const ev of getInstances()){
@@ -2331,10 +2334,13 @@ async function checkConsecutiveWaitingLatePromotion(){
       if(available <= 0) break;
       const waiting = Object.entries(votes)
         .filter(([,v]) => {
-          if(v.status !== 'waiting' || !(v.type === 'late_consecutive' || (v.type === 'consecutive' && isPeakSeason()))) return false;
+          if(v.status !== 'waiting') return false;
+          const isLessonWaiting = v.type === 'late' && v.lessonTime; // 레슨자 대기(4인미만으로 밀린 케이스)
+          const isConsecutiveWaiting = v.type === 'late_consecutive' || (v.type === 'consecutive' && isPeakSeason());
+          if(!isLessonWaiting && !isConsecutiveWaiting) return false;
           if(state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender]) return false; // 관리자가 이 성별을 수동마감했으면 연참 전용경로도 예외 없이 금지
           if(ev.court_count === 2 && !isDawnEvent(ev)){
-            // 연참·늦참연참 전용경로도 다른 승급함수(tryAutoPromote 등)와 동일하게 성별상한을 적용해야 함
+            // 연참·늦참연참·레슨자 전용경로도 다른 승급함수(tryAutoPromote 등)와 동일하게 성별상한을 적용해야 함
             // — 이 체크가 빠져있어서, 이미 한쪽 성별이 상한에 도달했는데도 연참 대기자만 상한 없이 계속 승급되던 버그가 있었음
             const flex = state.data.genderFlex && state.data.genderFlex[ev.id];
             const myGenderCount = v.gender === '여' ? counts.female : counts.male;
@@ -2347,7 +2353,9 @@ async function checkConsecutiveWaitingLatePromotion(){
         })
         .sort((a,b) => waitingSortKey(a[1]) - waitingSortKey(b[1]));
       if(waiting.length === 0) break;
-      const promotable = waiting.find(([,v]) => canPromoteRespectingGwaeLimit(ev, counts, v) && canPromoteRespectingLessonMinimum(ev, counts, v));
+      // 여기서는 canPromoteRespectingLessonMinimum 체크를 의도적으로 생략 — 시작 1시간전에는
+      // 4인 미만이라도 레슨자를 승급시켜서라도 게임을 진행하는 게 낫다는 취지(관외비율만 계속 준수)
+      const promotable = waiting.find(([,v]) => canPromoteRespectingGwaeLimit(ev, counts, v));
       if(!promotable) break;
       const [name, v] = promotable;
       // 성별상한 재확인(2코트일때만) 여부와 무관하게, 전체 정원(available)은 모든 이벤트에서 항상 서버 실시간으로 최종 재확인
@@ -2365,8 +2373,8 @@ async function checkConsecutiveWaitingLatePromotion(){
         if((myLiveCount >= genderCap || (state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender])) && !flexFavorsThisGender) break;
       }
       votes[name] = { status:'attend', gender: v.gender, district: v.district, hidden:false, promotedFrom: v.type, lateArrival: v.lateArrival || false, lateMinutes: v.lateMinutes || null, lessonTime: v.lessonTime || null, ts: Date.now() };
-      await saveVoteRow(ev.id, name, votes[name], '자동승급(연속참석 전용, 시작1시간전 시스템)');
-      const reasonLabel = v.type === 'late_consecutive' ? '늦참+연속참석' : '연속참석';
+      await saveVoteRow(ev.id, name, votes[name], '자동승급(연속참석·레슨자 전용, 시작1시간전 시스템)');
+      const reasonLabel = v.type === 'late_consecutive' ? '늦참+연속참석' : (v.type === 'late' && v.lessonTime ? '레슨자(인원부족해도 시작1시간전 승급)' : '연속참석');
       pushNotification(`${name}님이 대기에서 자동 승급되어 ${shortEventLabel(ev)} 참석으로 전환되었습니다. (${reasonLabel}, 시작 1시간전 정원 확인)`, {eventId: ev.id, actor: name, category:'promotion'});
       await postAiAdminComment(ev.id, `🔁 ${name}님이 ${reasonLabel} 대기에서 참석으로 승급되었습니다. (시작 1시간전, 자리가 남아 승급)`);
       changed = true;
@@ -3041,6 +3049,13 @@ document.getElementById('warnPanelToggle').onclick = async () => {
 };
 
 const SITE_LOG = [
+  { ts:'2026-08-27 12:00', t:'📚 레슨자 4인미만 제한에 "시작 1시간전 특례" 추가 — 연속참석과 동일 경로', important:true, d:[
+    '요청: 레슨자 참석제한(4인미만시 대기)에, 연속참석처럼 시작 1시간전에도 정원이 안 찼으면 인원부족해도 승급 허용하는 조건 추가 — 레슨시간만 다녀와서라도 게임 진행 가능한 인원이 부족하면 그렇게라도 복식을 만들어 진행',
+    '구현: checkConsecutiveWaitingLatePromotion()(기존 연참·늦참연참 전용 시작1시간전 특별경로)의 대상 필터에 "레슨자 대기"(type:late && lessonTime 있음)도 포함시킴 — 이 경로 안에서는 canPromoteRespectingLessonMinimum(4인미만 체크)를 의도적으로 생략해, 1시간전 시점부터는 인원이 부족해도 승급 허용',
+    '경로 분리 유지: 순수 늦참(30분초과, lessonTime 없음) 대기자는 이 특별경로 대상에서 제외 그대로 유지 — 기존 tryAutoPromote 등 일반 경로로만 처리됨(레슨자만의 특례이지 늦참 전체에 적용되는 게 아님)',
+    '기존 안전장치는 그대로 유지: 성별상한·관외비율·전체정원 서버실시간 재확인은 변경 없이 동일하게 적용',
+    '시뮬레이션(레슨자 1시간전 특례승급/일반늦참은 대상아님/정원마감시엔 여전히 차단) 검증'
+  ]},
   { ts:'2026-08-27 11:30', t:'🔧 관리자용 "늦참 시간/레슨 시간 직접 수정" 기능 신설', important:true, d:[
     '요청: 일반참석 버튼을 누르고 댓글로만 "늦참"이라고 알리는 회원들이 있어, 관리자가 참석/대기 상태만 조정 가능했던 것에서 나아가 늦참 몇 분인지·레슨 몇 시인지도 직접 수정할 수 있게 추가',
     '구현: 관리자모드 "이동▾" 드롭다운에 "늦참 시간 수정"·"레슨 시간 수정" 옵션 신설 — 현재 참석 상태인 회원에 한해, 늦참은 분 단위 숫자(0 입력시 해제)를, 레슨은 시작시간(빈 값 입력시 해제)을 프롬프트로 직접 입력해 즉시 반영',
@@ -3712,7 +3727,7 @@ const SITE_LOG = [
   ]},
   { ts:'2026-07-21 22:00', t:'🎾 금요일 안내 · 이력조회 보강 · 칭호아이콘 위치조정 · 마일스톤 확장', important:true, d:[
     '금요일 20-22시 유니온·종합운동장 동시 일정시, 시작 6시간 전부터 "같은 성별끼리 모여서, 유니온 우선 이용" 안내 자동 발송 (유니온 코트 이용기록 유지 목적)',
-    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.153 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
+    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.154 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
     '관리자 "지금 자동승급 실행"의 일반 대기열 승급에도 AI관리자 댓글이 빠져있던 것 발견, 추가',
     '이름 옆 칭호 아이콘(럭키/최초달성/월간메달)을 참석목록·랭킹에서 제거하고 댓글에만 표시하도록 위치 조정',
     '럭키방문 마일스톤 5종에서 2000/2222/3000/3333/4000/4444 추가해 총 11종으로 확대'
