@@ -536,7 +536,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.151</span>
+      <span id="buildVersionTop" class="build-version-top">v.152</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -3016,6 +3016,14 @@ document.getElementById('warnPanelToggle').onclick = async () => {
 };
 
 const SITE_LOG = [
+  { ts:'2026-08-27 09:30', t:'🎯 3번코트 확보를 되돌릴 때, 이미 확대승급된 초과인원이 그대로 남던 버그 수정', important:true, d:[
+    '발견 경위: v151(genderFlex 영구고정) 수정 직후, "상태가 바뀌었는데 이전 확정 결과를 되돌리는 로직이 없는" 동일 유형의 위험을 전수 점검하다가 발견',
+    '문제: toggleCourt3Confirmed()는 3번코트 확보시엔 promoteWaitingForCapacity()로 대기자를 자동승급시키지만, 반대로 "미확보로 되돌릴 때"는 정원만 줄어들 뿐, 이미 확보 덕분에 승급된 사람들을 다시 대기로 되돌리는 로직이 전혀 없었음 — 방치하면 실질적으로 축소된 정원을 초과한 참석인원이 그대로 유지되는 위험',
+    '수정: demoteExcessAfterCourt3Revert() 신설 — 되돌릴 때마다 전체정원·성별상한(반대성별 4명이상시 예외없음, v141 규칙과 동일기준) 위반 여부를 확인해, 가장 나중에 승급된 사람부터 순서대로 다시 대기로 전환',
+    '공정성 보장: 되돌릴 때 원래 대기 등록시각(ts)과 원래 대기유형(연참 등)을 그대로 복원 — 나중에 3번코트가 다시 확보되면 새치기 없이 원래 순번대로 재승급됨',
+    '히든석(운영진/새벽관리자 전용 예외석)은 정원계산과 무관한 별도 자리이므로 되돌림 대상에서 제외',
+    '시뮬레이션: 확보로 승급된 3명 중 정원축소분(1명)만큼 가장 나중에 승급된 사람이 정확히 대기로 복귀하는 것 검증'
+  ]},
   { ts:'2026-08-27 09:00', t:'🎯 성별확대 안내배지가 옛값에 박제되던 표시버그 수정 (8/27 목요일 사례로 발견)', important:true, d:[
     '제보: 8/27 유니온 목요일 20-22시, 여자가 4명인데 왜 "남자 최대 12명 확대 적용중" 안내가 뜨는지 확인 요청',
     '실데이터 확인: 실제 참석은 남6·여4로, v140~v141에서 이미 고친 실시간 판정 로직상 승급 자체는 정상적으로 6명에서 막혀있었음(실질적 정원초과 피해는 없었음) — 문제는 화면에 표시되는 안내배지뿐이었음',
@@ -3651,7 +3659,7 @@ const SITE_LOG = [
   ]},
   { ts:'2026-07-21 22:00', t:'🎾 금요일 안내 · 이력조회 보강 · 칭호아이콘 위치조정 · 마일스톤 확장', important:true, d:[
     '금요일 20-22시 유니온·종합운동장 동시 일정시, 시작 6시간 전부터 "같은 성별끼리 모여서, 유니온 우선 이용" 안내 자동 발송 (유니온 코트 이용기록 유지 목적)',
-    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.151 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
+    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.152 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
     '관리자 "지금 자동승급 실행"의 일반 대기열 승급에도 AI관리자 댓글이 빠져있던 것 발견, 추가',
     '이름 옆 칭호 아이콘(럭키/최초달성/월간메달)을 참석목록·랭킹에서 제거하고 댓글에만 표시하도록 위치 조정',
     '럭키방문 마일스톤 5종에서 2000/2222/3000/3333/4000/4444 추가해 총 11종으로 확대'
@@ -5626,6 +5634,50 @@ async function promoteWaitingForCapacity(ev){
   return changed;
 }
 
+async function demoteExcessAfterCourt3Revert(ev){
+  // 3번코트를 확보했다가 다시 "미확보"로 되돌릴 때, 확보 덕분에 자동승급됐던 사람들 중
+  // 줄어든 새 정원을 초과하는 인원을 다시 대기로 되돌리는 함수.
+  // ⚠️ 이 로직이 원래 없었음 — genderFlex 영구고정 버그(v151)와 같은 유형의 "상태가 바뀌었는데
+  // 이전에 확정된 결과를 되돌리는 로직이 없는" 문제였음. 정원이 줄었는데 이미 승급된 사람은 그대로 남아
+  // 실질적으로 정원을 초과한 참석 인원이 계속 유지되는 위험이 있었음.
+  // 되돌릴 때는 원래 대기 등록시각(ts)과 원래 대기유형(promotedFrom)을 그대로 복원해서, 나중에 3번코트가
+  // 다시 확보되면 새치기 없이 원래 순번대로 공정하게 재승급되도록 함.
+  const votes = state.data.votes[ev.id] || {};
+  let changed = false;
+  for(let i=0;i<20;i++){
+    const counts = computedCounts(ev);
+    const newMax = ev.max_players;
+    const genderCap = Math.floor(newMax / 2);
+    const overCapacityTotal = counts.regularTotal > newMax;
+    const maleCapViolated = counts.male > genderCap && counts.female > 3; // 반대성별(여)이 4명이상이면 예외없이 상한적용
+    const femaleCapViolated = counts.female > genderCap && counts.male > 3;
+    if(!overCapacityTotal && !maleCapViolated && !femaleCapViolated) break; // 더 이상 위반 없음
+
+    let genderToDemote;
+    if(maleCapViolated) genderToDemote = '남';
+    else if(femaleCapViolated) genderToDemote = '여';
+    else genderToDemote = counts.male >= counts.female ? '남' : '여'; // 순수 전체정원 초과면 더 많은 쪽에서 조정
+
+    const candidates = (genderToDemote === '여' ? counts.femaleNames : counts.maleNames)
+      .filter(n => !n.hidden) // 히든석(운영진/새벽관리자 예외석)은 정원 계산과 무관한 별도 자리이므로 되돌림 대상에서 제외
+      .sort((a,b) => b.ts - a.ts); // 가장 최근에 참석 확정된 사람부터 되돌림(나중에 승급된 사람이 먼저 되돌아가는 게 공정)
+    if(candidates.length === 0) break; // 되돌릴 대상이 없으면 무한루프 방지 위해 중단
+    const target = candidates[0];
+    const existingVote = votes[target.name];
+    if(!existingVote) break;
+
+    const restoredType = existingVote.promotedFrom === 'consecutive' ? 'consecutive' : 'regular';
+    votes[target.name] = { status:'waiting', type: restoredType, gender: genderToDemote, district: existingVote.district, ts: existingVote.ts };
+    await saveVoteRow(ev.id, target.name, votes[target.name]);
+    pushNotification(`${target.name}님이 3번코트가 다시 미확보 처리되면서 정원이 줄어, 대기로 되돌아갔습니다. 3번코트가 다시 확보되면 원래 순서대로 승급됩니다.`, {eventId: ev.id, actor: target.name, category:'promotion'});
+    changed = true;
+  }
+  if(changed){
+    await postAiAdminComment(ev.id, `⚠️ 3번코트가 미확보로 되돌려지면서 정원이 줄어, 초과 인원이 다시 대기로 전환되었습니다.`);
+  }
+  return changed;
+}
+
 async function toggleCourt3Confirmed(eventId){
   const evBefore = getInstances().find(e => e.id === eventId);
   const prevMaxPlayers = evBefore ? evBefore.max_players : 0;
@@ -5647,6 +5699,8 @@ async function toggleCourt3Confirmed(eventId){
     const addedSlots = Math.max(0, ev.max_players - prevMaxPlayers);
     await postAiAdminComment(eventId, `🎾 3번코트 확보 완료! 정원이 ${prevMaxPlayers}명 → ${ev.max_players}명으로 늘어나서, 현재 ${addedSlots}명 추가 참석 가능해요.`);
     await promoteWaitingForCapacity(ev);
+  } else if(ev && !nowConfirmed){
+    await demoteExcessAfterCourt3Revert(ev);
   }
   await saveData();
   renderEventList();
