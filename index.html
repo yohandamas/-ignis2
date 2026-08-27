@@ -536,7 +536,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.150</span>
+      <span id="buildVersionTop" class="build-version-top">v.151</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -2402,7 +2402,10 @@ async function checkGenderFlexPromotions(){
     if(ev.court_count !== 2) continue;
     if(isDawnEvent(ev)) continue; // 새벽코트는 성별 상한 자체가 없어 유연승급 판정이 불필요
     if(ev.event_date !== t && ev.event_date !== tmr) continue; // 하루 전 사전예고 취지 복원 — 당일/익일 이틀치 검사
-    if(state.data.genderFlex[ev.id] && state.data.genderFlex[ev.id] !== '균형') continue; // 남/여 확대 결정은 영구 고정, 균형 상태는 상황 변화에 대비해 계속 재검토
+    // ⚠️ 예전엔 "남/여로 한번 확정되면 영구고정, 재검토 안 함" 이었으나, 이러면 그 이후 실제 인원이 회복돼도
+    // genderFlex 필드(안내배지·알림 문구 등에 쓰임)가 계속 옛값에 박제되는 문제가 있었음(8/27 목요일 사례로 발견 —
+    // 여자가 4명으로 회복됐는데도 "남자 12명 확대적용중" 배지가 계속 표시됨). 실제 승급판정(v140~)은 이미
+    // 매번 실시간 반대성별 카운트로 하고 있으니, 이 표시용 필드도 동일하게 매번 최신 데이터로 재판정하도록 통일
     const startDt = getEventDateTime(ev);
     const prevDay = new Date(startDt.getTime() - 24 * 60 * 60 * 1000);
     const decisionTime = new Date(prevDay.getFullYear(), prevDay.getMonth(), prevDay.getDate(), 12, 0, 0); // 일정 전날 낮 12시(정오) 고정
@@ -3013,6 +3016,14 @@ document.getElementById('warnPanelToggle').onclick = async () => {
 };
 
 const SITE_LOG = [
+  { ts:'2026-08-27 09:00', t:'🎯 성별확대 안내배지가 옛값에 박제되던 표시버그 수정 (8/27 목요일 사례로 발견)', important:true, d:[
+    '제보: 8/27 유니온 목요일 20-22시, 여자가 4명인데 왜 "남자 최대 12명 확대 적용중" 안내가 뜨는지 확인 요청',
+    '실데이터 확인: 실제 참석은 남6·여4로, v140~v141에서 이미 고친 실시간 판정 로직상 승급 자체는 정상적으로 6명에서 막혀있었음(실질적 정원초과 피해는 없었음) — 문제는 화면에 표시되는 안내배지뿐이었음',
+    '진짜 원인: checkGenderFlexPromotions()에 "남/여로 한번 확정되면 영구 재검토 안 함" 로직이 그대로 남아있었음 — v140에서 승급 게이트키핑(정원 허용여부 판단)은 실시간화했지만, genderFlex 필드 자체를 갱신하는 이 재판정 로직은 손대지 않아서, 한번 소수판정으로 "남"이 찍히면 그 이후 반대성별이 회복돼도 필드 값이 계속 옛날 상태로 박제되고 있었음',
+    '수정: 영구고정 조건을 제거하고, 매번(20초 주기) 최신 인원수로 다시 재판정하도록 변경 — 승급판정 로직과 완전히 동일한 기준으로 통일',
+    '실데이터 정정: 8/27 목요일 유니온의 genderFlex를 균형으로 즉시 수정, 다른 미래 일정들은 코드 배포 후 다음 자동판정 주기에 자연스럽게 정상화됨(과거 일정은 이미 expired 처리되어 있어 영향 없음)',
+    '시뮬레이션: 옛값(남) 박제 상태에서 실제 여자4명 데이터로 재판정시 정확히 균형으로 갱신되는지 검증'
+  ]},
   { ts:'2026-08-25 09:00', t:'🌅 새벽 관리자(VIP3)에게 새테(새벽테니스) 정원초과시에도 참석 가능한 권한 부여', important:true, d:[
     '요청: 새벽 관리자들에게 새테 정원이 찼어도 현재 운영진처럼 참여할 수 있는 권한 부여',
     '확인: 기존에 운영진(staff)만 정원마감시 "히든석"(hidden:true)으로 예외 참석 가능했음 — 이 로직을 새벽테니스(daily_union_morning, isDawnEvent) 한정으로 VIP3 멤버(새벽관리자)에게도 동일 적용',
@@ -3640,7 +3651,7 @@ const SITE_LOG = [
   ]},
   { ts:'2026-07-21 22:00', t:'🎾 금요일 안내 · 이력조회 보강 · 칭호아이콘 위치조정 · 마일스톤 확장', important:true, d:[
     '금요일 20-22시 유니온·종합운동장 동시 일정시, 시작 6시간 전부터 "같은 성별끼리 모여서, 유니온 우선 이용" 안내 자동 발송 (유니온 코트 이용기록 유지 목적)',
-    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.150 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
+    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.151 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
     '관리자 "지금 자동승급 실행"의 일반 대기열 승급에도 AI관리자 댓글이 빠져있던 것 발견, 추가',
     '이름 옆 칭호 아이콘(럭키/최초달성/월간메달)을 참석목록·랭킹에서 제거하고 댓글에만 표시하도록 위치 조정',
     '럭키방문 마일스톤 5종에서 2000/2222/3000/3333/4000/4444 추가해 총 11종으로 확대'
