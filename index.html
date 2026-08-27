@@ -199,6 +199,7 @@
   .sub-box .name-tags{font-size:calc(11px * var(--font-scale, 1));}
   .attend-box.female{background:var(--rose-soft);}
   .attend-box.male{background:var(--brand-soft);}
+  .attend-box.unified-dawn{background:var(--brand-soft);grid-column:1 / -1;} /* 새벽코트 시범운영 - 남녀통합 참석박스, 가로전체 차지 */
   .attend-box.absent{background:var(--danger-soft);}
   .attend-box.waiting{background:var(--accent-soft);}
   .box-head{font-size:calc(11px * var(--font-scale, 1));font-weight:800;margin-bottom:5px;}
@@ -242,9 +243,13 @@
   .review-row.late .review-chip button{background:var(--danger);}
   .ev-full-badge.locked{background:var(--ink);color:#fff;}
 
-  .ev-actions{display:flex;gap:6px;padding-top:10px;border-top:1px solid var(--bg);flex-wrap:wrap;}
+  .ev-actions{display:flex;flex-direction:column;gap:6px;padding-top:10px;border-top:1px solid var(--bg);}
+  .ev-actions-main{display:flex;gap:6px;}
+  .ev-actions-sub{display:flex;gap:6px;flex-wrap:wrap;}
   .vote-btn{flex:1;min-width:70px;border:1.5px solid var(--line);background:var(--panel);border-radius:20px;padding:8px 4px;
     font-size:calc(12px * var(--font-scale, 1));font-weight:700;color:var(--ink-soft);cursor:pointer;}
+  .vote-btn.attend-main{padding:14px 4px;font-size:calc(15px * var(--font-scale, 1));font-weight:800;border-radius:24px;border-width:2px;} /* 참석·불참을 가장 크고 눈에 띄게(위쪽 주요 선택) */
+  .ev-actions-sub .vote-btn,.ev-actions-sub .late-arrival-btn{flex:1;min-width:56px;padding:6px 2px;font-size:calc(11px * var(--font-scale, 1));} /* 늦참·레슨·대기는 작게(아래쪽 보조 선택) */
   .late-arrival-btn{flex:1;min-width:70px;border:1.5px solid var(--line);background:var(--panel);border-radius:20px;padding:8px 4px;
     font-size:calc(12px * var(--font-scale, 1));font-weight:700;color:var(--ink-soft);cursor:pointer;}
   .vote-btn.sel-attend-f{background:var(--brand);border-color:var(--brand);color:#fff;}
@@ -545,7 +550,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.154</span>
+      <span id="buildVersionTop" class="build-version-top">v.155</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -1204,7 +1209,7 @@ function buildTemplates(){
 }
 
 function defaultData(){
-  return { templates: buildTemplates(), votes: {}, skippedDates: {}, capacityOverrides: {}, eventOverrides: {}, memberPins: {}, comments: {}, notifications: [], notifiedFlags: {}, fingerprintChecks: {}, extraMembers: [], removedMembers: {}, fingerprintExtraTargets: [], vip3Members: {}, vip3WelcomePending: {}, court3Confirmed: {}, cancelStats: {}, sameDayCancelStats: {}, genderFlex: {}, preClosed: {}, inviteCourts: {}, inviteClosed: {}, genderClosed: {}, penalties: {}, warnings: {}, monthlyChampions: {}, titleChoice: {}, pendingApproval: {}, removedTemplateIds: [], approvedAt: {}, districtOverrides: {}, staffOverrides: {}, wholeCancelled: {}, voteHistory: {}, ballStock: { '종합운동장': 0, '유니온': 0, '창고': 0 }, ballStockLastRefill: {} };
+  return { templates: buildTemplates(), votes: {}, skippedDates: {}, capacityOverrides: {}, eventOverrides: {}, memberPins: {}, comments: {}, notifications: [], notifiedFlags: {}, fingerprintChecks: {}, extraMembers: [], removedMembers: {}, fingerprintExtraTargets: [], vip3Members: {}, vip3WelcomePending: {}, court3Confirmed: {}, cancelStats: {}, sameDayCancelStats: {}, genderFlex: {}, preClosed: {}, inviteCourts: {}, inviteClosed: {}, genderClosed: {}, penalties: {}, warnings: {}, monthlyChampions: {}, titleChoice: {}, pendingApproval: {}, removedTemplateIds: [], approvedAt: {}, districtOverrides: {}, staffOverrides: {}, wholeCancelled: {}, voteHistory: {}, ballStock: { '종합운동장': 0, '유니온': 0, '창고': 0 }, ballStockLastRefill: {}, ballRefillHistory: {} };
 }
 
 function getFingerprintTargets(){
@@ -1424,7 +1429,7 @@ async function saveData(){
         //  아무 저장이나 하면 다른 사람이 방금 바꾼 값을 되돌려버리는 문제가 있었음)
         // null 값은 "명시적으로 삭제됨"을 의미하며, 병합 후 실제로 키를 제거한다.
         const MERGE_MAP_FIELDS = ['memberPins','fingerprintChecks','court3Confirmed','genderFlex','preClosed',
-          'inviteCourts','inviteClosed','genderClosed','capacityOverrides','eventOverrides','cancelStats','sameDayCancelStats','notifiedFlags','skippedDates','monthlyChampions','titleChoice','pendingApproval','approvedAt','districtOverrides','staffOverrides','wholeCancelled','voteHistory','ballStock','ballStockLastRefill','removedMembers','vip3Members','vip3WelcomePending'];
+          'inviteCourts','inviteClosed','genderClosed','capacityOverrides','eventOverrides','cancelStats','sameDayCancelStats','notifiedFlags','skippedDates','monthlyChampions','titleChoice','pendingApproval','approvedAt','districtOverrides','staffOverrides','wholeCancelled','voteHistory','ballStock','ballStockLastRefill','ballRefillHistory','removedMembers','vip3Members','vip3WelcomePending'];
         const MERGE_ARRAY_FIELDS = ['fingerprintExtraTargets'];
         MERGE_ARRAY_FIELDS.forEach(field => {
           // 배열 필드는 합집합으로 병합 (둘 중 하나라도 추가했으면 유지)
@@ -3049,6 +3054,18 @@ document.getElementById('warnPanelToggle').onclick = async () => {
 };
 
 const SITE_LOG = [
+  { ts:'2026-08-27 13:30', t:'🔘 참석·불참 상단 배치 + 새벽코트 남녀통합·레슨분리 시범운영', important:true, d:[
+    '버튼 재배치: 참석·불참(주요 선택)을 위쪽 큰 줄로, 늦참·레슨·대기(보조 선택)를 아래쪽 작은 줄로 재구성',
+    '새벽코트 시범운영: 평일 새벽테니스에 한해, 여자참석/남자참석을 나누지 않고 "참석"으로 통합 표시하고, 레슨자는 이 통합 인원수에서 제외해 별도 서브박스로 분리 표시',
+    '안전장치: 정원(max_players)·전체인원(regularTotal) 등 실제 승급·정원 계산 로직은 전혀 건드리지 않고, 순수하게 "화면에 어떻게 보여줄지"만 변경 — 오늘 하루 종일 씨름한 정원 관련 버그들을 재발시키지 않기 위해 계산 로직과 완전히 분리해서 구현. 복잡해지거나 문제가 생기면 이 표시 분기만 되돌리면 원래(성별 분리) 방식으로 즉시 복귀 가능',
+    '실제 코드 기준 렌더링 이미지로 최종 확인'
+  ]},
+  { ts:'2026-08-27 13:00', t:'🔧 지문체크 2개월 고정주기 수정 + 공불출 충전히스토리 신설 + 참석시간 클릭충돌 수정 + 버튼 레이아웃 개선', important:true, d:[
+    '① 지문체크 남은횟수 오류: "이번달 7,8월 / 다음달 9,10월"처럼 고정된 2개월 주기여야 하는데, 기존 코드는 "오늘부터 2개월 후까지"라는 계속 움직이는 롤링 윈도우라 리셋 없이 사실상 끝없이 카운트되는 문제였음 — 홀수월 시작 고정 2개월 주기(1-2/3-4/5-6/7-8/9-10/11-12월)로 정확히 수정, 연말/연초 경계까지 시뮬레이션 검증',
+    '② 공불출내역에 재고를 채워넣을 때 날짜만 기록되고 누가·몇개 채웠는지는 전혀 기록이 안 되던 것 발견 — ballRefillHistory 신설, 직접입력·+버튼 조정 양쪽 모두 "누가/언제/몇개/변경후재고"를 기록, 패널에 접이식 히스토리로 표시',
+    '③ 참석시간(chip-ts) 클릭해도 히스토리 팝업이 잘 안 뜨던 문제의 근본원인 발견: pollForUpdates에는 있던 "사용자가 클릭중이면 재렌더링 건너뛰기" 보호장치가, 20초 자동승급주기(runAutoPromotions)발 재렌더링에는 빠져있었음 — 클릭 타이밍과 20초 주기가 겹치면 카드 DOM이 통째로 교체되어 클릭이 씹히던 것. 동일한 보호장치 추가',
+    '④ 참석/늦참/레슨/대기/불참 5개 버튼이 전부 동일크기(flex:1)라, 홀수개수 때문에 마지막 버튼(불참)이 혼자 다음 줄에 남아 가로 전체를 차지하며 커보이던 문제 — 참석 버튼을 독립된 큰 줄로, 나머지 4개(늦참·레슨·대기·불참)를 작은 하위줄로 재구성'
+  ]},
   { ts:'2026-08-27 12:00', t:'📚 레슨자 4인미만 제한에 "시작 1시간전 특례" 추가 — 연속참석과 동일 경로', important:true, d:[
     '요청: 레슨자 참석제한(4인미만시 대기)에, 연속참석처럼 시작 1시간전에도 정원이 안 찼으면 인원부족해도 승급 허용하는 조건 추가 — 레슨시간만 다녀와서라도 게임 진행 가능한 인원이 부족하면 그렇게라도 복식을 만들어 진행',
     '구현: checkConsecutiveWaitingLatePromotion()(기존 연참·늦참연참 전용 시작1시간전 특별경로)의 대상 필터에 "레슨자 대기"(type:late && lessonTime 있음)도 포함시킴 — 이 경로 안에서는 canPromoteRespectingLessonMinimum(4인미만 체크)를 의도적으로 생략해, 1시간전 시점부터는 인원이 부족해도 승급 허용',
@@ -3727,7 +3744,7 @@ const SITE_LOG = [
   ]},
   { ts:'2026-07-21 22:00', t:'🎾 금요일 안내 · 이력조회 보강 · 칭호아이콘 위치조정 · 마일스톤 확장', important:true, d:[
     '금요일 20-22시 유니온·종합운동장 동시 일정시, 시작 6시간 전부터 "같은 성별끼리 모여서, 유니온 우선 이용" 안내 자동 발송 (유니온 코트 이용기록 유지 목적)',
-    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.154 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
+    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.155 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
     '관리자 "지금 자동승급 실행"의 일반 대기열 승급에도 AI관리자 댓글이 빠져있던 것 발견, 추가',
     '이름 옆 칭호 아이콘(럭키/최초달성/월간메달)을 참석목록·랭킹에서 제거하고 댓글에만 표시하도록 위치 조정',
     '럭키방문 마일스톤 5종에서 2000/2222/3000/3333/4000/4444 추가해 총 11종으로 확대'
@@ -4657,6 +4674,17 @@ function renderEventCard(ev){
     </div>
     ${districtLine}
     <div class="attend-boxes ${counts.doublesReady ? 'doubles-ready' : ''}">
+      ${isDawnEvent(ev) ? (() => {
+        // ⚠️ 새벽코트 시범운영: 남녀를 통합해서 하나의 "참석" 박스로 보여주고, 레슨자는 여기서 빼서 아래 서브박스로 분리 표시.
+        // 정원(max_players)·전체인원(regularTotal) 계산 로직은 전혀 건드리지 않음 — 순수하게 화면에 "어떻게 보여줄지"만 다르게 함
+        // (복잡해지면 언제든 원래(성별 분리) 방식으로 되돌리기 쉽도록, 계산 로직과 분리해서 표시만 다르게 구성)
+        const allDawn = [...counts.femaleNames, ...counts.maleNames].filter(e => !e.lessonTime);
+        const lessonCountDawn = [...counts.femaleNames, ...counts.maleNames].filter(e => e.lessonTime).length;
+        return `<div class="attend-box unified-dawn">
+          <div class="box-head">참석 (${allDawn.length}명${lessonCountDawn ? `, 레슨 ${lessonCountDawn}명 별도` : ''})</div>
+          <div class="name-tags">${renderNameChips(allDawn, '', false, ev.id)}</div>
+        </div>`;
+      })() : `
       <div class="attend-box female">
         <div class="box-head">여자 참석 (${counts.female}${counts.femaleNames.filter(e=>e.hidden).length ? '+'+counts.femaleNames.filter(e=>e.hidden).length+'★' : ''})${(state.data.genderClosed && state.data.genderClosed[ev.id+'|여']) ? ' <span class="gender-full">🚫수동마감</span>' : (counts.female >= 6 && ev.court_count === 1) ? ' <span class="gender-full">🔒마감</span>' : ''}</div>
         <div class="name-tags">${renderNameChips(counts.femaleNames, '', ev.location === '종합운동장', ev.id)}</div>
@@ -4664,7 +4692,7 @@ function renderEventCard(ev){
       <div class="attend-box male">
         <div class="box-head">남자 참석 (${counts.male}${counts.maleNames.filter(e=>e.hidden).length ? '+'+counts.maleNames.filter(e=>e.hidden).length+'★' : ''})${(state.data.genderClosed && state.data.genderClosed[ev.id+'|남']) ? ' <span class="gender-full">🚫수동마감</span>' : (counts.male >= 6 && ev.court_count === 1) ? ' <span class="gender-full">🔒마감</span>' : ''}</div>
         <div class="name-tags">${renderNameChips(counts.maleNames, '', ev.location === '종합운동장', ev.id)}</div>
-      </div>
+      </div>`}
       ${counts.doublesReady ? `<div class="doubles-badge">🎾 복식 가능${counts.doublesMale ? ' · 남복 가능' : ''}${counts.doublesFemale ? ' · 여복 가능' : ''}</div>` : ''}
     </div>
     ${renderAttendSubBoxes(counts.femaleNames, counts.maleNames)}
@@ -4707,11 +4735,15 @@ function renderEventCard(ev){
     ${reviewHtml}
     ${lateRequestHtml}
     <div class="ev-actions">
-      <button class="vote-btn ${isPendingF || isPendingM ? 'pending-sel' : (myStatus==='attend' ? (myHidden ? 'sel-attend-hidden' : (myVote.gender==='여' ? 'sel-attend-f' : 'sel-attend-m')) : '')}" data-status="attend">참석${state.myIsStaff?' ★':''}</button>
-      <button class="late-arrival-btn" data-late-arrival="${ev.id}">⏰ 늦참</button>
-      <button class="late-arrival-btn" data-lesson-participate="${ev.id}">📚 레슨</button>
-      <button class="vote-btn ${isPendingW ? 'pending-sel' : (myStatus==='waiting'?'sel-waiting':'')}" data-status="waiting">대기</button>
-      <button class="vote-btn ${isPendingA ? 'pending-sel' : (myStatus==='absent'?'sel-absent':'')}" data-status="absent">불참</button>
+      <div class="ev-actions-main">
+        <button class="vote-btn attend-main ${isPendingF || isPendingM ? 'pending-sel' : (myStatus==='attend' ? (myHidden ? 'sel-attend-hidden' : (myVote.gender==='여' ? 'sel-attend-f' : 'sel-attend-m')) : '')}" data-status="attend">✅ 참석${state.myIsStaff?' ★':''}</button>
+        <button class="vote-btn attend-main ${isPendingA ? 'pending-sel' : (myStatus==='absent'?'sel-absent':'')}" data-status="absent">🚫 불참</button>
+      </div>
+      <div class="ev-actions-sub">
+        <button class="late-arrival-btn" data-late-arrival="${ev.id}">⏰ 늦참</button>
+        <button class="late-arrival-btn" data-lesson-participate="${ev.id}">📚 레슨</button>
+        <button class="vote-btn ${isPendingW ? 'pending-sel' : (myStatus==='waiting'?'sel-waiting':'')}" data-status="waiting">대기</button>
+      </div>
     </div>
     <details class="guest-add-toggle">
       <summary>+ 게스트 참석 추가</summary>
@@ -7313,6 +7345,20 @@ function renderBallSection(list){
 
   const totalStock = (stock['종합운동장']??0) + (stock['유니온']??0) + (stock['창고']??0);
 
+  // 누가/언제/몇개 채워넣었는지 히스토리 표시 (관리자가 재고를 채운 내역까지 볼 수 있게 신설)
+  const refillHistory = state.data.ballRefillHistory || {};
+  const allRefills = [];
+  Object.keys(refillHistory).forEach(loc => {
+    (refillHistory[loc] || []).forEach(r => allRefills.push({ ...r, loc }));
+  });
+  allRefills.sort((a,b) => (b.ts||0) - (a.ts||0));
+  const refillHtml = allRefills.length
+    ? allRefills.slice(0, 15).map(r => {
+        const sign = r.amount > 0 ? '+' : '';
+        return `<div style="font-size:calc(11px * var(--font-scale, 1));padding:2px 0;color:var(--ink-soft);">${escapeHtml(r.date)} · ${escapeHtml(r.loc)} · <b>${escapeHtml(r.actor)}</b>님이 ${sign}${r.amount}개 채움 (재고 ${r.newTotal}개로)</div>`;
+      }).join('')
+    : `<div style="font-size:calc(11px * var(--font-scale, 1));color:var(--ink-faint);">아직 채운 기록이 없어요</div>`;
+
   return `
     <div class="fp-section">
       <div class="fp-title">🎾 테니스공 불출내역</div>
@@ -7323,6 +7369,10 @@ function renderBallSection(list){
         ${stockRow('창고')}
         <div style="font-size:calc(10px * var(--font-scale, 1));color:var(--ink-faint);margin-top:2px;">※ 창고는 코트 내 비품보관공간이 작아 별도로 보관 중인 재고예요</div>
       </div>
+      <details class="fp-progress" style="flex-direction:column;align-items:stretch;gap:2px;cursor:pointer;">
+        <summary style="font-weight:800;">🧾 재고 충전 히스토리 (누가·언제·몇개)</summary>
+        <div style="margin-top:6px;">${refillHtml}</div>
+      </details>
       <div class="fp-progress">총 ${list.length}건 기록됨</div>
       <div class="fp-lists show">
         <div class="fp-add-row" style="flex-direction:column;gap:6px;align-items:stretch;">
@@ -7510,6 +7560,14 @@ function wireBallSection(list){
     if(!state.data.ballStock) state.data.ballStock = { '종합운동장': 0, '유니온': 0, '창고': 0 };
     state.data.ballStock[loc] = Math.max(0, (state.data.ballStock[loc] ?? 0) + delta);
     markDirty('ballStock', loc);
+    if(delta > 0){
+      // +버튼(채워넣기)일 때만 히스토리 기록 — -버튼(사용/차감)은 클럽볼 사용체크 쪽에서 이미 별도로 기록되고 있음
+      if(!state.data.ballRefillHistory) state.data.ballRefillHistory = {};
+      const hist = (state.data.ballRefillHistory[loc] || []).slice();
+      hist.push({ date: localIso(new Date()), actor: state.myName, amount: delta, newTotal: state.data.ballStock[loc], ts: Date.now() });
+      state.data.ballRefillHistory[loc] = hist.slice(-30);
+      markDirty('ballRefillHistory', loc);
+    }
     const ok = await saveData();
     if(!ok) alert('저장에 실패했습니다. 다시 시도해 주세요.');
     renderBallPanel();
@@ -7529,12 +7587,20 @@ function wireBallSection(list){
       if(isNaN(n) || n < 0){ alert('올바른 숫자를 입력해 주세요.'); return; }
       const dateInput = prompt('충전(입고) 날짜를 입력해 주세요. (YYYY-MM-DD)', localIso(new Date()));
       if(dateInput === null) return;
+      const prevStock = (state.data.ballStock||{})[loc] ?? 0;
+      const addedAmount = n - prevStock; // 실제로 추가된(또는 줄어든) 개수를 계산해서 히스토리에 남김
       if(!state.data.ballStock) state.data.ballStock = { '종합운동장': 0, '유니온': 0, '창고': 0 };
       state.data.ballStock[loc] = n;
       markDirty('ballStock', loc);
       if(!state.data.ballStockLastRefill) state.data.ballStockLastRefill = {};
       state.data.ballStockLastRefill[loc] = dateInput;
       markDirty('ballStockLastRefill', loc);
+      // 누가/언제/몇개 채웠는지 히스토리 기록(공불출내역에 "채워넣는 수량"까지 표시해달라는 요청으로 신설)
+      if(!state.data.ballRefillHistory) state.data.ballRefillHistory = {};
+      const hist = (state.data.ballRefillHistory[loc] || []).slice();
+      hist.push({ date: dateInput, actor: state.myName, amount: addedAmount, newTotal: n, ts: Date.now() });
+      state.data.ballRefillHistory[loc] = hist.slice(-30); // 최근 30건만 유지
+      markDirty('ballRefillHistory', loc);
       const ok = await saveData();
       if(!ok) alert('저장에 실패했습니다. 다시 시도해 주세요.');
       renderBallPanel();
@@ -7606,13 +7672,20 @@ function renderFingerprintSection(){
         ` : ''}
       </div>
       ${(() => {
+        // ⚠️ 기존엔 "오늘부터 2개월 후까지"라는 계속 움직이는 롤링 윈도우라, 매일 기준점이 새로고침되어
+        // 사실상 리셋 없이 항상 미래 일정이 계속 잡히는 문제가 있었음(남은횟수가 끝없이 늘어나 보임).
+        // 고정된 2개월 주기(1-2월/3-4월/5-6월/7-8월/9-10월/11-12월)로 수정 — 이번 주기가 끝나면 다음 주기부터 다시 0에서 시작
         const today = new Date(); today.setHours(0,0,0,0);
-        const twoMonthsLater = new Date(today); twoMonthsLater.setMonth(twoMonthsLater.getMonth()+2);
-        const upcoming = getEventsInDateRange(today, twoMonthsLater)
+        const currentMonth = today.getMonth() + 1; // 1~12
+        const periodStartMonth = currentMonth % 2 === 1 ? currentMonth : currentMonth - 1; // 홀수월로 내림(주기 시작월)
+        const periodEndMonth = periodStartMonth + 1; // 주기 끝월(짝수월)
+        const periodEnd = new Date(today.getFullYear(), periodEndMonth, 0); // periodEndMonth의 마지막날
+        periodEnd.setHours(23,59,59,999);
+        const upcoming = getEventsInDateRange(today, periodEnd)
           .filter(e => e.location === '종합운동장')
           .sort((a,b) => a.event_date.localeCompare(b.event_date));
         const dateList = upcoming.map(e => `${new Date(e.event_date).getMonth()+1}/${new Date(e.event_date).getDate()}`).join(', ');
-        return `<div class="fp-progress" style="margin-top:10px;">📅 이번 지문등록 주기(2개월) 내 남은 종합운동장 일정: ${upcoming.length}개${dateList ? ` (${dateList})` : ''}</div>`;
+        return `<div class="fp-progress" style="margin-top:10px;">📅 이번 지문등록 주기(${periodStartMonth}~${periodEndMonth}월) 내 남은 종합운동장 일정: ${upcoming.length}개${dateList ? ` (${dateList})` : ''}</div>`;
       })()}
     </div>
   `;
@@ -8113,7 +8186,10 @@ async function init(){
   setInterval(async () => {
     try{
       const changed = await runAutoPromotions();
-      if(changed){ lastDataSnapshot = JSON.stringify(state.data); renderEventList(); renderNotifBell(); }
+      // ⚠️ 사용자가 지금 화면을 탭/클릭하는 중이면 이번 주기의 재렌더링은 건너뜀 — 안 그러면 참석시간(chip-ts) 등을
+      // 누르는 바로 그 순간 카드 DOM이 통째로 교체되면서 클릭이 씹히거나 히스토리 팝업이 안 뜨는 문제가 있었음
+      // (pollForUpdates에는 이미 있던 동일한 보호장치가 여기(runAutoPromotions발 재렌더링)에는 빠져있었음)
+      if(changed && !userIsInteracting){ lastDataSnapshot = JSON.stringify(state.data); renderEventList(); renderNotifBell(); }
       await pollForUpdates();
       try{ checkCourt3ConfirmPopup(); }catch(e){ console.error('3번코트 확인 팝업 오류', e); }
       try{ checkVip3WelcomePopup(); }catch(e){ console.error('VIP3 환영팝업 오류', e); }
