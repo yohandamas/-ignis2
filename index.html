@@ -188,6 +188,15 @@
 
   .attend-boxes{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:8px 0 6px;}
   .attend-box{border-radius:10px;padding:8px 10px;min-height:36px;}
+  .sub-boxes{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px;}
+  .sub-boxes.three-col{grid-template-columns:1fr 1fr 1fr;}
+  .sub-box{border-radius:8px;padding:6px 8px;background:var(--accent-soft);border:1px dashed var(--accent);}
+  .sub-box.lesson{background:color-mix(in srgb, var(--vivid-blue) 10%, var(--panel));border-color:var(--vivid-blue);}
+  .sub-box.consec{background:#F3E9F7;border-color:#7B3FA0;}
+  .sub-head{font-size:calc(10px * var(--font-scale, 1));font-weight:800;color:var(--accent-dark);margin-bottom:3px;}
+  .sub-box.lesson .sub-head{color:var(--vivid-blue);}
+  .sub-box.consec .sub-head{color:#7B3FA0;}
+  .sub-box .name-tags{font-size:calc(11px * var(--font-scale, 1));}
   .attend-box.female{background:var(--rose-soft);}
   .attend-box.male{background:var(--brand-soft);}
   .attend-box.absent{background:var(--danger-soft);}
@@ -536,7 +545,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.152</span>
+      <span id="buildVersionTop" class="build-version-top">v.153</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -1286,14 +1295,20 @@ async function postAiAdminComment(eventId, text){
   if(!state.data.comments[eventId]) state.data.comments[eventId] = [];
 
   // 여러 세션이 동시에 같은 승급/전환을 감지해서 각자 댓글을 남기는 것을 방지:
-  // 최근 30분 내 같은 이벤트에 동일한 내용의 AI관리자 댓글이 이미 있으면 건너뜀 (서버 기준 재확인)
+  // 같은 이벤트(코트)에 핵심 내용이 동일한 AI관리자 댓글이 이미 있으면 건너뜀 (서버 기준 재확인)
+  // ⚠️ 실사례로 발견된 두 유형의 중복을 모두 막기 위해 강화함:
+  //   ① "3번코트 확보완료" 등이 몇 시간 간격으로 반복 게시됨 — 기존 30분 윈도우로는 못 막았음 → 6시간으로 확대
+  //   ② "오늘 참석인원..." 안내가 pickVariant로 뽑히는 끝인사만 다른 채 1초 간격으로 3연속 게시됨
+  //      (여러 세션이 거의 동시에 "조회→중복아님 판정→삽입"하는 레이스컨디션) → 비교범위를 30자에서 45자로 늘려
+  //      끝인사 이전의 핵심 문장까지 포함해서 비교(이모지가 UTF-16에서 2코드를 차지해 60자로는 끝인사까지 다 포함되던 문제
+  //      확인 후 45자로 재조정), 조회 개수도 10→30으로 늘려 활발한 이벤트에서 비교대상이 안 밀려나게 함
   try{
     const { data: recent } = await sb.from('ignis_comments')
       .select('id, member_name, body, ts')
       .eq('event_id', eventId)
       .order('ts', { ascending: false })
-      .limit(10);
-    const dup = (recent || []).some(r => r.member_name === name && r.body.slice(0, 30) === text.slice(0, 30) && (ts - Number(r.ts)) < 30*60*1000);
+      .limit(30);
+    const dup = (recent || []).some(r => r.member_name === name && r.body.slice(0, 45) === text.slice(0, 45) && (ts - Number(r.ts)) < 6*60*60*1000);
     if(dup) return;
   }catch(e){ console.error('AI관리자 댓글 중복확인 실패 (계속 진행)', e); }
 
@@ -1803,6 +1818,15 @@ function canPromoteRespectingGwaeLimit(ev, counts, v){
   const prospectiveTotal = counts.regularTotal + 1;
   const limit = gwaeLimit(prospectiveTotal, ev.court_count);
   return counts.gwaeAttend < limit;
+}
+
+function canPromoteRespectingLessonMinimum(ev, counts, v){
+  // 레슨자(lessonTime 있음) 대기는, 승급 직전 재확인 — 승급 후 전체인원이 4명 미만이면 복식이 안 되므로 계속 대기
+  // (레슨자는 등록 당시 4인미만이라 대기(type:'late')로 밀렸는데, 그 사이 다른 사람이 대기취소 등으로 빠져서
+  // 여전히 4인 미만인 상태로 남아있을 수 있어 승급 직전에도 재확인이 필요함)
+  if(!v.lessonTime) return true;
+  const resultingTotal = counts.regularTotal + 1;
+  return resultingTotal >= 4;
 }
 
 function renderTabs(){
@@ -2323,7 +2347,7 @@ async function checkConsecutiveWaitingLatePromotion(){
         })
         .sort((a,b) => waitingSortKey(a[1]) - waitingSortKey(b[1]));
       if(waiting.length === 0) break;
-      const promotable = waiting.find(([,v]) => canPromoteRespectingGwaeLimit(ev, counts, v));
+      const promotable = waiting.find(([,v]) => canPromoteRespectingGwaeLimit(ev, counts, v) && canPromoteRespectingLessonMinimum(ev, counts, v));
       if(!promotable) break;
       const [name, v] = promotable;
       // 성별상한 재확인(2코트일때만) 여부와 무관하게, 전체 정원(available)은 모든 이벤트에서 항상 서버 실시간으로 최종 재확인
@@ -2340,7 +2364,7 @@ async function checkConsecutiveWaitingLatePromotion(){
         const flexFavorsThisGender = oppositeLiveCount <= 3; // 복식(4명) 기준 — 반대성별 3명이하일때만 예외(실시간 판정, 영구고정 genderFlex 대신)
         if((myLiveCount >= genderCap || (state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender])) && !flexFavorsThisGender) break;
       }
-      votes[name] = { status:'attend', gender: v.gender, district: v.district, hidden:false, promotedFrom: v.type, lateArrival: v.lateArrival || false, lateMinutes: v.lateMinutes || null, ts: Date.now() };
+      votes[name] = { status:'attend', gender: v.gender, district: v.district, hidden:false, promotedFrom: v.type, lateArrival: v.lateArrival || false, lateMinutes: v.lateMinutes || null, lessonTime: v.lessonTime || null, ts: Date.now() };
       await saveVoteRow(ev.id, name, votes[name], '자동승급(연속참석 전용, 시작1시간전 시스템)');
       const reasonLabel = v.type === 'late_consecutive' ? '늦참+연속참석' : '연속참석';
       pushNotification(`${name}님이 대기에서 자동 승급되어 ${shortEventLabel(ev)} 참석으로 전환되었습니다. (${reasonLabel}, 시작 1시간전 정원 확인)`, {eventId: ev.id, actor: name, category:'promotion'});
@@ -2454,11 +2478,11 @@ async function promoteGenderFlexWaiting(ev, flexGender){
       })
       .sort((a,b) => waitingSortKey(a[1]) - waitingSortKey(b[1]));
     if(waiting.length === 0) break;
-    const promotable = waiting.find(([,v]) => canPromoteRespectingGwaeLimit(ev, counts, v));
+    const promotable = waiting.find(([,v]) => canPromoteRespectingGwaeLimit(ev, counts, v) && canPromoteRespectingLessonMinimum(ev, counts, v));
     if(!promotable) break;
     const [name, v] = promotable;
     const promotedFrom = v.type === 'consecutive' ? 'consecutive' : 'wait';
-    votes[name] = { status:'attend', gender: v.gender, district: v.district, hidden:false, promotedFrom, lateArrival: v.lateArrival || false, lateMinutes: v.lateMinutes || null, ts: v.ts };
+    votes[name] = { status:'attend', gender: v.gender, district: v.district, hidden:false, promotedFrom, lateArrival: v.lateArrival || false, lateMinutes: v.lateMinutes || null, lessonTime: v.lessonTime || null, ts: v.ts };
     await saveVoteRow(ev.id, name, votes[name], '자동승급(성별균형 시스템)');
     pushNotification(`${name}님이 대기에서 자동 승급되어 ${shortEventLabel(ev)} 참석으로 전환되었습니다. (성별 유연 승급)`, {eventId: ev.id, actor: name, category:'promotion'});
     if(v.type === 'late'){
@@ -2514,6 +2538,7 @@ async function tryAutoPromote(ev){
     if(available <= 0) break;
     const liveCounts = computedCounts(ev); // 매 승급마다 최신 카운트로 재확인
     if(!canPromoteRespectingGwaeLimit(ev, liveCounts, v)) continue; // 관외비율 초과시 건너뛰고 다음 후보로
+    if(!canPromoteRespectingLessonMinimum(ev, liveCounts, v)) continue; // 레슨자는 승급후 4명미만이면 건너뛰고 다음 후보로
     // ⚠️ 핵심: 위쪽 필터링은 "루프 시작 전 한 번"만 계산된 카운트 기준이라, 한 사이클에 여러 명이 연달아 승급되면
     // 상한을 넘어설 수 있었음(첫 승급 후 카운트가 바뀌어도 재확인이 없었음) — 매 승급 직전 서버 실시간 카운트로 최종 재확인.
     // 성별상한(2코트일때만)뿐 아니라 전체정원도 court_count와 무관하게 항상 재확인 — 1코트 이벤트가 여러 세션 동시접속으로
@@ -2529,7 +2554,7 @@ async function tryAutoPromote(ev){
       if((myLiveCount >= genderCap || (state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender])) && !flexFavorsThisGender) continue; // 이미 상한 도달 또는 관리자 수동마감 — 이 사람은 건너뛰고 다음 후보로
     }
     const promotedFrom = v.type === 'consecutive' ? 'consecutive' : 'wait';
-    votes[name] = { status:'attend', gender: v.gender, district: v.district, hidden:false, promotedFrom, lateArrival: v.lateArrival || false, lateMinutes: v.lateMinutes || null, ts: Date.now() };
+    votes[name] = { status:'attend', gender: v.gender, district: v.district, hidden:false, promotedFrom, lateArrival: v.lateArrival || false, lateMinutes: v.lateMinutes || null, lessonTime: v.lessonTime || null, ts: Date.now() };
     await saveVoteRow(ev.id, name, votes[name], '자동승급(시스템)');
     pushNotification(`${name}님이 대기에서 자동 승급되어 ${shortEventLabel(ev)} 참석으로 전환되었습니다.`, {eventId: ev.id, actor: name, category:'promotion'});
     if(v.type === 'late'){
@@ -3016,6 +3041,34 @@ document.getElementById('warnPanelToggle').onclick = async () => {
 };
 
 const SITE_LOG = [
+  { ts:'2026-08-27 11:30', t:'🔧 관리자용 "늦참 시간/레슨 시간 직접 수정" 기능 신설', important:true, d:[
+    '요청: 일반참석 버튼을 누르고 댓글로만 "늦참"이라고 알리는 회원들이 있어, 관리자가 참석/대기 상태만 조정 가능했던 것에서 나아가 늦참 몇 분인지·레슨 몇 시인지도 직접 수정할 수 있게 추가',
+    '구현: 관리자모드 "이동▾" 드롭다운에 "늦참 시간 수정"·"레슨 시간 수정" 옵션 신설 — 현재 참석 상태인 회원에 한해, 늦참은 분 단위 숫자(0 입력시 해제)를, 레슨은 시작시간(빈 값 입력시 해제)을 프롬프트로 직접 입력해 즉시 반영',
+    '부가 발견/수정: adminMoveMember()가 이동 직전 서버에서 회원 최신 데이터를 재조회하는 로직에 lessonTime 필드가 빠져있던 것 발견 — v149 도입 이후 이 재조회 로직에는 반영이 안 되어, 관리자가 다른 사유로 이동시킬 때 레슨시간 정보가 유실될 수 있었음. 재조회 객체와 attend 처리 시 모두 lessonTime을 유지하도록 수정',
+    '시뮬레이션(늦참 15분으로 수정, 늦참 해제, 대기중인 회원에게는 차단) 검증'
+  ]},
+  { ts:'2026-08-27 11:00', t:'📚 레슨자 4인 미만 참석제한 신설 — 늦참 30분 이상과 동급 우선순위로 선대기', important:true, d:[
+    '요청: 4인 미만일 때 레슨자가 참여하면 복식게임이 안 되므로, 관외대기처럼 4인 이상일 때만 참석 가능하도록 제한 + 우선순위는 늦참 30분 이상과 동급(선대기 후 자동승급) + 새벽코트 제외, 평일 저녁 6시 이후 코트에만 적용',
+    '구현: checkLessonParticipation() 신규등록 분기에서, 평일(토·일 제외)이면서 시작시간 18시 이후(새벽코트는 애초에 새벽6시라 자동 제외)인 경우, 등록 시도 시점 전체인원이 3명 이하(본인 포함시 4명 미만)면 즉시 참석 대신 type:late(늦참30분+와 동일 우선순위 티어) 대기로 등록',
+    '승급 시 정보 유지: 대기 상태에서도 lessonTime을 저장해두고, 4개 승급함수(tryAutoPromote/promoteWaitingForCapacity/checkConsecutiveWaitingLatePromotion/forcePromoteWaitingNow) 전부에서 승급시 lessonTime을 그대로 이어받도록 수정 — 승급 후에도 레슨시간 정보가 사라지지 않음',
+    '핵심 안전장치: canPromoteRespectingLessonMinimum() 신설 — canPromoteRespectingGwaeLimit(관외비율 재확인)과 동일한 패턴으로, 레슨자 대기를 승급시키기 직전 "승급 후에도 전체인원 4명 이상"인지 서버 실시간 데이터로 재확인. 이게 없으면 일반 승급함수들이 "정원 여유"만 보고 4인 미만 상태에서도 레슨자를 그냥 승급시켜버릴 수 있었음(관외비율 체크와 정확히 같은 이유로 필요)',
+    '5가지 시나리오(평일저녁 2명일때 대기/3명일때 직접참석/새벽코트 예외/주말 예외/저녁6시이전 예외) + 승급직전 재확인 시뮬레이션 검증'
+  ]},
+  { ts:'2026-08-27 10:30', t:'📋 참석체크리스트에 늦참·레슨·연참 서브박스 신설 + 레슨버튼 전체코트로 확대', important:true, d:[
+    '요청: 여자참석/남자참석 칸 아래에 늦참·레슨자 칸을 간략히 추가해서 직관적으로 보이게, 연참 칸도 검토. 목업 여러 안(인라인뱃지/하단서브박스/하이브리드) 제시 후 하이브리드(인라인뱃지+하단서브박스 함께)로 확정',
+    '추가요청: 늦참은 5분처럼 작은 값도 누락없이 표시, 레슨은 "시작시간"임을 명확히 표시, 레슨버튼을 새벽코트 전용에서 평일·주말 전체 코트로 확대',
+    '구현: renderAttendSubBoxes() 신설 — 여자·남자 참석자 전체를 합쳐 늦참(lateArrival)·레슨(lessonTime)·연참(promotedFrom==consecutive) 해당자만 걸러 별도 서브박스로 표시, 해당자 없는 카테고리는 박스 자체를 숨김',
+    '기존 인라인 뱃지도 함께 보완: lateMinutes 값 체크를 falsy(0 등)에 안전하게(!= null) 수정해 5분도 정확히 표시, 레슨 뱃지 문구를 "(레 06:40)"에서 "(레슨 06:40)"으로 더 명확하게 변경',
+    '레슨버튼(📚레슨) 노출조건에서 daily_union_morning 전용 제한 제거 — 이제 모든 코트(유니온·종합운동장, 평일·주말·새벽)에서 레슨 등록 가능',
+    '시뮬레이션(5분 늦참 표시, 레슨시작시간 명시, 해당자 없으면 박스 숨김) + 실제 코드 기준 렌더링 이미지로 최종 검증'
+  ]},
+  { ts:'2026-08-27 10:00', t:'🤖 AI관리자 댓글이 코트당 중복으로 계속 달리던 문제 수정', important:true, d:[
+    '요청: AI관리자 댓글이 중복으로 계속 달리는 문제, 단순하게 코트당 중복댓글 안달리게 수정',
+    '실데이터로 두 가지 유형 확인: ① "오늘 참석인원..." 안내가 pickVariant로 뽑히는 끝인사(화이팅해요/행테하세요 등)만 다른 채 1초 간격으로 3연속 게시(여러 세션이 거의 동시에 "조회→중복아님판정→삽입"하는 레이스컨디션) ② "3번코트 확보완료"가 몇시간 간격으로 반복(확인 결과 이건 관리자님이 실제로 여러 차례 확보/미확보 버튼을 누른 정상 이력으로 확인 — 시스템 결함 아님)',
+    '원인①의 진짜 문제: postAiAdminComment의 기존 중복판정 비교범위(앞30자)가 너무 짧아서, 이모지 포함시 UTF-16 특성상 끝인사 이전 핵심문구까지 포함 못하고 서로 다르게 판정되던 것',
+    '수정: 비교범위를 30자→45자로 조정(이모지 코드유닛 특성 고려해 여러 실제 문구로 검증), 시간윈도우 30분→6시간으로 확대, 조회개수 10→30개로 확대(활발한 이벤트에서 비교대상이 밀려나지 않도록)',
+    '실제 발견된 사례(끝인사만 다른 문구 1초간격) 및 대조군(진짜 다른 내용은 정상게시) 시뮬레이션으로 검증'
+  ]},
   { ts:'2026-08-27 09:30', t:'🎯 3번코트 확보를 되돌릴 때, 이미 확대승급된 초과인원이 그대로 남던 버그 수정', important:true, d:[
     '발견 경위: v151(genderFlex 영구고정) 수정 직후, "상태가 바뀌었는데 이전 확정 결과를 되돌리는 로직이 없는" 동일 유형의 위험을 전수 점검하다가 발견',
     '문제: toggleCourt3Confirmed()는 3번코트 확보시엔 promoteWaitingForCapacity()로 대기자를 자동승급시키지만, 반대로 "미확보로 되돌릴 때"는 정원만 줄어들 뿐, 이미 확보 덕분에 승급된 사람들을 다시 대기로 되돌리는 로직이 전혀 없었음 — 방치하면 실질적으로 축소된 정원을 초과한 참석인원이 그대로 유지되는 위험',
@@ -3659,7 +3712,7 @@ const SITE_LOG = [
   ]},
   { ts:'2026-07-21 22:00', t:'🎾 금요일 안내 · 이력조회 보강 · 칭호아이콘 위치조정 · 마일스톤 확장', important:true, d:[
     '금요일 20-22시 유니온·종합운동장 동시 일정시, 시작 6시간 전부터 "같은 성별끼리 모여서, 유니온 우선 이용" 안내 자동 발송 (유니온 코트 이용기록 유지 목적)',
-    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.152 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
+    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.153 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
     '관리자 "지금 자동승급 실행"의 일반 대기열 승급에도 AI관리자 댓글이 빠져있던 것 발견, 추가',
     '이름 옆 칭호 아이콘(럭키/최초달성/월간메달)을 참석목록·랭킹에서 제거하고 댓글에만 표시하도록 위치 조정',
     '럭키방문 마일스톤 5종에서 2000/2222/3000/3333/4000/4444 추가해 총 11종으로 확대'
@@ -4436,6 +4489,39 @@ function renderMyWaitingNotice(myVote, counts){
   return `<div class="my-wait-notice">⏳ 회원님은 현재 <b>${info.label} ${position}번째</b>입니다. ${info.hint}</div>`;
 }
 
+function renderAttendSubBoxes(femaleNames, maleNames){
+  // 여자참석/남자참석 박스 아래에, 늦참·레슨·연참 해당자만 한눈에 볼 수 있게 별도 서브박스로 요약.
+  // 명단 안 인라인 뱃지(이름 옆 태그)와 별개로, 여기서는 "누가 해당하는지"만 빠르게 훑어볼 수 있도록 모아서 보여줌.
+  // 해당자가 없는 카테고리는 박스 자체를 표시하지 않음.
+  const all = [...femaleNames, ...maleNames];
+  const lateList = all.filter(e => e.lateArrival); // 5분이든 30분이든 늦참으로 등록된 사람 전부 포함(시간 크기와 무관)
+  const lessonList = all.filter(e => e.lessonTime);
+  const consecList = all.filter(e => e.promotedFrom === 'consecutive');
+
+  const boxes = [];
+  if(lateList.length){
+    boxes.push(`<div class="sub-box">
+      <div class="sub-head">⏰ 늦참</div>
+      <div class="name-tags">${lateList.map(e => `${escapeHtml(e.name)} (${e.lateMinutes || 0}분)`).join(', ')}</div>
+    </div>`);
+  }
+  if(lessonList.length){
+    boxes.push(`<div class="sub-box lesson">
+      <div class="sub-head">📚 레슨</div>
+      <div class="name-tags">${lessonList.map(e => `${escapeHtml(e.name)} (레슨시작 ${escapeHtml(e.lessonTime)})`).join(', ')}</div>
+    </div>`);
+  }
+  if(consecList.length){
+    boxes.push(`<div class="sub-box consec">
+      <div class="sub-head">🔁 연참</div>
+      <div class="name-tags">${consecList.map(e => escapeHtml(e.name)).join(', ')}</div>
+    </div>`);
+  }
+  if(boxes.length === 0) return '';
+  const colClass = boxes.length >= 3 ? 'three-col' : '';
+  return `<div class="sub-boxes ${colClass}">${boxes.join('')}</div>`;
+}
+
 function renderNameChips(entries, suffix, showDistrict, eventId){
   suffix = suffix || '';
   if(!entries.length) return `<span class="chip-empty">-</span>`;
@@ -4446,8 +4532,8 @@ function renderNameChips(entries, suffix, showDistrict, eventId){
     const hiddenTag = e.hidden ? `<span class="chip-hidden-tag">★히든</span>` : '';
     const PROMOTED_LABELS = { consecutive:'🔁연참승급', wait:'⬆️대기승급', gwae_wait:'⬆️관외대기승급', gender_wait:'⬆️성별대기승급', late:'⬆️늦참승급', regular:'⬆️일반대기승급', late_consecutive:'🔁늦참+연참승급' };
     const promotedTag = e.promotedFrom && PROMOTED_LABELS[e.promotedFrom] ? `<span class="chip-promoted-tag">${PROMOTED_LABELS[e.promotedFrom]}</span>` : '';
-    const lateTag = e.lateArrival ? ` <span class="chip-promoted-tag">(늦${e.lateMinutes ? e.lateMinutes : ''}분)</span>` : '';
-    const lessonTag = e.lessonTime ? ` <span class="chip-promoted-tag">(레 ${escapeHtml(e.lessonTime)})</span>` : '';
+    const lateTag = e.lateArrival ? ` <span class="chip-promoted-tag">(늦${e.lateMinutes != null ? e.lateMinutes : 0}분)</span>` : ''; // 5분처럼 작은 값도 누락없이 표시(0 등 falsy값 방지 위해 != null로 체크)
+    const lessonTag = e.lessonTime ? ` <span class="chip-promoted-tag">(레슨 ${escapeHtml(e.lessonTime)})</span>` : ''; // 레슨 시작시간임을 명확히 표시
     const histAttr = eventId ? ` data-hist-key="${eventId}|${escapeHtml(name)}" data-fallback-ts="${ts||''}"` : '';
     const label = `${idx+1}. ${escapeHtml(name)}${hiddenTag}${promotedTag}${districtTag}${suffix}${timeStr ? `<span class="chip-ts"${histAttr} style="${eventId?'cursor:pointer;text-decoration:underline dotted;':''}">${timeStr}</span>` : ''}${lateTag}${lessonTag}`;
     let chipClass = e.hidden ? 'name-chip name-chip-hidden' : 'name-chip';
@@ -4465,6 +4551,8 @@ function renderNameChips(entries, suffix, showDistrict, eventId){
           ${genderWaitOption}
           <option value="waiting-consecutive">대기로 (연속참석)</option>
           <option value="waiting-late">대기로 (늦참)</option>
+          <option value="edit-late">늦참 시간 수정</option>
+          <option value="edit-lesson">레슨 시간 수정</option>
           <option value="to-invite">초청코트로</option>
           <option value="remove">삭제</option>
         </select>
@@ -4564,6 +4652,7 @@ function renderEventCard(ev){
       </div>
       ${counts.doublesReady ? `<div class="doubles-badge">🎾 복식 가능${counts.doublesMale ? ' · 남복 가능' : ''}${counts.doublesFemale ? ' · 여복 가능' : ''}</div>` : ''}
     </div>
+    ${renderAttendSubBoxes(counts.femaleNames, counts.maleNames)}
     ${ev.inviteCourts > 0 ? (() => { const inviteClosed = state.data.inviteClosed && state.data.inviteClosed[ev.id]; const alreadyIn = myVote && myVote.isInvite && myStatus==='attend'; return `
     <div class="invite-court-box">
       <div class="invite-court-head">👨‍👩‍👧 가족 지인 초청코트 참석 (${counts.inviteNames.length}/${ev.inviteMax})${inviteClosed ? ' <span class="gender-full">🚫 마감</span>' : ''}</div>
@@ -4605,7 +4694,7 @@ function renderEventCard(ev){
     <div class="ev-actions">
       <button class="vote-btn ${isPendingF || isPendingM ? 'pending-sel' : (myStatus==='attend' ? (myHidden ? 'sel-attend-hidden' : (myVote.gender==='여' ? 'sel-attend-f' : 'sel-attend-m')) : '')}" data-status="attend">참석${state.myIsStaff?' ★':''}</button>
       <button class="late-arrival-btn" data-late-arrival="${ev.id}">⏰ 늦참</button>
-      ${ev.templateId === 'daily_union_morning' ? `<button class="late-arrival-btn" data-lesson-participate="${ev.id}">📚 레슨</button>` : ''}
+      <button class="late-arrival-btn" data-lesson-participate="${ev.id}">📚 레슨</button>
       <button class="vote-btn ${isPendingW ? 'pending-sel' : (myStatus==='waiting'?'sel-waiting':'')}" data-status="waiting">대기</button>
       <button class="vote-btn ${isPendingA ? 'pending-sel' : (myStatus==='absent'?'sel-absent':'')}" data-status="absent">불참</button>
     </div>
@@ -4828,6 +4917,7 @@ async function adminMoveMember(eventId, name, action){
         isInvite: !!freshRow.is_invite, promotedFrom: freshRow.promoted_from || null, invitedBy: freshRow.invited_by || null,
         displayName: freshRow.display_name || null,
         lateArrival: !!freshRow.late_arrival, lateMinutes: freshRow.late_minutes || null,
+        lessonTime: freshRow.lesson_time || null,
         autoApprovedPopupPending: !!freshRow.auto_approved_popup_pending
       };
       votes[name] = existing; // 로컬 캐시도 최신값으로 동기화
@@ -4846,7 +4936,7 @@ async function adminMoveMember(eventId, name, action){
     if(reasonChoice === null) return;
     const REASON_MAP = { '일반대기승급':'regular', '관외대기승급':'gwae_wait', '성별대기승급':'gender_wait', '연속참석승급':'consecutive', '늦참승급':'late' };
     const promotedFrom = REASON_MAP[reasonChoice] || null;
-    votes[name] = { status:'attend', gender:g, district, hidden:false, promotedFrom, lateArrival: (existing && existing.lateArrival) || false, lateMinutes: (existing && existing.lateMinutes) || null, ts: Date.now() };
+    votes[name] = { status:'attend', gender:g, district, hidden:false, promotedFrom, lateArrival: (existing && existing.lateArrival) || false, lateMinutes: (existing && existing.lateMinutes) || null, lessonTime: (existing && existing.lessonTime) || null, ts: Date.now() };
     await saveVoteRow(eventId, name, votes[name]);
     pushNotification(`${state.myName}(관리자)님이 ${name}님을 ${label} 참석으로 등록했습니다.${promotedFrom ? ` (사유: ${reasonChoice})` : ''}`, {eventId, actor: name});
   } else if(action === 'absent'){
@@ -4868,6 +4958,41 @@ async function adminMoveMember(eventId, name, action){
     votes[name] = { status:'waiting', type:'regular', gender:g, district, ts: Date.now() };
     await saveVoteRow(eventId, name, votes[name]);
     pushNotification(`${state.myName}(관리자)님이 ${name}님을 ${label} 대기로 이동했습니다.`, {eventId, actor: name});
+  } else if(action === 'edit-late'){
+    // 일반참석 버튼을 누르고 댓글로만 "늦참"이라고 알리는 회원들을, 관리자가 실제 늦참분을 직접 입력해 바로잡기 위한 기능
+    if(!existing || existing.status !== 'attend'){
+      alert('현재 참석 상태인 회원만 늦참 시간을 수정할 수 있어요. 먼저 참석으로 이동해 주세요.');
+      return;
+    }
+    const currentVal = existing.lateArrival ? String(existing.lateMinutes || 0) : '';
+    const input = prompt(`${name}님의 늦참 시간을 분 단위로 입력해 주세요.\n(늦참이 아니면 0 또는 빈 값을 입력하면 늦참 표시가 해제됩니다)`, currentVal);
+    if(input === null) return;
+    const trimmed = String(input).trim();
+    const minutes = trimmed === '' ? 0 : parseInt(trimmed, 10);
+    if(isNaN(minutes) || minutes < 0){ alert('숫자를 정확히 입력해 주세요.'); return; }
+    existing.lateArrival = minutes > 0;
+    existing.lateMinutes = minutes > 0 ? minutes : null;
+    votes[name] = existing;
+    await saveVoteRow(eventId, name, existing);
+    pushNotification(`${state.myName}(관리자)님이 ${name}님의 늦참 시간을 ${minutes > 0 ? minutes + '분으로' : '해제로'} 수정했습니다.`, {eventId, actor: name});
+  } else if(action === 'edit-lesson'){
+    if(!existing || existing.status !== 'attend'){
+      alert('현재 참석 상태인 회원만 레슨 시간을 수정할 수 있어요. 먼저 참석으로 이동해 주세요.');
+      return;
+    }
+    const input = prompt(`${name}님의 레슨 시작 시간을 입력해 주세요. (예: 06:40, 지우려면 빈 값으로 저장)`, existing.lessonTime || '');
+    if(input === null) return;
+    const trimmed = String(input).trim();
+    if(trimmed === ''){
+      existing.lessonTime = null;
+    } else {
+      if(!/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(trimmed)){ alert('시간 형식이 올바르지 않아요. "06:40"처럼 입력해 주세요.'); return; }
+      const [hh, mm] = trimmed.split(':');
+      existing.lessonTime = `${hh.padStart(2,'0')}:${mm}`;
+    }
+    votes[name] = existing;
+    await saveVoteRow(eventId, name, existing);
+    pushNotification(`${state.myName}(관리자)님이 ${name}님의 레슨 시간을 ${existing.lessonTime ? existing.lessonTime + '으로' : '해제로'} 수정했습니다.`, {eventId, actor: name});
   } else if(action === 'to-invite'){
     const counts = ev ? computedCounts(ev) : null;
     if(counts && counts.inviteNames.length >= (ev.inviteMax || 4)){
@@ -5177,7 +5302,8 @@ async function checkLateArrival(eventId){
 }
 
 async function checkLessonParticipation(eventId){
-  // 평일 새벽테니스 전용 — 레슨 시간대에는 자리를 비운다는 걸 다른 회원들에게 알리는 순수 정보성 표시.
+  // 모든 코트(평일·주말 유니온/종합운동장) 공통 — 레슨 시간대에는 자리를 비운다는 걸 다른 회원들에게 알리는 순수 정보성 표시.
+  // (원래 평일 새벽테니스 전용이었으나, 레슨은 어느 시간대든 있을 수 있어 전체 코트로 확대 적용)
   // 늦참과 달리 정원/대기 순위에는 전혀 영향을 주지 않음(레슨자는 이미 참석 중이거나 참석하며 시간만 표기)
   const ev = getInstances().find(e => e.id === eventId);
   if(!ev){ alert('일정 정보를 찾을 수 없어요.'); return; }
@@ -5202,6 +5328,24 @@ async function checkLessonParticipation(eventId){
       existingVote.lessonTime = lessonTime;
       await saveVoteRow(eventId, state.myName, existingVote);
     } else {
+      // ⚠️ 평일 저녁 6시 이후(새벽코트 제외) 코트에서는, 레슨자가 참여할 때 전체 인원이 4명 미만이면
+      // 복식 자체가 성립 안 되므로(레슨자는 레슨시간 동안 자리를 비우니, 최소 4명은 있어야 나머지끼리 복식 가능)
+      // 관외대기와 동일한 방식으로 "인원 조건 충족 전까지 대기" 처리. 우선순위는 늦참 30분 이상과 동급(type:'late')으로 취급
+      const votes = state.data.votes[eventId] || {};
+      const counts = computedCounts(ev);
+      const isWeekdayEvening = !isDawnEvent(ev) && !['토','일'].includes(ev.weekday) && ev.start_time >= '18:00';
+      if(isWeekdayEvening && counts.regularTotal < 3){
+        votes[state.myName] = { status:'waiting', type:'late', gender: state.myGender, district: state.myDistrict, ts: Date.now(), lessonTime };
+        await saveVoteRow(eventId, state.myName, votes[state.myName]);
+        pushNotification(`${state.myName}님이 ${shortEventLabel(ev)} 레슨 참여를 요청했지만, 현재 인원(${counts.regularTotal}명)이 적어 복식이 어려워 대기로 등록되었습니다.`, {eventId, actor: state.myName});
+        await postAiAdminComment(eventId, `📚 ${state.myName}님이 ${lessonTime} 레슨 참여를 신청했지만, 현재 인원이 ${counts.regularTotal}명이라 레슨자를 포함해도 복식(4명)이 안 돼서 대기로 전환됐습니다. 전체 인원이 4명 이상이 되면 자동으로 참석 승급됩니다. (우선순위: 일반대기>레슨대기(늦참과 동급)>연속참석대기)`);
+        const ok = await saveData();
+        if(!ok) alert('저장에 실패했습니다. 다시 시도해 주세요.');
+        renderEventList();
+        renderNotifBell();
+        alert(`현재 인원이 ${counts.regularTotal}명이라, 레슨 시간 동안 자리를 비우면 복식이 어려워요. 전체 인원이 4명 이상이 되면 자동으로 참석 승급됩니다.`);
+        return;
+      }
       // 아직 참석 전이면 일반 참석과 동일한 절차로 등록(정원이 차있으면 정상적으로 대기로 감 — 레슨이라고 새치기하지 않음)
       await setVote(eventId, 'attend', state.myGender);
       const votesAfter = state.data.votes[eventId] || {};
@@ -5604,6 +5748,7 @@ async function promoteWaitingForCapacity(ev){
       if(available <= 0) break;
       const liveCounts = computedCounts(ev); // 매 승급마다 최신 카운트로 재확인
       if(!canPromoteRespectingGwaeLimit(ev, liveCounts, v)) continue; // 관외비율 초과시 건너뛰고 다음 후보로
+    if(!canPromoteRespectingLessonMinimum(ev, liveCounts, v)) continue; // 레슨자는 승급후 4명미만이면 건너뛰고 다음 후보로
       const promotedFrom = v.type === 'consecutive' ? 'consecutive' : 'wait';
       // 성별상한 재확인(2코트일때만) 여부와 무관하게, 전체 정원은 모든 이벤트에서 항상 서버 실시간으로 최종 재확인
       // — 로컬캐시(available 변수)만 믿으면, 여러 세션이 동시접속중일 때 각자 "아직 자리 있다"고 오판해 정원을 초과시킬 수 있었음
@@ -5618,7 +5763,7 @@ async function promoteWaitingForCapacity(ev){
         const flexFavorsThisGender = oppositeLiveCount <= 3; // 복식(4명) 기준 — 반대성별 3명이하일때만 예외(실시간 판정, 영구고정 genderFlex 대신)
         if((myLiveCount >= genderCap || (state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender])) && !flexFavorsThisGender) continue; // 이 사람만 건너뛰고 다음 후보로 (전체 중단 금지)
       }
-      votes[name] = { status:'attend', gender: v.gender, district: v.district, hidden:false, promotedFrom, lateArrival: v.lateArrival || false, lateMinutes: v.lateMinutes || null, ts: v.ts };
+      votes[name] = { status:'attend', gender: v.gender, district: v.district, hidden:false, promotedFrom, lateArrival: v.lateArrival || false, lateMinutes: v.lateMinutes || null, lessonTime: v.lessonTime || null, ts: v.ts };
       await saveVoteRow(ev.id, name, votes[name], '자동승급(정원확대 시스템)');
       pushNotification(`${name}님이 대기에서 자동 승급되어 ${shortEventLabel(ev)} 참석으로 전환되었습니다. (정원 확대)`, {eventId: ev.id, actor: name, category:'promotion'});
       if(v.type === 'late'){
@@ -5737,7 +5882,8 @@ async function forcePromoteWaitingNow(ev){
   for(const [name, v] of waitingEntries){
     if(available <= 0) break;
     const liveCounts = computedCounts(ev);
-    if(!canPromoteRespectingGwaeLimit(ev, liveCounts, v)) continue; // 관외비율 초과시 건너뛰고 다음 후보로 (관리자 수동실행이라도 비율규칙은 유지)
+    if(!canPromoteRespectingGwaeLimit(ev, liveCounts, v)) continue; // 관외비율 초과시 건너뛰고 다음 후보로
+    if(!canPromoteRespectingLessonMinimum(ev, liveCounts, v)) continue; // 레슨자는 승급후 4명미만이면 건너뛰고 다음 후보로 (관리자 수동실행이라도 비율규칙은 유지)
     // ⚠️ 핵심: 성별상한(2코트일때만)뿐 아니라 전체정원도 court_count와 무관하게 항상 서버 실시간으로 재확인
     // — 1코트 이벤트가 여러 세션 동시접속으로 로컬캐시 지연 때문에 정원을 초과해 채워지던 버그로 발견
     const liveGenderCounts = await getLiveGenderCounts(ev.id);
@@ -5751,7 +5897,7 @@ async function forcePromoteWaitingNow(ev){
       if((myLiveCount >= genderCap || (state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender])) && !flexFavorsThisGender) continue;
     }
     const promotedFrom = v.type === 'consecutive' ? 'consecutive' : 'wait';
-    votes[name] = { status:'attend', gender: v.gender, district: v.district, hidden:false, promotedFrom, lateArrival: v.lateArrival || false, lateMinutes: v.lateMinutes || null, ts: Date.now() };
+    votes[name] = { status:'attend', gender: v.gender, district: v.district, hidden:false, promotedFrom, lateArrival: v.lateArrival || false, lateMinutes: v.lateMinutes || null, lessonTime: v.lessonTime || null, ts: Date.now() };
     await saveVoteRow(ev.id, name, votes[name]);
     pushNotification(`${name}님이 대기에서 자동 승급되어 ${shortEventLabel(ev)} 참석으로 전환되었습니다. (관리자 즉시실행)`, {eventId: ev.id, actor: name, category:'promotion'});
     if(v.type === 'late'){
