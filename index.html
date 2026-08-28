@@ -550,7 +550,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.158</span>
+      <span id="buildVersionTop" class="build-version-top">v.159</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -2532,7 +2532,7 @@ async function promoteGenderFlexWaiting(ev, flexGender){
     await saveVoteRow(ev.id, name, votes[name], '자동승급(성별균형 시스템)');
     pushNotification(`${name}님이 대기에서 자동 승급되어 ${shortEventLabel(ev)} 참석으로 전환되었습니다. (성별 유연 승급)`, {eventId: ev.id, actor: name, category:'promotion'});
     if(v.type === 'late'){
-      await postAiAdminComment(ev.id, `⏰ ${name}님이 늦참 선대기에서 참석으로 자동 승급되었습니다. (사유: 성별 유연승급, 늦참 ${v.lateMinutes || '?'}분 예정)`);
+      await postAiAdminComment(ev.id, v.lessonTime ? `📚 ${name}님이 레슨 선대기에서 참석으로 자동 승급되었습니다. (사유: 성별 유연승급, 레슨 ${v.lessonTime} 예정)` : `⏰ ${name}님이 늦참 선대기에서 참석으로 자동 승급되었습니다. (사유: 성별 유연승급, 늦참 ${v.lateMinutes || 0}분 예정)`);
     } else {
       await postAiAdminComment(ev.id, `${name}님이 대기에서 참석으로 자동 승급되었습니다. (사유: ${flexGender === '남' ? '여자' : '남자'} 참석 소수(3명 이하, 복식 미만)로 성별 유연승급 발동 — 전날 낮 12시 기준)`);
     }
@@ -2604,7 +2604,7 @@ async function tryAutoPromote(ev){
     await saveVoteRow(ev.id, name, votes[name], '자동승급(시스템)');
     pushNotification(`${name}님이 대기에서 자동 승급되어 ${shortEventLabel(ev)} 참석으로 전환되었습니다.`, {eventId: ev.id, actor: name, category:'promotion'});
     if(v.type === 'late'){
-      await postAiAdminComment(ev.id, `⏰ ${name}님이 늦참 선대기에서 참석으로 자동 승급되었습니다. (늦참 ${v.lateMinutes || '?'}분 예정, 자리가 나서 정상 승급)`);
+      await postAiAdminComment(ev.id, v.lessonTime ? `📚 ${name}님이 레슨 선대기에서 참석으로 자동 승급되었습니다. (레슨 ${v.lessonTime} 예정, 자리가 나서 정상 승급)` : `⏰ ${name}님이 늦참 선대기에서 참석으로 자동 승급되었습니다. (늦참 ${v.lateMinutes || 0}분 예정, 자리가 나서 정상 승급)`);
     }
     available--;
     changed = true;
@@ -3087,6 +3087,13 @@ document.getElementById('warnPanelToggle').onclick = async () => {
 };
 
 const SITE_LOG = [
+  { ts:'2026-08-28 10:30', t:'📚 레슨자 승급시 안내댓글에 "늦참 ?분 예정"으로 물음표 뜨던 버그 수정', important:true, d:[
+    '제보: 대기 승급이 됐는데 물음표(?) 표시가 있음, v158 수정으로 같이 해결됐는지 확인 요청',
+    '점검 경위: renderMyWaitingNotice의 순번계산(idx=-1→"?") 로직을 재점검했으나 myVote·counts가 항상 동일 votes 스냅샷에서 파생되어 이론상 정상 — 대신 안전장치로 "?"를 "순서 확인 중"으로 문구 개선',
+    '진짜 원인 발견: 4개 승급함수(성별유연승급/정원확대/일반승급/관리자즉시실행)의 AI관리자 댓글 문구가 전부 늦참 N분 예정 형태로 v.lateMinutes가 없으면 물음표를 넣는 방식이었는데, 레슨자 대기(type:late, lessonTime 있음, lateMinutes 없음)가 승급될 때 이 문구를 그대로 타면서 "늦참 ?분 예정"이 표시되던 것 — v153에서 레슨자를 type:late로 재사용할 때 이 승급댓글 4곳까지는 분기처리를 못 했던 부분',
+    '수정: 4곳 모두 v.lessonTime 유무로 분기 — 레슨자면 "📚 OOO님이 레슨 선대기에서 참석으로 승급 (레슨 HH:MM 예정)", 순수늦참이면 기존처럼 "⏰ 늦참 N분 예정"으로 정확히 표시',
+    '실제 제보케이스(레슨19:00 승급)와 대조군(늦참30분 승급) 시뮬레이션 검증'
+  ]},
   { ts:'2026-08-28 10:00', t:'📚 레슨 4인미만 대기가 "늦참"으로 잘못 표시되던 버그 수정 — 우선순위는 동급 유지, 표기만 "레슨"으로 분리', important:true, d:[
     '제보: 8/28 18-20시 일정에 레슨 19:00으로 테스트 등록했는데, 대기 표시가 "늦참"으로 나옴',
     '원인: v153에서 레슨자 4인미만 대기를 type:late로 등록해 늦참(30분초과)과 동일한 우선순위를 부여했는데, 이 type 값을 그대로 표시에도 써서 "늦참 대기"라는 라벨/태그가 그대로 노출되고 있었음 — 우선순위 로직(내부 처리)과 화면표시 라벨이 분리가 안 되어 있던 문제',
@@ -3806,7 +3813,7 @@ const SITE_LOG = [
   ]},
   { ts:'2026-07-21 22:00', t:'🎾 금요일 안내 · 이력조회 보강 · 칭호아이콘 위치조정 · 마일스톤 확장', important:true, d:[
     '금요일 20-22시 유니온·종합운동장 동시 일정시, 시작 6시간 전부터 "같은 성별끼리 모여서, 유니온 우선 이용" 안내 자동 발송 (유니온 코트 이용기록 유지 목적)',
-    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.158 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
+    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.159 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
     '관리자 "지금 자동승급 실행"의 일반 대기열 승급에도 AI관리자 댓글이 빠져있던 것 발견, 추가',
     '이름 옆 칭호 아이콘(럭키/최초달성/월간메달)을 참석목록·랭킹에서 제거하고 댓글에만 표시하도록 위치 조정',
     '럭키방문 마일스톤 5종에서 2000/2222/3000/3333/4000/4444 추가해 총 11종으로 확대'
@@ -4582,8 +4589,10 @@ function renderMyWaitingNotice(myVote, counts){
     ? { arr: counts.waitLessonNames, label: '레슨 대기', hint: '전체 인원이 4명 이상 되거나 시작 1시간전이 되면 자동 승급됩니다.' }
     : (typeMap[myVote.type] || { arr: counts.waitRegularNames, label: '일반 대기', hint: '정오(낮 12시) 이후, 자리가 있으면 순서대로 자동 승급됩니다.' });
   const idx = info.arr.findIndex(e => e.name === state.myName);
-  const position = idx >= 0 ? idx + 1 : '?';
-  return `<div class="my-wait-notice">⏳ 회원님은 현재 <b>${info.label} ${position}번째</b>입니다. ${info.hint}</div>`;
+  // ⚠️ idx가 -1(못 찾음)이 되는 경우는 이론상 없어야 하지만(myVote와 counts가 항상 같은 votes 스냅샷에서 파생됨),
+  // 혹시 모를 타이밍 이슈(승급 직후 찰나 등)에도 "?"라는 불안한 표시 대신 안전한 문구로 대체
+  const position = idx >= 0 ? (idx + 1) + '번째' : '순서 확인 중';
+  return `<div class="my-wait-notice">⏳ 회원님은 현재 <b>${info.label} ${position}</b>입니다. ${info.hint}</div>`;
 }
 
 function renderAttendSubBoxes(femaleNames, maleNames){
@@ -5883,7 +5892,7 @@ async function promoteWaitingForCapacity(ev){
       await saveVoteRow(ev.id, name, votes[name], '자동승급(정원확대 시스템)');
       pushNotification(`${name}님이 대기에서 자동 승급되어 ${shortEventLabel(ev)} 참석으로 전환되었습니다. (정원 확대)`, {eventId: ev.id, actor: name, category:'promotion'});
       if(v.type === 'late'){
-        await postAiAdminComment(ev.id, `⏰ ${name}님이 늦참 선대기에서 참석으로 자동 승급되었습니다. (늦참 ${v.lateMinutes || '?'}분 예정, 정원 확대로 승급)`);
+        await postAiAdminComment(ev.id, v.lessonTime ? `📚 ${name}님이 레슨 선대기에서 참석으로 자동 승급되었습니다. (레슨 ${v.lessonTime} 예정, 정원 확대로 승급)` : `⏰ ${name}님이 늦참 선대기에서 참석으로 자동 승급되었습니다. (늦참 ${v.lateMinutes || 0}분 예정, 정원 확대로 승급)`);
       }
       changed = true;
       available--;
@@ -6017,7 +6026,7 @@ async function forcePromoteWaitingNow(ev){
     await saveVoteRow(ev.id, name, votes[name]);
     pushNotification(`${name}님이 대기에서 자동 승급되어 ${shortEventLabel(ev)} 참석으로 전환되었습니다. (관리자 즉시실행)`, {eventId: ev.id, actor: name, category:'promotion'});
     if(v.type === 'late'){
-      await postAiAdminComment(ev.id, `⏰ ${name}님이 관리자의 "지금 자동승급 실행"으로 늦참 선대기에서 참석으로 승급되었습니다. (늦참 ${v.lateMinutes || '?'}분 예정)`);
+      await postAiAdminComment(ev.id, v.lessonTime ? `📚 ${name}님이 관리자의 "지금 자동승급 실행"으로 레슨 선대기에서 참석으로 승급되었습니다. (레슨 ${v.lessonTime} 예정)` : `⏰ ${name}님이 관리자의 "지금 자동승급 실행"으로 늦참 선대기에서 참석으로 승급되었습니다. (늦참 ${v.lateMinutes || 0}분 예정)`);
     } else {
       await postAiAdminComment(ev.id, `${name}님이 관리자의 "지금 자동승급 실행"으로 대기에서 참석으로 승급되었습니다.`);
     }
