@@ -550,7 +550,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.157</span>
+      <span id="buildVersionTop" class="build-version-top">v.158</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -2084,7 +2084,7 @@ function computedCounts(ev){
   const hiddenAttendees = [];
   const inviteNames = [];
   const femaleNames = [], maleNames = [], absentNames = [];
-  const waitRegularNames = [], waitConsecutiveNames = [], waitGwaeReviewNames = [], waitLateRequestNames = [], waitGwaeWaitNames = [], waitGenderWaitNames = [], waitPrecloseNames = [], waitLateNames = [];
+  const waitRegularNames = [], waitConsecutiveNames = [], waitGwaeReviewNames = [], waitLateRequestNames = [], waitGwaeWaitNames = [], waitGenderWaitNames = [], waitPrecloseNames = [], waitLateNames = [], waitLessonNames = [];
   Object.entries(votes).forEach(([name, v]) => {
     const entry = { name, ts: v.ts || 0, district: v.district || '' };
     if(v.status==='attend' && v.isInvite){
@@ -2105,17 +2105,18 @@ function computedCounts(ev){
       else if(v.type === 'gwae_wait'){ waitGwaeWait++; waitGwaeWaitNames.push(entry); }
       else if(v.type === 'gender_wait'){ waitGenderWait++; waitGenderWaitNames.push(entry); }
       else if(v.type === 'preclose_wait'){ waitPreclose++; waitPrecloseNames.push(entry); }
+      else if(v.type === 'late' && v.lessonTime){ waitLate++; waitLessonNames.push(Object.assign({}, entry, { lessonTime: v.lessonTime })); } // 레슨자 대기(4인미만) — 우선순위(늦참과 동급)는 같지만 표시는 별도로 구분
       else if(v.type === 'late'){ waitLate++; waitLateNames.push(Object.assign({}, entry, { lateArrival:true, lateMinutes: v.lateMinutes || null })); }
       else { waitRegular++; waitRegularNames.push(entry); }
     }
   });
   const byTs = (a,b) => (a.ts||0) - (b.ts||0);
   femaleNames.sort(byTs); maleNames.sort(byTs); absentNames.sort(byTs); inviteNames.sort(byTs);
-  waitRegularNames.sort(byTs); waitConsecutiveNames.sort(byTs); waitGwaeReviewNames.sort(byTs); waitLateRequestNames.sort(byTs); waitGwaeWaitNames.sort(byTs); waitGenderWaitNames.sort(byTs); waitPrecloseNames.sort(byTs); waitLateNames.sort(byTs);
+  waitRegularNames.sort(byTs); waitConsecutiveNames.sort(byTs); waitGwaeReviewNames.sort(byTs); waitLateRequestNames.sort(byTs); waitGwaeWaitNames.sort(byTs); waitGenderWaitNames.sort(byTs); waitPrecloseNames.sort(byTs); waitLateNames.sort(byTs); waitLessonNames.sort(byTs);
   const regularTotal = ev.attend + female + male;
   return {
     female, male, gwaeAttend, naeAttend,
-    femaleNames, maleNames, absentNames, waitRegularNames, waitConsecutiveNames, waitGwaeReviewNames, waitLateRequestNames, waitGwaeWaitNames, waitGenderWaitNames, waitPrecloseNames, waitLateNames, inviteNames,
+    femaleNames, maleNames, absentNames, waitRegularNames, waitConsecutiveNames, waitGwaeReviewNames, waitLateRequestNames, waitGwaeWaitNames, waitGenderWaitNames, waitPrecloseNames, waitLateNames, waitLessonNames, inviteNames,
     absent: ev.absent + liveAbsent,
     waiting: ev.waiting + waitRegular + waitConsecutive + waitGwaeReview + waitLateRequest + waitGwaeWait + waitGenderWait + waitPreclose + waitLate,
     waitRegular, waitConsecutive, waitGwaeReview, waitLateRequest, waitGwaeWait, waitLate,
@@ -3086,6 +3087,13 @@ document.getElementById('warnPanelToggle').onclick = async () => {
 };
 
 const SITE_LOG = [
+  { ts:'2026-08-28 10:00', t:'📚 레슨 4인미만 대기가 "늦참"으로 잘못 표시되던 버그 수정 — 우선순위는 동급 유지, 표기만 "레슨"으로 분리', important:true, d:[
+    '제보: 8/28 18-20시 일정에 레슨 19:00으로 테스트 등록했는데, 대기 표시가 "늦참"으로 나옴',
+    '원인: v153에서 레슨자 4인미만 대기를 type:late로 등록해 늦참(30분초과)과 동일한 우선순위를 부여했는데, 이 type 값을 그대로 표시에도 써서 "늦참 대기"라는 라벨/태그가 그대로 노출되고 있었음 — 우선순위 로직(내부 처리)과 화면표시 라벨이 분리가 안 되어 있던 문제',
+    '수정: computedCounts()에서 type:late인 대기자를 lessonTime 유무로 분리해 별도 목록(waitLessonNames) 생성 — 우선순위(waitingSortKey)는 그대로 late와 동급 유지, 화면표시만 "(레슨)" 태그/"레슨 대기" 라벨로 구분',
+    '반영 위치 3곳: ① 카드 대기명단의 "(늦참)" 태그 옆에 "(레슨)" 태그 신설 ② 본인이 대기중일 때 뜨는 안내문구("현재 OO 대기 몇번째") — 레슨이면 "레슨 대기"로, 힌트도 "4명이상 또는 시작1시간전 자동승급"으로 정확히 표시 ③ 순수 늦참(레슨아님)은 기존과 동일하게 "늦참 대기" 유지',
+    '실제 제보 케이스(레슨19:00, type:late)로 시뮬레이션 검증 — 레슨대기/순수늦참 대조군 모두 정확히 분류됨'
+  ]},
   { ts:'2026-08-28 09:00', t:'📖 앱 내 가이드(메뉴얼)에 레슨 등록·새벽테니스 운영방침 항목 신설', important:true, d:[
     '원칙: "규칙 변경할 때마다 가이드도 같이 업데이트" (2026-08-05 개발노트) — 최근 레슨/새벽코트 규정 변경사항이 실제 가이드에는 반영이 안 되어 있던 것을 이번에 보완',
     '⑧ 레슨 등록 제도 신설: 등록방법, 평일저녁6시이후 코트의 4인미만 대기규칙(늦참30분초과와 동일 우선순위), 4명이상 또는 시작1시간전 자동승급 안내',
@@ -3798,7 +3806,7 @@ const SITE_LOG = [
   ]},
   { ts:'2026-07-21 22:00', t:'🎾 금요일 안내 · 이력조회 보강 · 칭호아이콘 위치조정 · 마일스톤 확장', important:true, d:[
     '금요일 20-22시 유니온·종합운동장 동시 일정시, 시작 6시간 전부터 "같은 성별끼리 모여서, 유니온 우선 이용" 안내 자동 발송 (유니온 코트 이용기록 유지 목적)',
-    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.157 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
+    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.158 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
     '관리자 "지금 자동승급 실행"의 일반 대기열 승급에도 AI관리자 댓글이 빠져있던 것 발견, 추가',
     '이름 옆 칭호 아이콘(럭키/최초달성/월간메달)을 참석목록·랭킹에서 제거하고 댓글에만 표시하도록 위치 조정',
     '럭키방문 마일스톤 5종에서 2000/2222/3000/3333/4000/4444 추가해 총 11종으로 확대'
@@ -4569,7 +4577,10 @@ function renderMyWaitingNotice(myVote, counts){
     'late_request': { arr: counts.waitLateRequestNames, label: '긴급 참석 요청', hint: '운영진 승인이 필요합니다.' },
     'preclose_wait': { arr: counts.waitPrecloseNames, label: '선마감 대기', hint: '관리자가 선마감을 해제하면 순서대로 승급될 수 있습니다.' }
   };
-  const info = typeMap[myVote.type] || { arr: counts.waitRegularNames, label: '일반 대기', hint: '정오(낮 12시) 이후, 자리가 있으면 순서대로 자동 승급됩니다.' };
+  // 레슨자 4인미만 대기(type:'late' + lessonTime)는 우선순위는 늦참과 동급이지만, 표시는 "늦참"이 아니라 "레슨"으로 구분
+  const info = (myVote.type === 'late' && myVote.lessonTime)
+    ? { arr: counts.waitLessonNames, label: '레슨 대기', hint: '전체 인원이 4명 이상 되거나 시작 1시간전이 되면 자동 승급됩니다.' }
+    : (typeMap[myVote.type] || { arr: counts.waitRegularNames, label: '일반 대기', hint: '정오(낮 12시) 이후, 자리가 있으면 순서대로 자동 승급됩니다.' });
   const idx = info.arr.findIndex(e => e.name === state.myName);
   const position = idx >= 0 ? idx + 1 : '?';
   return `<div class="my-wait-notice">⏳ 회원님은 현재 <b>${info.label} ${position}번째</b>입니다. ${info.hint}</div>`;
@@ -4781,7 +4792,7 @@ function renderEventCard(ev){
       </div>
       <div class="attend-box waiting">
         <div class="box-head">대기 (${counts.waiting})</div>
-        <div class="name-tags">${renderNameChips(counts.waitRegularNames,'',false,ev.id)}${renderNameChips(counts.waitLateNames,' (늦참)',false,ev.id)}${renderNameChips(counts.waitConsecutiveNames,' (연속)',false,ev.id)}${renderNameChips(counts.waitGwaeReviewNames,' (승인대기)',false,ev.id)}${renderNameChips(counts.waitGwaeWaitNames,' (관외대기)',false,ev.id)}${renderNameChips(counts.waitGenderWaitNames,' (성별대기)',false,ev.id)}${renderNameChips(counts.waitPrecloseNames,' (선마감대기)',false,ev.id)}</div>
+        <div class="name-tags">${renderNameChips(counts.waitRegularNames,'',false,ev.id)}${renderNameChips(counts.waitLateNames,' (늦참)',false,ev.id)}${renderNameChips(counts.waitLessonNames,' (레슨)',false,ev.id)}${renderNameChips(counts.waitConsecutiveNames,' (연속)',false,ev.id)}${renderNameChips(counts.waitGwaeReviewNames,' (승인대기)',false,ev.id)}${renderNameChips(counts.waitGwaeWaitNames,' (관외대기)',false,ev.id)}${renderNameChips(counts.waitGenderWaitNames,' (성별대기)',false,ev.id)}${renderNameChips(counts.waitPrecloseNames,' (선마감대기)',false,ev.id)}</div>
       </div>
     </div>
     ${myStatus === 'waiting' ? renderMyWaitingNotice(myVote, counts) : ''}
