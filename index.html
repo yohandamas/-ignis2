@@ -550,7 +550,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.160</span>
+      <span id="buildVersionTop" class="build-version-top">v.161</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -3087,6 +3087,13 @@ document.getElementById('warnPanelToggle').onclick = async () => {
 };
 
 const SITE_LOG = [
+  { ts:'2026-08-28 11:30', t:'📚 레슨↔늦참 상호 덮어쓰기로 정보가 통째로 사라지던 버그 수정 (서힘찬님 실사례로 발견)', important:true, d:[
+    '제보: 레슨 19:00으로 등록했는데 승급될 때 "늦참"으로 인식됨',
+    '실데이터 조사: voteHistory 확인 결과 waiting↔attend가 4차례나 반복되었고, 최종 attend 레코드엔 lesson_time이 null, late_arrival도 false로 저장되어 있어 승급함수 자체보다 더 앞단(대기 등록 단계)에서 이미 정보가 유실됐음을 확인',
+    '진짜 원인: checkLateArrival()의 30분초과 대기등록 코드가 votes[name]을 완전히 새 객체로 덮어쓰는 방식이었음 — 만약 이미 레슨(lessonTime)으로 대기 중인 사람이 늦참도 추가로 등록하면, 기존 lessonTime이 통째로 사라지고 순수 늦참으로 전환됨(반대로 레슨 등록시에도 기존 lateArrival/lateMinutes를 지우는 대칭적 문제가 checkLessonParticipation에도 있었음)',
+    '수정: 양쪽 함수 모두, 새 vote 객체를 만들기 전에 기존 값(lessonTime 또는 lateArrival/lateMinutes)을 먼저 읽어서 보존하도록 수정 — 이제 레슨+늦참을 함께 등록해도 두 정보 모두 유지됨',
+    '양방향(레슨상태에서 늦참추가/늦참상태에서 레슨추가) 시뮬레이션 검증'
+  ]},
   { ts:'2026-08-28 11:00', t:'⚠️ 연참·레슨 "시작1시간전 특례" 승급이 한번 실패하면 영원히 대기로 남던 구조적 결함 수정', important:true, d:[
     '제보: 1시간전까지 자동승급이 안되고 계속 대기로 남아있는 현상 체크 요청',
     '실데이터 확인: 제보하신 8/28 18-20시 이벤트(fri_union_evening)엔 현재 대기기록 자체가 없어 재현은 안 됐으나, 코드 정적점검 중 훨씬 심각한 구조적 결함을 발견',
@@ -3821,7 +3828,7 @@ const SITE_LOG = [
   ]},
   { ts:'2026-07-21 22:00', t:'🎾 금요일 안내 · 이력조회 보강 · 칭호아이콘 위치조정 · 마일스톤 확장', important:true, d:[
     '금요일 20-22시 유니온·종합운동장 동시 일정시, 시작 6시간 전부터 "같은 성별끼리 모여서, 유니온 우선 이용" 안내 자동 발송 (유니온 코트 이용기록 유지 목적)',
-    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.160 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
+    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.161 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
     '관리자 "지금 자동승급 실행"의 일반 대기열 승급에도 AI관리자 댓글이 빠져있던 것 발견, 추가',
     '이름 옆 칭호 아이콘(럭키/최초달성/월간메달)을 참석목록·랭킹에서 제거하고 댓글에만 표시하도록 위치 조정',
     '럭키방문 마일스톤 5종에서 2000/2222/3000/3333/4000/4444 추가해 총 11종으로 확대'
@@ -5397,7 +5404,10 @@ async function checkLateArrival(eventId){
       catch(ce){ console.error('연속참석 여부 확인 실패 (무시하고 일반 늦참으로 처리)', ce); }
       if(!state.data.votes[eventId]) state.data.votes[eventId] = {};
       const votes = state.data.votes[eventId];
-      votes[state.myName] = { status:'waiting', type: isAlsoConsecutive ? 'late_consecutive' : 'late', gender: state.myGender, district: state.myDistrict, lateArrival:true, lateMinutes, ts: Date.now() };
+      // ⚠️ 기존 vote를 완전히 새 객체로 덮어쓰면, 이미 레슨(lessonTime) 등록이 되어있던 경우 그 정보가 통째로
+      // 사라지는 버그가 있었음(레슨 등록 후 늦참도 함께 등록하는 경우 등) — 기존 lessonTime이 있으면 보존
+      const prevLessonTime = (votes[state.myName] && votes[state.myName].lessonTime) || null;
+      votes[state.myName] = { status:'waiting', type: isAlsoConsecutive ? 'late_consecutive' : 'late', gender: state.myGender, district: state.myDistrict, lateArrival:true, lateMinutes, lessonTime: prevLessonTime, ts: Date.now() };
       await saveVoteRow(eventId, state.myName, votes[state.myName]);
     }
 
@@ -5466,7 +5476,11 @@ async function checkLessonParticipation(eventId){
       const counts = computedCounts(ev);
       const isWeekdayEvening = !isDawnEvent(ev) && !['토','일'].includes(ev.weekday) && ev.start_time >= '18:00';
       if(isWeekdayEvening && counts.regularTotal < 3){
-        votes[state.myName] = { status:'waiting', type:'late', gender: state.myGender, district: state.myDistrict, ts: Date.now(), lessonTime };
+        // ⚠️ 기존 vote를 완전히 새 객체로 덮어쓰면, 이미 늦참(lateArrival/lateMinutes) 등록이 되어있던 경우
+        // 그 정보가 통째로 사라지는 버그가 있었음(checkLateArrival의 반대방향과 동일한 문제) — 기존 값이 있으면 보존
+        const prevLateArrival = (existingVote && existingVote.lateArrival) || false;
+        const prevLateMinutes = (existingVote && existingVote.lateMinutes) || null;
+        votes[state.myName] = { status:'waiting', type:'late', gender: state.myGender, district: state.myDistrict, ts: Date.now(), lessonTime, lateArrival: prevLateArrival, lateMinutes: prevLateMinutes };
         const savedOk = await saveVoteRow(eventId, state.myName, votes[state.myName]);
         if(!savedOk){ alert('레슨 대기 등록에 실패했습니다. 네트워크를 확인하고 다시 시도해 주세요.'); return; }
         pushNotification(`${state.myName}님이 ${shortEventLabel(ev)} 레슨 참여를 요청했지만, 현재 인원(${counts.regularTotal}명)이 적어 복식이 어려워 대기로 등록되었습니다.`, {eventId, actor: state.myName});
