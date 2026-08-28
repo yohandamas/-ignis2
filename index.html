@@ -248,7 +248,7 @@
   .ev-actions-sub{display:flex;gap:6px;flex-wrap:wrap;}
   .vote-btn{flex:1;min-width:70px;border:1.5px solid var(--line);background:var(--panel);border-radius:20px;padding:8px 4px;
     font-size:calc(12px * var(--font-scale, 1));font-weight:700;color:var(--ink-soft);cursor:pointer;}
-  .vote-btn.attend-main{padding:14px 4px;font-size:calc(15px * var(--font-scale, 1));font-weight:800;border-radius:24px;border-width:2px;} /* 참석·불참을 가장 크고 눈에 띄게(위쪽 주요 선택) */
+  .vote-btn.attend-main{padding:0;height:44px;display:flex;align-items:center;justify-content:center;box-sizing:border-box;font-size:calc(14px * var(--font-scale, 1));font-weight:800;border-radius:12px;border-width:2px;} /* 참석·불참 높이를 고정해 항상 일정하게(위쪽 주요 선택) */
   .ev-actions-sub .vote-btn,.ev-actions-sub .late-arrival-btn{flex:1;min-width:56px;padding:6px 2px;font-size:calc(11px * var(--font-scale, 1));} /* 늦참·레슨·대기는 작게(아래쪽 보조 선택) */
   .late-arrival-btn{flex:1;min-width:70px;border:1.5px solid var(--line);background:var(--panel);border-radius:20px;padding:8px 4px;
     font-size:calc(12px * var(--font-scale, 1));font-weight:700;color:var(--ink-soft);cursor:pointer;}
@@ -550,7 +550,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.155</span>
+      <span id="buildVersionTop" class="build-version-top">v.156</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -1249,9 +1249,10 @@ async function loadVotesTable(){
 async function saveVoteRow(eventId, name, voteObj, actorOverride){
   try{
     if(voteObj === null){
-      await sb.from('ignis_votes').delete().eq('event_id', eventId).eq('member_name', name);
+      const { error: delErr } = await sb.from('ignis_votes').delete().eq('event_id', eventId).eq('member_name', name);
+      if(delErr) throw delErr;
     } else {
-      await sb.from('ignis_votes').upsert({
+      const { error: upsertErr } = await sb.from('ignis_votes').upsert({
         event_id: eventId, member_name: name,
         status: voteObj.status, gender: voteObj.gender || null, district: voteObj.district || null,
         hidden: !!voteObj.hidden, vote_type: voteObj.type || null, ts: voteObj.ts || Date.now(),
@@ -1261,6 +1262,7 @@ async function saveVoteRow(eventId, name, voteObj, actorOverride){
         lesson_time: voteObj.lessonTime || null,
         auto_approved_popup_pending: !!voteObj.autoApprovedPopupPending
       });
+      if(upsertErr) throw upsertErr;
       // 이력 기록 (참석/대기 클릭시 "언제 처음눌렀는지 / 언제 승급됐는지" 조회용)
       // ⚠️ actor는 반드시 "이 액션을 실제로 수행한 주체"를 기록해야 함 — state.myName(그 순간 이 브라우저에 로그인된 사람)을
       // 무조건 쓰면, 자동승급(20초 백그라운드 타이머)이 하필 그 사람 세션에서 실행됐을 때 그 사람이 전혀 관여 안 했는데도
@@ -1272,7 +1274,8 @@ async function saveVoteRow(eventId, name, voteObj, actorOverride){
       state.data.voteHistory[histKey] = hist.slice(-20); // 너무 길어지지 않게 최근 20개만 유지
       markDirty('voteHistory', histKey);
     }
-  }catch(e){ console.error('투표 저장 실패', e); }
+    return true;
+  }catch(e){ console.error('투표 저장 실패 — 화면에는 반영됐지만 서버 저장이 안 됐을 수 있음', e); return false; }
 }
 
 async function loadCommentsTable(){
@@ -1465,7 +1468,22 @@ async function saveData(){
           const localVal = state.data[field] || {};
           const dirtyKeys = pendingDirtyKeys[field] || new Set();
           const merged = Object.assign({}, serverVal); // 서버 최신값을 기본으로
-          dirtyKeys.forEach(k => { merged[k] = localVal[k]; }); // 이번 세션이 실제로 바꾼 키만 로컬값 반영
+          if(field === 'ballRefillHistory' || field === 'voteHistory'){
+            // ⚠️ 이 필드들은 값이 "배열"(이력 로그)이라, 다른 맵필드처럼 dirty키 전체를 로컬값으로 통째로
+            // 덮어쓰면, 두 세션이 거의 동시에 같은 키에 기록을 추가했을 때(예: 관리자 수동처리 + 자동승급이
+            // 같은 순간 겹침) 서로의 기록을 지워버릴 위험이 있음. 여러 명이 동시에 값을 "바꾸는" 게 아니라
+            // "추가"하는 히스토리 로그 성격이라, 서버+로컬 배열을 합쳐서(ts 기준 중복제거) 최근 것만 남기는 방식으로 병합
+            const keepCount = field === 'ballRefillHistory' ? 30 : 20;
+            dirtyKeys.forEach(k => {
+              const serverArr = serverVal[k] || [];
+              const localArr = localVal[k] || [];
+              const byTs = new Map();
+              [...serverArr, ...localArr].forEach(item => byTs.set(item.ts, item));
+              merged[k] = Array.from(byTs.values()).sort((a,b) => (a.ts||0) - (b.ts||0)).slice(-keepCount);
+            });
+          } else {
+            dirtyKeys.forEach(k => { merged[k] = localVal[k]; }); // 이번 세션이 실제로 바꾼 키만 로컬값 반영
+          }
           Object.keys(merged).forEach(k => { if(merged[k] === null) delete merged[k]; });
           state.data[field] = merged;
         });
@@ -3054,6 +3072,20 @@ document.getElementById('warnPanelToggle').onclick = async () => {
 };
 
 const SITE_LOG = [
+  { ts:'2026-08-27 14:30', t:'🔘 참석·불참 버튼 높이 통일(44px 고정) + 복식가능 안내배지 삭제', important:true, d:[
+    '요청: 참석/불참 칸이 너무 커서 수직 높이를 일정하게 맞춰달라, 4명 되면 뜨는 "복식 가능(여복/남복)" 안내 배지 삭제',
+    '높이 통일: padding 방식 대신 height:44px 고정 + flex 중앙정렬로 변경 — 텍스트 길이(참석 vs 🚫 불참)와 무관하게 항상 동일한 높이 유지',
+    '배지 삭제: (여자+남자)>=4명일때 표시되던 "🎾 복식 가능 · 남복 가능 · 여복 가능" 안내 div를 완전히 제거',
+    '실제 코드 기준 렌더링 이미지로 최종 확인'
+  ]},
+  { ts:'2026-08-27 14:00', t:'🛡️ Supabase 저장 안전성 이중점검 — "화면엔 보이는데 DB엔 저장 안될 수 있는" 위험 3곳 발견·수정', important:true, d:[
+    '요청: 최근 신규기능들(레슨/늦참/재고히스토리)에 대해 Supabase 스키마·저장경로 이중체크 요청',
+    '① lesson_time 컬럼 실제 존재 확인 완료(정상)',
+    '② ballRefillHistory·voteHistory 병합버그 발견: 이 필드들은 "배열"(이력로그) 값인데, 기존 병합로직이 dirty키 전체를 로컬값으로 통째로 덮어쓰는 방식이라, 두 세션이 거의 동시에 같은 키에 기록을 추가하면(예: 관리자 두명이 동시에 재고를 채우거나, 관리자 수동처리와 자동승급이 겹치는 경우) 한쪽 기록이 통째로 사라질 위험이 있었음 — 서버+로컬 배열을 ts기준으로 합쳐서 병합하도록 수정',
+    '③ saveVoteRow가 Supabase 저장에 실패해도(네트워크 오류, RLS 등) catch로 조용히 삼켜지고 호출부는 성공여부를 전혀 알 수 없던 구조 발견 — 함수가 성공/실패(true/false)를 리턴하도록 개선하고, 최근 신설된 레슨참여 등록(3곳)·관리자 늦참·레슨 직접수정(2곳) 총 5곳에 저장실패시 명확한 안내 알림을 추가',
+    '범위 설명: 기존에 이미 안정적으로 작동해온 나머지 41곳의 saveVoteRow 호출부는 이번엔 건드리지 않음(광범위한 리팩터링에 따른 새 버그 유입 위험을 피하기 위해, 이번 세션에서 새로 추가된 기능 위주로 우선 강화)',
+    '동시성 병합 시뮬레이션(관리자A·B 동시 재고충전시 양쪽 기록 모두 보존) 검증'
+  ]},
   { ts:'2026-08-27 13:30', t:'🔘 참석·불참 상단 배치 + 새벽코트 남녀통합·레슨분리 시범운영', important:true, d:[
     '버튼 재배치: 참석·불참(주요 선택)을 위쪽 큰 줄로, 늦참·레슨·대기(보조 선택)를 아래쪽 작은 줄로 재구성',
     '새벽코트 시범운영: 평일 새벽테니스에 한해, 여자참석/남자참석을 나누지 않고 "참석"으로 통합 표시하고, 레슨자는 이 통합 인원수에서 제외해 별도 서브박스로 분리 표시',
@@ -3744,7 +3776,7 @@ const SITE_LOG = [
   ]},
   { ts:'2026-07-21 22:00', t:'🎾 금요일 안내 · 이력조회 보강 · 칭호아이콘 위치조정 · 마일스톤 확장', important:true, d:[
     '금요일 20-22시 유니온·종합운동장 동시 일정시, 시작 6시간 전부터 "같은 성별끼리 모여서, 유니온 우선 이용" 안내 자동 발송 (유니온 코트 이용기록 유지 목적)',
-    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.155 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
+    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.156 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
     '관리자 "지금 자동승급 실행"의 일반 대기열 승급에도 AI관리자 댓글이 빠져있던 것 발견, 추가',
     '이름 옆 칭호 아이콘(럭키/최초달성/월간메달)을 참석목록·랭킹에서 제거하고 댓글에만 표시하도록 위치 조정',
     '럭키방문 마일스톤 5종에서 2000/2222/3000/3333/4000/4444 추가해 총 11종으로 확대'
@@ -4693,7 +4725,6 @@ function renderEventCard(ev){
         <div class="box-head">남자 참석 (${counts.male}${counts.maleNames.filter(e=>e.hidden).length ? '+'+counts.maleNames.filter(e=>e.hidden).length+'★' : ''})${(state.data.genderClosed && state.data.genderClosed[ev.id+'|남']) ? ' <span class="gender-full">🚫수동마감</span>' : (counts.male >= 6 && ev.court_count === 1) ? ' <span class="gender-full">🔒마감</span>' : ''}</div>
         <div class="name-tags">${renderNameChips(counts.maleNames, '', ev.location === '종합운동장', ev.id)}</div>
       </div>`}
-      ${counts.doublesReady ? `<div class="doubles-badge">🎾 복식 가능${counts.doublesMale ? ' · 남복 가능' : ''}${counts.doublesFemale ? ' · 여복 가능' : ''}</div>` : ''}
     </div>
     ${renderAttendSubBoxes(counts.femaleNames, counts.maleNames)}
     ${ev.inviteCourts > 0 ? (() => { const inviteClosed = state.data.inviteClosed && state.data.inviteClosed[ev.id]; const alreadyIn = myVote && myVote.isInvite && myStatus==='attend'; return `
@@ -5020,7 +5051,8 @@ async function adminMoveMember(eventId, name, action){
     existing.lateArrival = minutes > 0;
     existing.lateMinutes = minutes > 0 ? minutes : null;
     votes[name] = existing;
-    await saveVoteRow(eventId, name, existing);
+    const savedOk1 = await saveVoteRow(eventId, name, existing);
+    if(!savedOk1){ alert('저장에 실패했습니다. 네트워크를 확인하고 다시 시도해 주세요.'); return; }
     pushNotification(`${state.myName}(관리자)님이 ${name}님의 늦참 시간을 ${minutes > 0 ? minutes + '분으로' : '해제로'} 수정했습니다.`, {eventId, actor: name});
   } else if(action === 'edit-lesson'){
     if(!existing || existing.status !== 'attend'){
@@ -5038,7 +5070,8 @@ async function adminMoveMember(eventId, name, action){
       existing.lessonTime = `${hh.padStart(2,'0')}:${mm}`;
     }
     votes[name] = existing;
-    await saveVoteRow(eventId, name, existing);
+    const savedOk2 = await saveVoteRow(eventId, name, existing);
+    if(!savedOk2){ alert('저장에 실패했습니다. 네트워크를 확인하고 다시 시도해 주세요.'); return; }
     pushNotification(`${state.myName}(관리자)님이 ${name}님의 레슨 시간을 ${existing.lessonTime ? existing.lessonTime + '으로' : '해제로'} 수정했습니다.`, {eventId, actor: name});
   } else if(action === 'to-invite'){
     const counts = ev ? computedCounts(ev) : null;
@@ -5373,7 +5406,8 @@ async function checkLessonParticipation(eventId){
     if(existingVote && existingVote.status === 'attend'){
       // 이미 참석 중이면 레슨시간만 안전하게 덧붙임 (setVote 재호출 안 함 — 늦참과 동일한 이유로 토글취소 위험 회피)
       existingVote.lessonTime = lessonTime;
-      await saveVoteRow(eventId, state.myName, existingVote);
+      const savedOk = await saveVoteRow(eventId, state.myName, existingVote);
+      if(!savedOk){ alert('레슨 시간 저장에 실패했습니다. 네트워크를 확인하고 다시 시도해 주세요.'); return; }
     } else {
       // ⚠️ 평일 저녁 6시 이후(새벽코트 제외) 코트에서는, 레슨자가 참여할 때 전체 인원이 4명 미만이면
       // 복식 자체가 성립 안 되므로(레슨자는 레슨시간 동안 자리를 비우니, 최소 4명은 있어야 나머지끼리 복식 가능)
@@ -5383,7 +5417,8 @@ async function checkLessonParticipation(eventId){
       const isWeekdayEvening = !isDawnEvent(ev) && !['토','일'].includes(ev.weekday) && ev.start_time >= '18:00';
       if(isWeekdayEvening && counts.regularTotal < 3){
         votes[state.myName] = { status:'waiting', type:'late', gender: state.myGender, district: state.myDistrict, ts: Date.now(), lessonTime };
-        await saveVoteRow(eventId, state.myName, votes[state.myName]);
+        const savedOk = await saveVoteRow(eventId, state.myName, votes[state.myName]);
+        if(!savedOk){ alert('레슨 대기 등록에 실패했습니다. 네트워크를 확인하고 다시 시도해 주세요.'); return; }
         pushNotification(`${state.myName}님이 ${shortEventLabel(ev)} 레슨 참여를 요청했지만, 현재 인원(${counts.regularTotal}명)이 적어 복식이 어려워 대기로 등록되었습니다.`, {eventId, actor: state.myName});
         await postAiAdminComment(eventId, `📚 ${state.myName}님이 ${lessonTime} 레슨 참여를 신청했지만, 현재 인원이 ${counts.regularTotal}명이라 레슨자를 포함해도 복식(4명)이 안 돼서 대기로 전환됐습니다. 전체 인원이 4명 이상이 되면 자동으로 참석 승급됩니다. (우선순위: 일반대기>레슨대기(늦참과 동급)>연속참석대기)`);
         const ok = await saveData();
@@ -5398,7 +5433,8 @@ async function checkLessonParticipation(eventId){
       const votesAfter = state.data.votes[eventId] || {};
       if(votesAfter[state.myName] && votesAfter[state.myName].status === 'attend'){
         votesAfter[state.myName].lessonTime = lessonTime;
-        await saveVoteRow(eventId, state.myName, votesAfter[state.myName]);
+        const savedOk = await saveVoteRow(eventId, state.myName, votesAfter[state.myName]);
+        if(!savedOk){ alert('레슨 시간 저장에 실패했습니다. 참석은 됐지만 레슨 시간이 안 남았을 수 있어요 — 다시 시도해 주세요.'); return; }
       } else {
         alert('현재 정원이 가득 차서 대기로 등록되었어요. 자리가 나서 참석으로 전환되면, 그때 레슨 시간을 다시 등록해 주세요.');
       }
