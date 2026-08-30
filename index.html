@@ -550,7 +550,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.161</span>
+      <span id="buildVersionTop" class="build-version-top">v.162</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -1530,7 +1530,9 @@ function computeCapacity(t, id, opts){
   const includesCourt3 = t.location === '유니온' && t.courts.length > 1 && t.courts.some(c => c.replace(/번/g,'').trim() === '3');
   const unconfirmedMax = isDawnCourt ? 4 : (includesCourt3 ? (t.courts.length === 3 ? 12 : (t.courts.length - 1) * 8) : fullMax); // 새벽코트 미확보 기준 6→4명으로 조정
   const isConfirmed = !!(court3Confirmed && court3Confirmed[id]);
-  const computedDefault = includesCourt3 ? (isConfirmed ? quota : unconfirmedMax) : quota;
+  // ⚠️ 새벽코트는 "3번코트 확보" 버튼 자체를 없애고, 확보여부와 무관하게 항상 8명(quota)으로 단순화
+  // (요청: 정원 4명→8명으로 변경 = 3번코트 확보 절차 없이 항상 최대 8명까지 바로 등록 가능하게)
+  const computedDefault = isDawnCourt ? quota : (includesCourt3 ? (isConfirmed ? quota : unconfirmedMax) : quota);
   const inviteN = (inviteCourts && inviteCourts[id]) ? inviteCourts[id] : 0;
   const generalCourtCount = Math.max(0, t.courts.length - inviteN);
   const generalQuota = inviteN > 0 ? generalCourtCount * 6 : quota;
@@ -2092,7 +2094,7 @@ function computedCounts(ev){
       return;
     }
     if(v.status==='attend'){
-      const entryWithHidden = Object.assign({}, entry, { hidden: !!v.hidden, promotedFrom: v.promotedFrom || null, lateArrival: !!v.lateArrival, lateMinutes: v.lateMinutes || null, lessonTime: v.lessonTime || null });
+      const entryWithHidden = Object.assign({}, entry, { hidden: !!v.hidden, promotedFrom: v.promotedFrom || null, lateArrival: !!v.lateArrival, lateMinutes: v.lateMinutes || null, lessonTime: v.lessonTime || null, isGuest: !!v.isGuest, invitedBy: v.invitedBy || null });
       if(v.gender==='여'){ femaleNames.push(entryWithHidden); if(!v.hidden) female++; }
       else if(v.gender==='남'){ maleNames.push(entryWithHidden); if(!v.hidden) male++; }
       if(v.hidden){ hiddenAttendees.push(name); }
@@ -3087,6 +3089,38 @@ document.getElementById('warnPanelToggle').onclick = async () => {
 };
 
 const SITE_LOG = [
+  { ts:'2026-08-30 13:20', t:'🌅 새벽코트 정원 8명으로 단순화(3번코트 확보버튼 폐지) + 4인 이상시 코트확보 부탁 알림 신설', important:true, d:[
+    '요청: 정원 4명→8명으로 변경(3번코트 확보 버튼 자체를 없애고 항상 최대 8명까지 바로 등록 가능하게), 참석 4명 이상시 4명 이상 참석자 전원에게 팝업+댓글로 전날 또는 코트시간보다 미리 3번코트 확보 부탁 메시지 발송(댓글은 이벤트당 1번만 고정)',
+    '정원구조 변경: computeCapacity()에서 새벽코트(isDawnCourt)는 3번코트 확보여부(court3Confirmed)와 무관하게 항상 8명(quota)으로 고정 — 기존 "미확보4명/확보시8명" 구조 폐지',
+    'UI 변경: 새벽코트 카드에서 "📍3번코트 확보 확인" 버튼을 완전히 숨김. 정원마감·성별대기 안내문구에서도 새벽코트는 "3번코트 미확보" 관련 문구가 안 나오도록 예외처리',
+    '신규기능 — checkDawnFourPlusCourt3Request(): 새벽코트 참석인원이 4명 이상이 되면, 전날 오후 10시(22:00)부터 시작 전까지 그 시점 참석자 전원에게 "3번코트 확보 부탁" 알림 발송 + 이벤트에 댓글 1회(notifiedFlags로 중복 방지)',
+    '신규기능 — checkDawnFourPlusPopup(): 위 기능과 별개로, 본인이 그 새벽코트에 참석 중이면 실제 확인 팝업(alert)도 함께 표시 — checkCourt3ConfirmPopup과 동일한 패턴(localStorage 기반 개인별 1회)',
+    '⚠️ 기존 checkDawnCourt3Reminder(새벽 참석자에게 "그날 저녁" 코트 확보를 물어보는 완전히 다른 기능)와 혼동하지 않도록 명확히 구분해 신설',
+    '정원구조 변경(미확보/확보 무관 항상8명) + 알림 발동 타이밍(전날22시~시작전, 4명이상) 시뮬레이션 검증'
+  ]},
+  { ts:'2026-08-30 12:50', t:'🔓 운영진·VIP3 정원초과 참석시 "히든석" 방식 완전 제거 — 항상 일반참석자처럼 표시 + 무제한 참석 허용', important:true, d:[
+    '제보: 새벽코트 정원4명 초과 등록시 대기로 갔다가 리스트에서 사라짐(9/3 목요일 새벽, 서힘찬님 사례) — 실제 확인 결과 DB엔 attend로 정상 저장되어 있었고, VIP3(새벽관리자) 특권으로 히든석 처리된 것이었음(v150에서 의도한 정상동작)',
+    '추가요청: 운영진·VIP3는 정원에 영향받지 않아야 하는데 hidden 처리로 인해 눈에 안 띄거나 헷갈리는 문제 — 히든이 아니라 일반 참석자와 동일하게 명단에 표시하고, 인원제한 없이 언제나 참석 가능하도록 변경 요청',
+    '수정: setVote()의 운영진(staff)·새벽관리자(VIP3) 정원초과 예외 분기에서, hidden:true 처리와 그에 따른 성별당 인원제한(히든석 1~3명) 로직을 완전히 제거 — 이제 정원이 다 차도 그냥 일반 참석 레코드(hidden:false)로 등록되어 명단에 평범하게 표시되고, 인원 제한 없이 언제나 참석 가능',
+    '일반회원(운영진·VIP3 아님)의 대기 규칙은 그대로 유지 — 이번 변경은 오직 운영진·VIP3의 예외 처리 방식만 단순화한 것',
+    '실데이터 정정: 9/3 목요일 새벽 서힘찬님 기록을 hidden:false로 즉시 정정',
+    '시뮬레이션(VIP3 정원초과시 일반참석/일반회원은 기존 대기규칙 유지) 검증'
+  ]},
+  { ts:'2026-08-28 12:30', t:'🌅 새벽코트 통합참석란, 레슨자도 총인원에 포함되도록 조정', important:true, d:[
+    '요청: 새벽코트에서 레슨자를 참석인원에서 제외하면 총인원 파악이 어려워지니, 일반 참석처럼 참석란에 보이고 레슨시간만 뱃지로 잘 보이게, 총인원에도 포함되게 변경',
+    'v155 시범운영 방향 일부 조정: "참석 N명, 레슨 M명 별도"로 레슨자를 인원수에서 빼던 방식을, "참석 N명"(레슨자 포함) 안에 이름과 함께 레슨뱃지("(레슨 06:40)")를 보여주는 방식으로 변경',
+    '기존 renderNameChips의 lessonTime 뱃지 로직을 그대로 재사용 — 새로 필터링하지 않고 전체 인원(femaleNames+maleNames)을 그대로 통합표시',
+    '하단 서브박스(레슨만 따로 모아보는 요약)는 그대로 유지 — 메인 참석란에서 뱃지로 바로 보이면서, 필요시 하단에서 레슨자만 빠르게 훑어볼 수도 있음',
+    '정원(max_players)·전체인원(regularTotal) 계산 로직은 이번에도 전혀 변경 없음 — 순수 표시 조정',
+    '실제 코드 기준 렌더링 이미지로 최종 확인'
+  ]},
+  { ts:'2026-08-28 12:00', t:'👤 게스트 참석 목록에 초대한 회원 이름 뱃지 표시 신설', important:true, d:[
+    '요청: 게스트 초대하면 초대한 사람 이름을 참석뱃지처럼 표시',
+    '확인: addGuest()에서 게스트 등록시 알림(pushNotification)에는 초대자 이름이 언급됐지만, 실제 vote 데이터(entry)엔 invitedBy 필드 자체가 저장이 안 되고 있어 나중에 참석목록에서 누가 초대했는지 알 방법이 없었음',
+    '구현: addGuest()에 invitedBy: state.myName 저장 추가, computedCounts()의 참석자목록 전파 로직(entryWithHidden)에 isGuest·invitedBy 포함, renderNameChips()에 게스트 전용 "(OOO님 초청)" 뱃지 신설 — 기존 초청코트(별도 시스템)에서 쓰던 chip-invite-by 스타일 그대로 재사용',
+    '부가 발견/수정: adminMoveMember()의 attend 처리 로직에도 isGuest·invitedBy가 빠져있어, 관리자가 게스트를 다른 상태로 이동했다가 다시 참석시키면 초대자 정보가 유실될 수 있었음 — 함께 보완',
+    '실제 코드 기준 렌더링 이미지로 최종 확인'
+  ]},
   { ts:'2026-08-28 11:30', t:'📚 레슨↔늦참 상호 덮어쓰기로 정보가 통째로 사라지던 버그 수정 (서힘찬님 실사례로 발견)', important:true, d:[
     '제보: 레슨 19:00으로 등록했는데 승급될 때 "늦참"으로 인식됨',
     '실데이터 조사: voteHistory 확인 결과 waiting↔attend가 4차례나 반복되었고, 최종 attend 레코드엔 lesson_time이 null, late_arrival도 false로 저장되어 있어 승급함수 자체보다 더 앞단(대기 등록 단계)에서 이미 정보가 유실됐음을 확인',
@@ -3828,7 +3862,7 @@ const SITE_LOG = [
   ]},
   { ts:'2026-07-21 22:00', t:'🎾 금요일 안내 · 이력조회 보강 · 칭호아이콘 위치조정 · 마일스톤 확장', important:true, d:[
     '금요일 20-22시 유니온·종합운동장 동시 일정시, 시작 6시간 전부터 "같은 성별끼리 모여서, 유니온 우선 이용" 안내 자동 발송 (유니온 코트 이용기록 유지 목적)',
-    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.161 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
+    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.162 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
     '관리자 "지금 자동승급 실행"의 일반 대기열 승급에도 AI관리자 댓글이 빠져있던 것 발견, 추가',
     '이름 옆 칭호 아이콘(럭키/최초달성/월간메달)을 참석목록·랭킹에서 제거하고 댓글에만 표시하도록 위치 조정',
     '럭키방문 마일스톤 5종에서 2000/2222/3000/3333/4000/4444 추가해 총 11종으로 확대'
@@ -4509,6 +4543,7 @@ async function runAutoPromotions(){
   if(await checkDailyNotifications()) changed = true;
   if(await checkMonthlyNotification()) changed = true;
   if(await checkHeavyWaitingList()) changed = true;
+  if(await checkDawnFourPlusCourt3Request()) changed = true;
   if(await checkDawnCourt3Reminder()) changed = true;
   if(await checkCourt3LikelyConfirm()) changed = true;
   if(await checkCourtArrangementSuggestion()) changed = true;
@@ -4655,8 +4690,9 @@ function renderNameChips(entries, suffix, showDistrict, eventId){
     const promotedTag = e.promotedFrom && PROMOTED_LABELS[e.promotedFrom] ? `<span class="chip-promoted-tag">${PROMOTED_LABELS[e.promotedFrom]}</span>` : '';
     const lateTag = e.lateArrival ? ` <span class="chip-promoted-tag">(늦${e.lateMinutes != null ? e.lateMinutes : 0}분)</span>` : ''; // 5분처럼 작은 값도 누락없이 표시(0 등 falsy값 방지 위해 != null로 체크)
     const lessonTag = e.lessonTime ? ` <span class="chip-promoted-tag">(레슨 ${escapeHtml(e.lessonTime)})</span>` : ''; // 레슨 시작시간임을 명확히 표시
+    const guestInviteTag = (e.isGuest && e.invitedBy) ? ` <span class="chip-invite-by">(${escapeHtml(e.invitedBy)}님 초청)</span>` : ''; // 게스트 옆에 누가 초대했는지 표시
     const histAttr = eventId ? ` data-hist-key="${eventId}|${escapeHtml(name)}" data-fallback-ts="${ts||''}"` : '';
-    const label = `${idx+1}. ${escapeHtml(name)}${hiddenTag}${promotedTag}${districtTag}${suffix}${timeStr ? `<span class="chip-ts"${histAttr} style="${eventId?'cursor:pointer;text-decoration:underline dotted;':''}">${timeStr}</span>` : ''}${lateTag}${lessonTag}`;
+    const label = `${idx+1}. ${escapeHtml(name)}${hiddenTag}${promotedTag}${districtTag}${suffix}${timeStr ? `<span class="chip-ts"${histAttr} style="${eventId?'cursor:pointer;text-decoration:underline dotted;':''}">${timeStr}</span>` : ''}${lateTag}${lessonTag}${guestInviteTag}`;
     let chipClass = e.hidden ? 'name-chip name-chip-hidden' : 'name-chip';
     if(hasAdminPower()){
       const evForChip = eventId ? getInstances().find(x => x.id === eventId) : null;
@@ -4764,13 +4800,14 @@ function renderEventCard(ev){
     ${districtLine}
     <div class="attend-boxes ${counts.doublesReady ? 'doubles-ready' : ''}">
       ${isDawnEvent(ev) ? (() => {
-        // ⚠️ 새벽코트 시범운영: 남녀를 통합해서 하나의 "참석" 박스로 보여주고, 레슨자는 여기서 빼서 아래 서브박스로 분리 표시.
+        // ⚠️ 새벽코트 시범운영: 남녀를 통합해서 하나의 "참석" 박스로 보여줌.
+        // 레슨자도 총인원 파악을 위해 참석란에 그대로 포함하되(제외하지 않음), 레슨 시간은 이름 옆 뱃지로 잘 보이게 표시
+        // (renderNameChips가 이미 lessonTime 있으면 "(레슨 HH:MM)" 뱃지를 자동으로 붙여줌)
         // 정원(max_players)·전체인원(regularTotal) 계산 로직은 전혀 건드리지 않음 — 순수하게 화면에 "어떻게 보여줄지"만 다르게 함
         // (복잡해지면 언제든 원래(성별 분리) 방식으로 되돌리기 쉽도록, 계산 로직과 분리해서 표시만 다르게 구성)
-        const allDawn = [...counts.femaleNames, ...counts.maleNames].filter(e => !e.lessonTime);
-        const lessonCountDawn = [...counts.femaleNames, ...counts.maleNames].filter(e => e.lessonTime).length;
+        const allDawn = [...counts.femaleNames, ...counts.maleNames];
         return `<div class="attend-box unified-dawn">
-          <div class="box-head">참석 (${allDawn.length}명${lessonCountDawn ? `, 레슨 ${lessonCountDawn}명 별도` : ''})</div>
+          <div class="box-head">참석 (${allDawn.length}명)</div>
           <div class="name-tags">${renderNameChips(allDawn, '', false, ev.id)}</div>
         </div>`;
       })() : `
@@ -4847,7 +4884,7 @@ function renderEventCard(ev){
       <button class="confirm-btn" id="confirmBtn-${ev.id}">✓ 확정</button>
       <button class="confirm-cancel" id="cancelBtn-${ev.id}">선택 취소</button>
     </div><div class="pending-note">선택하신 내용을 "확정" 버튼을 눌러야 최종 반영됩니다.</div>` : ''}
-    ${ev.includesCourt3 ? `<div class="admin-row" style="display:${canConfirmCourt3(ev)?'flex':'none'}">
+    ${(ev.includesCourt3 && !isDawnEvent(ev)) ? `<div class="admin-row" style="display:${canConfirmCourt3(ev)?'flex':'none'}">
       <button class="court3-toggle-btn ${ev.court3Confirmed?'confirmed':''}" data-court3-toggle="${ev.id}" style="font-size:calc(11px * var(--font-scale, 1));padding:6px 10px;border-radius:8px;border:1px solid var(--line);background:${ev.court3Confirmed?'var(--brand-soft)':'var(--panel)'};cursor:pointer;white-space:nowrap;width:100%;">
         ${ev.court3Confirmed ? '✅ 3번코트 확보됨 (해제하려면 클릭)' : '📍 3번코트 확보 확인'}
       </button>
@@ -5071,7 +5108,7 @@ async function adminMoveMember(eventId, name, action){
     if(reasonChoice === null) return;
     const REASON_MAP = { '일반대기승급':'regular', '관외대기승급':'gwae_wait', '성별대기승급':'gender_wait', '연속참석승급':'consecutive', '늦참승급':'late' };
     const promotedFrom = REASON_MAP[reasonChoice] || null;
-    votes[name] = { status:'attend', gender:g, district, hidden:false, promotedFrom, lateArrival: (existing && existing.lateArrival) || false, lateMinutes: (existing && existing.lateMinutes) || null, lessonTime: (existing && existing.lessonTime) || null, ts: Date.now() };
+    votes[name] = { status:'attend', gender:g, district, hidden:false, promotedFrom, lateArrival: (existing && existing.lateArrival) || false, lateMinutes: (existing && existing.lateMinutes) || null, lessonTime: (existing && existing.lessonTime) || null, isGuest: (existing && existing.isGuest) || false, invitedBy: (existing && existing.invitedBy) || null, ts: Date.now() };
     await saveVoteRow(eventId, name, votes[name]);
     pushNotification(`${state.myName}(관리자)님이 ${name}님을 ${label} 참석으로 등록했습니다.${promotedFrom ? ` (사유: ${reasonChoice})` : ''}`, {eventId, actor: name});
   } else if(action === 'absent'){
@@ -5179,7 +5216,7 @@ async function addGuest(eventId){
   if(!ev) return;
   const displayName = `${rawName}(게스트${career ? '·'+career : ''})`;
   if(!state.data.votes[eventId]) state.data.votes[eventId] = {};
-  const entry = { status:'attend', gender, district:'관외', hidden:false, isGuest:true, ts: Date.now() };
+  const entry = { status:'attend', gender, district:'관외', hidden:false, isGuest:true, invitedBy: state.myName || null, ts: Date.now() };
   state.data.votes[eventId][displayName] = entry;
   await saveVoteRow(eventId, displayName, entry);
   pushNotification(`${state.myName || '회원'}님이 게스트 "${rawName}"님을 ${shortEventLabel(ev)}에 참석 추가했습니다.`);
@@ -5756,7 +5793,7 @@ async function setVote(eventId, status, gender){
             pushNotification(`${state.myName}님이 ${label} 성별 정원 대기로 등록되었습니다.`);
             await postAiAdminComment(eventId, `${state.myName}님의 참석 시도가 대기로 자동 전환되었습니다. (사유: ${g === '여' ? '여자' : '남자'} 참석 ${genderCap}명 도달)`);
             renderEventList(); renderNotifBell();
-            const court3Note = (ev.includesCourt3 && !ev.court3Confirmed) ? ` (유니온 3번코트가 아직 미확보라 지금은 남/여 각 ${genderCap}명씩 우선 모집 중이에요. 확보되면 각 6명까지 늘어나요)` : '';
+            const court3Note = (ev.includesCourt3 && !ev.court3Confirmed && !isDawnEvent(ev)) ? ` (유니온 3번코트가 아직 미확보라 지금은 남/여 각 ${genderCap}명씩 우선 모집 중이에요. 확보되면 각 6명까지 늘어나요)` : '';
             const fairnessNote = (isFavoredGender && oppositeCount >= 4) ? ` (반대 성별이 ${oppositeCount}명으로 늘어나 대기시간 공정성을 위해 확대가 여기서 멈췄어요)` : '';
             alert(`${g === '여' ? '여자' : '남자'} 참석이 ${genderCap}명에 도달해 대기로 등록되었습니다.${court3Note}${fairnessNote} 전날 같은 시간까지 반대 성별 참석이 없으면 자동으로 참석 전환됩니다.`);
             return;
@@ -5778,23 +5815,17 @@ async function setVote(eventId, status, gender){
         renderEventList();
         renderNotifBell();
         let reasonMsg;
-        if(ev.includesCourt3 && !ev.court3Confirmed){
+        if(ev.includesCourt3 && !ev.court3Confirmed && !isDawnEvent(ev)){
           reasonMsg = `이 일정은 유니온 3번코트가 아직 현장에서 확보되지 않아서, 확보 전까지는 "${ev.max_players}명"만 우선 모집 중이에요.\n\n지금 그 인원이 다 차서 "대기"로 자동 등록되었습니다. 3번코트가 확보되면 정원이 늘어나면서 대기 순서대로 자동 참석 승급됩니다!`;
         } else {
           reasonMsg = `정원(${ev.max_players}명)이 다 차서 "대기"로 자동 등록되었습니다. 자리가 나면 순서대로 승급됩니다.`;
         }
         alert(reasonMsg);
         return;
-      } else if(wouldBeFull && (state.myIsStaff || isDawnVip3)){
-        // 새벽관리자(VIP3)는 여러 명이 동시에 이 권한을 쓸 수 있어야 하므로, 새벽테니스에 한해 히든석 인원제한을 성별당 1명 -> 3명으로 완화
-        const hiddenLimit = isDawnEvent(ev) ? 3 : 1;
-        const existingHiddenCount = (g === '여' ? counts.femaleNames : counts.maleNames).filter(n => n.hidden).length;
-        if(existingHiddenCount >= hiddenLimit){
-          alert(`히든석은 성별당 ${hiddenLimit}자리로 제한되어 있어요. 이미 ${g === '여' ? '여자' : '남자'} 히든석이 ${hiddenLimit}명 있어요.\n\n추가로 참석시키고 싶으시면 관리자 모드에서 대기자를 직접 참석으로 이동해 주세요.`);
-          return;
-        }
-        hidden = true;
       }
+      // ⚠️ 운영진(staff)·새벽관리자(VIP3)는 정원이 다 차도 항상 참석 가능 — 예전엔 hidden:true(★히든 표시, 성별당 인원제한)로
+      // 처리했으나, "히든이 아니라 일반 참석자와 똑같이 명단에 보이면서, 인원제한 없이 언제나 참석 가능하게 해달라"는
+      // 요청에 따라 숨김 처리와 그 인원제한을 완전히 제거함 — 정원을 그냥 넘어서는 일반 참석자로 취급
       votes[state.myName] = { status:'attend', gender: g, district: state.myDistrict, hidden, lateArrival:false, lateMinutes:null, ts: Date.now() };
       pushNotification(`${state.myName}님 ${label} 참석 체크${hidden ? ' (히든)' : ''}`, {eventId, actor: state.myName});
       checkFirstAttendance(state.myName);
@@ -7139,6 +7170,42 @@ async function checkCourt3LikelyConfirm(){
   return changed;
 }
 
+async function checkDawnFourPlusCourt3Request(){
+  // ⚠️ 기존 checkDawnCourt3Reminder와는 완전히 다른 기능임에 유의 — 그건 "새벽 참석자에게 그날 저녁 코트 확보를 물어보는" 것이고,
+  // 이건 "새벽코트 자체에 4명 이상 모이면, 그 참석자들에게 3번코트를 미리 확보해서 8명(2코트)으로 진행하자고 부탁하는" 새 기능임.
+  // 요청 배경: 새벽코트 정원구조를 "4명(미확보)/8명(확보)" 버튼 방식에서 "항상 8명 가능"으로 단순화하면서,
+  // 그 대신 "많이 모이면 참석자들이 알아서 조금 일찍 나와 코트를 확보하자"는 사회적 조율 알림으로 대체함.
+  // 발송 시점: 전날 오후 10시(22:00)부터 당일 시작 전까지, 참석인원 4명 이상이면, 이벤트당 딱 1번만 발송
+  let changed = false;
+  const now = new Date();
+  const dawnEvents = getInstances().filter(ev => isDawnEvent(ev));
+  for(const ev of dawnEvents){
+    const startDt = getEventDateTime(ev);
+    const dayBefore10pm = new Date(startDt);
+    dayBefore10pm.setDate(dayBefore10pm.getDate() - 1);
+    dayBefore10pm.setHours(22, 0, 0, 0);
+    if(now < dayBefore10pm || now >= startDt) continue; // 전날 22시부터 시작 전까지만 발동
+
+    const counts = computedCounts(ev);
+    if(counts.regularTotal < 4) continue; // 4명 미만이면 대상 아님
+
+    const flagKey = `dawn_4plus_court3_request_${ev.id}`;
+    if(state.data.notifiedFlags[flagKey]) continue; // 이벤트당 딱 1번만(중복 방지)
+    state.data.notifiedFlags[flagKey] = true;
+    markDirty('notifiedFlags', flagKey);
+
+    const votes = state.data.votes[ev.id] || {};
+    Object.entries(votes).forEach(([name, v]) => {
+      if(v.status === 'attend'){
+        pushNotification(`🙏 ${name}님, ${shortEventLabel(ev)}에 ${counts.regularTotal}명이 모여서 8명(2코트) 진행이 가능해요! 시작 시간보다 조금 일찍 나오셔서 3번코트 확보 부탁드려요.`, {eventId: ev.id, actor: name, category:'court_status'});
+      }
+    });
+    await postAiAdminComment(ev.id, `🎾 현재 ${counts.regularTotal}명이 참석 예정이에요! 8명(2코트)으로 진행하려면 3번코트 확보가 필요해요 — 조금 일찍 나오셔서 확보 부탁드립니다 🙏`);
+    changed = true;
+  }
+  return changed;
+}
+
 async function checkDawnCourt3Reminder(){
   const now = new Date();
   const t = todayIso();
@@ -7208,6 +7275,35 @@ function checkVip3WelcomePopup(){
   setTimeout(() => {
     alert(`🎖️ VIP3로 지정되셨어요!\n\n앞으로 유니온 3번코트(새벽 포함) 일정에서, 3번코트가 확보되면 "확보 확인" 버튼을 직접 눌러주시면 정원이 자동으로 확대돼요.\n\n※ 꼭 본인이 직접 확보하지 않으셔도 괜찮아요 — 다른 회원이 확보한 걸 보셨다면 대신 체크해 주셔도 돼요!\n\n소중한 역할 맡아주셔서 감사해요, VIP3로 모시겠습니다 🙏`);
   }, 800);
+}
+
+function checkDawnFourPlusPopup(){
+  // checkDawnFourPlusCourt3Request(서버쪽, 알림+댓글 1회)와 별개로, 실제로 화면에 눈에 띄는 팝업을 보여주기 위한 클라이언트 전용 체크
+  // (checkCourt3ConfirmPopup과 동일한 패턴: localStorage로 "이 사람에게 이미 이 일정에 대해 팝업을 보여줬는지" 개인별 1회 관리)
+  const now = new Date();
+  const dawnEvents = getInstances().filter(ev => isDawnEvent(ev));
+  dawnEvents.forEach(ev => {
+    const startDt = getEventDateTime(ev);
+    const dayBefore10pm = new Date(startDt);
+    dayBefore10pm.setDate(dayBefore10pm.getDate() - 1);
+    dayBefore10pm.setHours(22, 0, 0, 0);
+    if(now < dayBefore10pm || now >= startDt) return;
+
+    const myVote = getVote(ev.id);
+    if(!myVote || myVote.status !== 'attend') return; // 본인이 이 일정에 참석 중이어야 대상
+
+    const counts = computedCounts(ev);
+    if(counts.regularTotal < 4) return;
+
+    const key = 'dawn-4plus-popup-' + ev.id + '-' + (state.myName || '');
+    let asked = '';
+    try{ asked = localStorage.getItem(key) || ''; }catch(e){}
+    if(asked) return;
+    try{ localStorage.setItem(key, '1'); }catch(e){}
+    setTimeout(() => {
+      alert(`🙏 ${shortEventLabel(ev)}에 ${counts.regularTotal}명이 모여서 8명(2코트) 진행이 가능해요!\n\n시작 시간보다 조금 일찍 나오셔서 3번코트 확보 부탁드려요.`);
+    }, 1000);
+  });
 }
 
 function checkCourt3ConfirmPopup(){
@@ -8279,6 +8375,7 @@ async function init(){
   try{ checkFingerprintReminderForLocal(); }catch(e){ console.error('관내 지문 리마인더 오류', e); }
   try{ checkMonthlyRankingAnnouncement(); }catch(e){ console.error('월간랭킹발표 오류', e); }
   try{ checkCourt3ConfirmPopup(); }catch(e){ console.error('3번코트 확인 팝업 오류', e); }
+  try{ checkDawnFourPlusPopup(); }catch(e){ console.error('새벽4인이상 코트확보팝업 오류', e); }
   try{ checkVip3WelcomePopup(); }catch(e){ console.error('VIP3 환영팝업 오류', e); }
   try{ checkSaturdayCourt3Reminder(); }catch(e){ console.error('토요일 3번코트 리마인더 오류', e); }
   try{ scheduleTodayPanelAutoClose(); }catch(e){ console.error('scheduleTodayPanelAutoClose 오류', e); }
@@ -8292,6 +8389,7 @@ async function init(){
       if(changed && !userIsInteracting){ lastDataSnapshot = JSON.stringify(state.data); renderEventList(); renderNotifBell(); }
       await pollForUpdates();
       try{ checkCourt3ConfirmPopup(); }catch(e){ console.error('3번코트 확인 팝업 오류', e); }
+      try{ checkDawnFourPlusPopup(); }catch(e){ console.error('새벽4인이상 코트확보팝업 오류', e); }
       try{ checkVip3WelcomePopup(); }catch(e){ console.error('VIP3 환영팝업 오류', e); }
       try{ checkSaturdayCourt3Reminder(); }catch(e){ console.error('토요일 3번코트 리마인더 오류', e); }
     }catch(e){ console.error('주기적 갱신 오류', e); }
