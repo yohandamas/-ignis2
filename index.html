@@ -550,7 +550,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.162</span>
+      <span id="buildVersionTop" class="build-version-top">v.163</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -1237,10 +1237,24 @@ const STATE_ROW_KEY = 'events';
 
 async function loadVotesTable(){
   try{
-    const { data, error } = await sb.from('ignis_votes').select('*');
-    if(error) throw error;
+    // ⚠️ 심각한 버그 발견·수정: sb.from('ignis_votes').select('*')에 페이지네이션이 없어서,
+    // Supabase(PostgREST) 기본 조회 제한(보통 1000행)에 걸리면 그 이상 행은 조용히 누락됐음.
+    // 실제로 테이블이 1,008행을 넘어선 시점부터, 매 20초 폴링마다 "어떤 행이 빠질지"가 정렬기준 없이
+    // 매번 달라져서, 특정 회원의 참석/대기 기록이 이번 폴링엔 보이다가 다음 폴링엔 사라지는 현상이 발생했음
+    // (곽선주·박미라·임유나님 사례로 발견 — 실제 상태변경 없이 화면에서만 무작위로 나타났다 사라짐)
+    // 수정: .range()로 페이지네이션하여 전체 행을 빠짐없이 가져오도록 변경
+    let allRows = [];
+    let from = 0;
+    const pageSize = 1000;
+    while(true){
+      const { data, error } = await sb.from('ignis_votes').select('*').range(from, from + pageSize - 1);
+      if(error) throw error;
+      allRows = allRows.concat(data || []);
+      if(!data || data.length < pageSize) break; // 마지막 페이지(더 가져올 데이터 없음)
+      from += pageSize;
+    }
     const votes = {};
-    (data || []).forEach(row => {
+    allRows.forEach(row => {
       if(!votes[row.event_id]) votes[row.event_id] = {};
       votes[row.event_id][row.member_name] = {
         status: row.status, gender: row.gender, district: row.district,
@@ -1294,10 +1308,19 @@ async function saveVoteRow(eventId, name, voteObj, actorOverride){
 
 async function loadCommentsTable(){
   try{
-    const { data, error } = await sb.from('ignis_comments').select('*').order('ts', { ascending: true });
-    if(error) throw error;
+    // ⚠️ ignis_votes와 동일한 위험 예방 — 아직은 1000행 미만이지만 계속 늘어나는 테이블이라, 미리 페이지네이션 적용
+    let allRows = [];
+    let from = 0;
+    const pageSize = 1000;
+    while(true){
+      const { data, error } = await sb.from('ignis_comments').select('*').order('ts', { ascending: true }).range(from, from + pageSize - 1);
+      if(error) throw error;
+      allRows = allRows.concat(data || []);
+      if(!data || data.length < pageSize) break;
+      from += pageSize;
+    }
     const comments = {};
-    (data || []).forEach(row => {
+    allRows.forEach(row => {
       if(!comments[row.event_id]) comments[row.event_id] = [];
       comments[row.event_id].push({ id: row.id, name: row.member_name, text: row.body, ts: row.ts ? Number(row.ts) : Date.now() });
     });
@@ -3089,6 +3112,14 @@ document.getElementById('warnPanelToggle').onclick = async () => {
 };
 
 const SITE_LOG = [
+  { ts:'2026-08-31 09:00', t:'🚨 [중요] Supabase 1000행 조회제한으로 참석·대기 정보가 무작위로 누락되던 심각한 버그 발견·수정', important:true, d:[
+    '제보: 곽선주님(9/1 화요일밤)이 참석을 눌렀는데 참석칸에서 이름이 반복적으로 사라져서 다시 눌렀다는 신고 — 이전에 조사했던 박미라·임유나님 사례("사라짐")도 같은 원인이었을 가능성이 높음',
+    '진짜 원인: loadVotesTable()의 sb.from(ignis_votes).select(*)에 페이지네이션이 전혀 없었음. Supabase(PostgREST)는 기본적으로 한 번의 조회당 최대 1000행까지만 리턴하는데, 실제 ignis_votes 테이블을 확인한 결과 이미 1,008행으로 이 한도를 넘어서 있었음',
+    '정확한 재현 메커니즘: 정렬 기준(order by) 없이 조회하다 보니, 어떤 8개(한도 초과분) 행이 이번 폴링(20초 주기)에서 빠질지 매번 달라짐 — 하필 그 8개에 포함된 회원의 참석/대기 기록이 그 폴링 순간엔 로컬 상태에서 통째로 빠지면서 화면에서 "사라진 것처럼" 보이고, 다음 폴링에서 포함되면 "다시 나타나는" 현상이 무작위로 반복됨',
+    '영향 범위: 특정 회원 한 명의 문제가 아니라, 테이블 전체에서 무작위로 어떤 회원이든 겪을 수 있는 구조적 문제였음 — 데이터가 계속 쌓일수록(현재도 계속 증가 중) 누락되는 행 수도 더 늘어나는 상황',
+    '수정: loadVotesTable()에 .range()를 이용한 페이지네이션 추가 — 1000행씩 나눠서 전체 데이터를 빠짐없이 가져오도록 변경. 같은 위험이 있는 loadCommentsTable()(현재 701행, 계속 증가 중)에도 예방적으로 동일하게 적용',
+    '실제 1,008행 데이터로 시뮬레이션 검증 — 수정전 1000행만(8개 누락), 수정후 1,008행 전체 정확히 조회됨 확인'
+  ]},
   { ts:'2026-08-30 13:20', t:'🌅 새벽코트 정원 8명으로 단순화(3번코트 확보버튼 폐지) + 4인 이상시 코트확보 부탁 알림 신설', important:true, d:[
     '요청: 정원 4명→8명으로 변경(3번코트 확보 버튼 자체를 없애고 항상 최대 8명까지 바로 등록 가능하게), 참석 4명 이상시 4명 이상 참석자 전원에게 팝업+댓글로 전날 또는 코트시간보다 미리 3번코트 확보 부탁 메시지 발송(댓글은 이벤트당 1번만 고정)',
     '정원구조 변경: computeCapacity()에서 새벽코트(isDawnCourt)는 3번코트 확보여부(court3Confirmed)와 무관하게 항상 8명(quota)으로 고정 — 기존 "미확보4명/확보시8명" 구조 폐지',
@@ -3862,7 +3893,7 @@ const SITE_LOG = [
   ]},
   { ts:'2026-07-21 22:00', t:'🎾 금요일 안내 · 이력조회 보강 · 칭호아이콘 위치조정 · 마일스톤 확장', important:true, d:[
     '금요일 20-22시 유니온·종합운동장 동시 일정시, 시작 6시간 전부터 "같은 성별끼리 모여서, 유니온 우선 이용" 안내 자동 발송 (유니온 코트 이용기록 유지 목적)',
-    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.162 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
+    '참석/대기 시간 클릭시 이력이 안 뜨던 문제 확인 — v.163 이전 등록건은 신규 이력 데이터가 없어서였음, 이제 이력이 없어도 최소한 현재 등록 시각은 보여주도록 보강',
     '관리자 "지금 자동승급 실행"의 일반 대기열 승급에도 AI관리자 댓글이 빠져있던 것 발견, 추가',
     '이름 옆 칭호 아이콘(럭키/최초달성/월간메달)을 참석목록·랭킹에서 제거하고 댓글에만 표시하도록 위치 조정',
     '럭키방문 마일스톤 5종에서 2000/2222/3000/3333/4000/4444 추가해 총 11종으로 확대'
