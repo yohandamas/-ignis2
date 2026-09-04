@@ -622,7 +622,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.167</span>
+      <span id="buildVersionTop" class="build-version-top">v.168</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -7122,12 +7122,16 @@ document.getElementById('themeCourtBtn').onclick = () => applyTheme('courtnight'
 
 // ⚠️ "심플" 스킨은 위 라이트/다크/코트나이트와 달리 완전히 다른 코드베이스(별도 파일, 다른 UI구조)로 만들어진
 // 심플 버전이라, CSS변수 전환만으로는 적용이 안 됨 — 전체화면 iframe으로 감싸서 "스킨처럼 전환"되는 것처럼 보이게 구현.
-// 같은 도메인(dothome)에서 서빙되면 localStorage('ignis-my-name')를 그대로 공유하니, 이 화면으로 넘어가도
-// 재로그인 없이 자동으로 로그인 상태가 유지됨(심플버전도 동일한 키로 로그인 정보를 저장/조회하도록 되어있음)
+// ⚠️ 중요: dothome(닷홈빌더)은 "공통코드입력"이 사이트 전체에 단 하나만 적용되는 방식이라(별도 페이지 개념 자체가 없음),
+// dothome 안에는 독립된 URL을 가진 심플버전 페이지를 만들 수 없었음(실제로 /simple.html 시도시 "페이지를 찾을 수 없음" 발생).
+// 그래서 심플버전은 별도 호스팅처(Vercel, ignisapp 저장소의 /simple 경로)에 두고 그 주소를 불러오는 방식으로 변경.
+// 서로 다른 도메인이라 localStorage가 자동 공유되지 않으므로, 로그인된 이름을 URL 파라미터(?name=)로 직접 넘겨줌
+// (심플버전 쪽에서 이 파라미터를 받아 자동 로그인 처리하도록 이미 구현되어 있음)
 document.getElementById('simpleSkinBtn').onclick = () => {
   const overlay = document.getElementById('simpleSkinOverlay');
   const iframe = document.getElementById('simpleSkinIframe');
-  iframe.src = '/simple.html'; // dothome에 별도 업로드한 심플버전 파일 경로 — 실제 업로드 경로에 맞게 조정 필요
+  const nameParam = state.myName ? ('?name=' + encodeURIComponent(state.myName)) : '';
+  iframe.src = 'https://ignisapp-zeta.vercel.app/simple' + nameParam;
   overlay.style.display = 'flex';
 };
 document.getElementById('simpleSkinCloseBtn').onclick = () => {
