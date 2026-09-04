@@ -622,7 +622,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.168</span>
+      <span id="buildVersionTop" class="build-version-top">v.169</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -3493,7 +3493,13 @@ function renderNameChips(entries, suffix, showDistrict, eventId, startIdx){
     const promotedTag = e.promotedFrom && PROMOTED_LABELS[e.promotedFrom] ? `<span class="chip-promoted-tag">${PROMOTED_LABELS[e.promotedFrom]}</span>` : '';
     const lateTag = e.lateArrival ? ` <span class="chip-promoted-tag">(늦${e.lateMinutes != null ? e.lateMinutes : 0}분)</span>` : ''; // 5분처럼 작은 값도 누락없이 표시(0 등 falsy값 방지 위해 != null로 체크)
     const lessonTag = e.lessonTime ? ` <span class="chip-promoted-tag">(레슨 ${escapeHtml(e.lessonTime)})</span>` : ''; // 레슨 시작시간임을 명확히 표시
-    const guestInviteTag = (e.isGuest && e.invitedBy) ? ` <span class="chip-invite-by">(${escapeHtml(e.invitedBy)}님 초청)</span>` : ''; // 게스트 옆에 누가 초대했는지 표시
+    // ⚠️ 버그 발견·수정: 기존엔 (e.isGuest && e.invitedBy)로 판단했는데, isGuest는 게스트 추가하는 그 순간 화면 메모리에만
+    // 잠깐 존재하고 saveVoteRow()의 upsert 목록에 컬럼 자체가 없어 서버(ignis_votes)에는 전혀 저장되지 않는 값이었음.
+    // 그래서 게스트 추가 직후엔 뱃지가 보이다가, 20초 폴링이든 새로고침이든 데이터를 한 번이라도 다시 불러오면
+    // isGuest가 항상 false로 리셋되어 뱃지가 사라지는 구조적 버그였음(invitedBy 자체는 정상 저장·유지되어 데이터 손실은 없었음).
+    // 초청코트(가족·지인 초청)는 computedCounts()에서 이 배열에 오기 전에 이미 별도 분리되므로, invitedBy만으로 판단해도
+    // 다른 항목이 이 뱃지를 잘못 받을 위험은 없음 — DB 스키마 변경 없이 조건만 단순화하면 안전하게 해결됨
+    const guestInviteTag = e.invitedBy ? ` <span class="chip-invite-by">(${escapeHtml(e.invitedBy)}님 초청)</span>` : ''; // 게스트 옆에 누가 초대했는지 표시
     const histAttr = eventId ? ` data-hist-key="${eventId}|${escapeHtml(name)}" data-fallback-ts="${ts||''}"` : '';
     const label = `${startIdx+idx+1}. ${escapeHtml(name)}${hiddenTag}${promotedTag}${districtTag}${suffix}${timeStr ? `<span class="chip-ts"${histAttr} style="${eventId?'cursor:pointer;text-decoration:underline dotted;':''}">${timeStr}</span>` : ''}${lateTag}${lessonTag}${guestInviteTag}`;
     let chipClass = e.hidden ? 'name-chip name-chip-hidden' : 'name-chip';
