@@ -551,7 +551,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.176</span>
+      <span id="buildVersionTop" class="build-version-top">v.177</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -3307,8 +3307,8 @@ function renderNameChips(entries, suffix, showDistrict, eventId, startIdx){
     const hiddenTag = e.hidden ? `<span class="chip-hidden-tag">★히든</span>` : '';
     const PROMOTED_LABELS = { consecutive:'🔁연참승급', wait:'⬆️대기승급', gwae_wait:'⬆️관외대기승급', gender_wait:'⬆️성별대기승급', late:'⬆️늦참승급', regular:'⬆️일반대기승급', late_consecutive:'🔁늦참+연참승급' };
     const promotedTag = e.promotedFrom && PROMOTED_LABELS[e.promotedFrom] ? `<span class="chip-promoted-tag">${PROMOTED_LABELS[e.promotedFrom]}</span>` : '';
-    const lateTag = e.lateArrival ? ` <span class="chip-promoted-tag">(늦${e.lateMinutes != null ? e.lateMinutes : 0}분)</span>` : ''; // 5분처럼 작은 값도 누락없이 표시(0 등 falsy값 방지 위해 != null로 체크)
-    const lessonTag = e.lessonTime ? ` <span class="chip-promoted-tag">(레슨 ${escapeHtml(e.lessonTime)})</span>` : ''; // 레슨 시작시간임을 명확히 표시
+    const lateTag = e.lateArrival ? ` <span class="chip-promoted-tag">${e.lateMinutes != null ? e.lateMinutes : 0}분 늦참</span>` : ''; // 5분처럼 작은 값도 누락없이 표시(0 등 falsy값 방지 위해 != null로 체크). "시간 사유" 순서로 통일(예: 15분 늦참)
+    const lessonTag = e.lessonTime ? ` <span class="chip-promoted-tag">${escapeHtml(e.lessonTime)} 레슨시작</span>` : ''; // "시간 사유" 순서로 통일(예: 7:30 레슨시작)
     // ⚠️ 버그 발견·수정: 기존엔 (e.isGuest && e.invitedBy)로 판단했는데, isGuest는 게스트 추가하는 그 순간 화면 메모리에만
     // 잠깐 존재하고 saveVoteRow()의 upsert 목록에 컬럼 자체가 없어 서버(ignis_votes)에는 전혀 저장되지 않는 값이었음.
     // 그래서 게스트 추가 직후엔 뱃지가 보이다가, 20초 폴링이든 새로고침이든 데이터를 한 번이라도 다시 불러오면
