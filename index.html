@@ -531,7 +531,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.171</span>
+      <span id="buildVersionTop" class="build-version-top">v.172</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -5952,6 +5952,43 @@ function checkDawnFourPlusPopup(){
   });
 }
 
+// ⚠️ 신규기능: 당일 코트 시작 4시간전 시점에 남자/여자 인원이 "홀수"이거나 "4명 미만"이면 복식 진행이 어려울 수 있음을
+// 관리자/운영진에게 미리 경고 - 기존 checkCourt3ConfirmPopup과 동일한 패턴(N시간전 구간 체크, localStorage 1회제한, isPrivileged 대상)
+// 단, 인원수가 바뀌면 상황이 달라지니 "같은 인원수 조합"에 대해서만 1회로 제한(인원이 변하면 다시 알림)
+function checkDoublesShortagePopup(){
+  const now = new Date();
+  const t = todayIso();
+  const candidates = getInstances().filter(ev => ev.event_date === t);
+  candidates.forEach(ev => {
+    const startDt = getEventDateTime(ev);
+    const fourHoursBefore = new Date(startDt.getTime() - 4 * 60 * 60 * 1000);
+    if(now < fourHoursBefore || now >= startDt) return;
+
+    const isPrivileged = hasAdminPower() || state.myIsStaff || isVip3(state.myName);
+    if(!isPrivileged) return;
+
+    const counts = computedCounts(ev);
+    const isShortage = (n) => n > 0 && (n % 2 !== 0 || n < 4); // 홀수 또는 4명 미만(단, 0명은 애초에 복식 시도 자체가 없던 것이라 제외)
+    const maleShort = isShortage(counts.male);
+    const femaleShort = isShortage(counts.female);
+    if(!maleShort && !femaleShort) return;
+
+    const key = 'doubles-shortage-' + ev.id + '-' + (state.myName || '') + '-' + counts.male + '-' + counts.female;
+    let asked = '';
+    try{ asked = localStorage.getItem(key) || ''; }catch(e){}
+    if(asked) return;
+    try{ localStorage.setItem(key, '1'); }catch(e){}
+
+    const label = shortEventLabel(ev);
+    const lines = [];
+    if(maleShort) lines.push(`남자 ${counts.male}명`);
+    if(femaleShort) lines.push(`여자 ${counts.female}명`);
+    const msg = `⚠️ "${label}" 시작 4시간 전인데 ${lines.join(', ')}이라 복식 진행이 어려울 수 있어요.\n\n대기자 승급이나 인원조정을 확인해 주세요.`;
+    pushNotification(`⚠️ [복식경고] ${label} - ${lines.join(', ')}으로 복식 무산 위험`, {eventId: ev.id, category:'warning'});
+    setTimeout(() => { alert(msg); }, 1200);
+  });
+}
+
 function checkCourt3ConfirmPopup(){
   const now = new Date();
   const t = todayIso();
@@ -7048,6 +7085,7 @@ async function init(){
   try{ checkFingerprintReminderForLocal(); }catch(e){ console.error('관내 지문 리마인더 오류', e); }
   try{ checkMonthlyRankingAnnouncement(); }catch(e){ console.error('월간랭킹발표 오류', e); }
   try{ checkCourt3ConfirmPopup(); }catch(e){ console.error('3번코트 확인 팝업 오류', e); }
+  try{ checkDoublesShortagePopup(); }catch(e){ console.error('복식인원부족 경고 오류', e); }
   try{ checkDawnFourPlusPopup(); }catch(e){ console.error('새벽4인이상 코트확보팝업 오류', e); }
   try{ checkVip3WelcomePopup(); }catch(e){ console.error('VIP3 환영팝업 오류', e); }
   try{ checkSaturdayCourt3Reminder(); }catch(e){ console.error('토요일 3번코트 리마인더 오류', e); }
@@ -7100,6 +7138,7 @@ async function init(){
       if(changed && !userIsInteracting){ lastDataSnapshot = JSON.stringify(state.data); renderEventList(); renderNotifBell(); }
       await pollForUpdates();
       try{ checkCourt3ConfirmPopup(); }catch(e){ console.error('3번코트 확인 팝업 오류', e); }
+  try{ checkDoublesShortagePopup(); }catch(e){ console.error('복식인원부족 경고 오류', e); }
       try{ checkDawnFourPlusPopup(); }catch(e){ console.error('새벽4인이상 코트확보팝업 오류', e); }
       try{ checkVip3WelcomePopup(); }catch(e){ console.error('VIP3 환영팝업 오류', e); }
       try{ checkSaturdayCourt3Reminder(); }catch(e){ console.error('토요일 3번코트 리마인더 오류', e); }
