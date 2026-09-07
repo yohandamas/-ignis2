@@ -162,11 +162,18 @@
   .guest-add-toggle[open] summary{border-radius:8px 8px 0 0;border-bottom:none;}
   .guest-add-toggle .guest-add-form{border:1px solid var(--line);border-top:none;border-radius:0 0 8px 8px;padding:10px;}
   .guest-add-form{display:flex;gap:5px;margin-top:6px;flex-wrap:wrap;}
-  .ev-actions-row2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;}
-  .ev-actions-row2:has(.guest-add-toggle[open]){display:flex;flex-direction:column;} /* 게스트폼이 열리면 grid의 auto-row 높이 계산 버그(요소가 겹쳐보이는 문제)를 피하기 위해 세로쌓기로 전환 */
-  .ev-actions-row2 .guest-add-toggle.row2-item{margin-top:0;}
-  .ev-actions-row2 .guest-add-toggle.row2-item summary{width:100%;height:100%;box-sizing:border-box;display:flex;align-items:center;justify-content:center;}
-  .ev-actions-row2 .ball-quick-btn.row2-item{width:100%;margin-top:0;border:1px solid var(--line);background:var(--panel);color:var(--ink-soft);border-radius:8px;padding:8px;font-size:calc(12px * var(--font-scale, 1));font-weight:700;cursor:pointer;box-sizing:border-box;}
+  .ev-actions-row2,.close-actions-row{display:flex;gap:8px;margin-top:8px;}
+  .ev-actions-row2:has(.guest-add-toggle[open]){flex-direction:column;} /* 게스트폼이 열리면 세로쌓기로 전환해 옆 버튼(클럽볼)과 겹치지 않도록 */
+  .ev-actions-row2 .guest-add-toggle.row2-item,.ev-actions-row2 .ball-quick-btn.row2-item,.close-actions-row .court3-toggle-btn{
+    flex:1;margin-top:0;height:44px;box-sizing:border-box;
+    border:1.5px solid var(--line);background:var(--panel);color:var(--ink);border-radius:12px;
+    font-size:calc(13px * var(--font-scale, 1));font-weight:700;cursor:pointer;padding:0;white-space:nowrap;
+  } /* 참석·불참(attend-main)과 동일한 44px 높이·12px 라운드로 통일 - 게스트/클럽볼/마감/승급 6개 버튼이 일관된 그리드로 보이도록 */
+  .ev-actions-row2 .ball-quick-btn.row2-item,.close-actions-row .court3-toggle-btn{display:flex;align-items:center;justify-content:center;} /* details는 자식(summary)이 align-items:center 때문에 내용크기로 줄어드는 문제가 있어 정렬속성은 버튼류에만 적용, details는 아래에서 summary에 직접 적용 */
+  .ev-actions-row2 .guest-add-toggle.row2-item summary{width:100%;height:44px;box-sizing:border-box;border:none;padding:0;display:flex;align-items:center;justify-content:center;list-style:none;}
+  .ev-actions-row2 .guest-add-toggle.row2-item summary::-webkit-details-marker{display:none;}
+  .ev-actions-row2 .guest-add-toggle.row2-item[open] summary{border-radius:12px 12px 0 0;}
+  .close-actions-row .court3-toggle-btn{font-weight:800;}
   .guest-add-form input,.guest-add-form select{flex:1;min-width:70px;border:1px solid var(--line);
     border-radius:8px;padding:6px 8px;font-size:calc(11px * var(--font-scale, 1));}
   .guest-add-form button{border:none;background:var(--brand);color:#fff;border-radius:8px;
@@ -320,7 +327,7 @@
   .ev-actions{display:flex;flex-direction:column;gap:6px;padding-top:10px;border-top:1px solid var(--bg);}
   .ev-actions-main{display:flex;gap:6px;}
   .ev-actions-sub{display:flex;gap:6px;flex-wrap:wrap;}
-  .attend-sheet-backdrop{display:none;position:fixed;inset:0;z-index:900;background:rgba(0,0,0,0.5);align-items:flex-end;justify-content:center;}
+  .attend-sheet-backdrop,.close-sheet-backdrop{display:none;position:fixed;inset:0;z-index:900;background:rgba(0,0,0,0.5);align-items:flex-end;justify-content:center;}
   .attend-sheet{width:100%;max-width:520px;background:var(--panel);border-radius:20px 20px 0 0;border-top:1px solid var(--line);padding:16px 14px calc(16px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:8px;}
   .attend-sheet-title{font-size:calc(12px * var(--font-scale, 1));color:var(--ink-soft);font-weight:700;margin-bottom:2px;}
   .attend-sheet-opt{border:1px solid var(--line);background:var(--bg);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;cursor:pointer;}
@@ -544,7 +551,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.174</span>
+      <span id="buildVersionTop" class="build-version-top">v.175</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -3539,7 +3546,7 @@ function renderEventCard(ev){
     </div>
     <div class="ev-actions-row2">
       <details class="guest-add-toggle row2-item">
-        <summary>👤 게스트 참석추가</summary>
+        <summary>👤 게스트</summary>
         <div class="guest-add-form">
           <input type="text" id="guestName-${ev.id}" placeholder="게스트 이름">
           <select id="guestGender-${ev.id}"><option value="여">여자</option><option value="남">남자</option></select>
@@ -3547,7 +3554,7 @@ function renderEventCard(ev){
           <button id="guestAddBtn-${ev.id}">추가</button>
         </div>
       </details>
-      <button class="ball-quick-btn row2-item" data-ball-quick="${ev.id}">🎾 볼불출</button>
+      <button class="ball-quick-btn row2-item" data-ball-quick="${ev.id}">🎾 클럽볼</button>
     </div>
     ${pending ? `<div class="confirm-row">
       <button class="confirm-btn" id="confirmBtn-${ev.id}">✓ 확정</button>
@@ -3558,35 +3565,40 @@ function renderEventCard(ev){
         ${ev.court3Confirmed ? '✅ 3번코트 확보됨 (해제하려면 클릭)' : '📍 3번코트 확보 확인'}
       </button>
     </div>` : ''}
-    ${(() => { const isPreClosed = state.data.preClosed && state.data.preClosed[ev.id]; return `<div class="admin-row" style="display:${hasAdminPower()?'flex':'none'}">
-      <button class="court3-toggle-btn ${isPreClosed?'confirmed':''}" data-preclose-toggle="${ev.id}" style="font-size:calc(11px * var(--font-scale, 1));padding:6px 10px;border-radius:8px;border:1px solid var(--line);background:${isPreClosed?'var(--danger-soft)':'var(--panel)'};color:${isPreClosed?'var(--danger)':'var(--ink)'};cursor:pointer;white-space:nowrap;width:100%;">
-        ${isPreClosed ? '🚫 선마감 중 (해제하려면 클릭)' : '🚫 선마감 처리'}
-      </button>
-    </div>${isPreClosed ? `<div class="court3-note" style="color:var(--danger);border-color:var(--danger-soft);background:var(--danger-soft);font-size:calc(13px * var(--font-scale, 1));font-weight:800;">🚫 선마감 — 신규 참석은 대기로 자동 등록됩니다</div>` : ''}`; })()}
-    ${(() => { const wc = state.data.wholeCancelled && state.data.wholeCancelled[ev.id]; return !wc ? `<div class="admin-row" style="display:${hasAdminPower()?'flex':'none'}">
-      <button class="court3-toggle-btn" data-whole-cancel="${ev.id}" style="font-size:calc(11px * var(--font-scale, 1));padding:6px 10px;border-radius:8px;border:1px solid var(--danger);background:var(--panel);color:var(--danger);cursor:pointer;white-space:nowrap;width:100%;">
-        🌧️ 우천/공사 등 코트취소
-      </button>
-    </div>` : `<div class="court3-note" style="color:var(--danger);border-color:var(--danger-soft);background:var(--danger-soft);font-size:calc(13px * var(--font-scale, 1));font-weight:800;">🌧️ 코트취소됨 (사유: ${escapeHtml(wc.reason)}) — 신규 참석 신청이 잠겨있습니다</div>
-    ${hasAdminPower() ? `<button class="court3-toggle-btn" data-restore-cancel="${ev.id}" style="font-size:calc(11px * var(--font-scale, 1));padding:6px 10px;border-radius:8px;border:1px solid var(--brand);background:var(--brand-soft);color:var(--brand-dark);cursor:pointer;white-space:nowrap;width:100%;margin-top:6px;">✅ 코트취소 복구 (날씨 좋아짐 등)</button>` : ''}`; })()}
+    ${(() => { const isPreClosed = state.data.preClosed && state.data.preClosed[ev.id]; return isPreClosed ? `<div class="court3-note" style="color:var(--danger);border-color:var(--danger-soft);background:var(--danger-soft);font-size:calc(13px * var(--font-scale, 1));font-weight:800;">🚫 선마감 — 신규 참석은 대기로 자동 등록됩니다</div>` : ''; })()}
+    ${(() => { const wc = state.data.wholeCancelled && state.data.wholeCancelled[ev.id]; return wc ? `<div class="court3-note" style="color:var(--danger);border-color:var(--danger-soft);background:var(--danger-soft);font-size:calc(13px * var(--font-scale, 1));font-weight:800;">🌧️ 코트취소됨 (사유: ${escapeHtml(wc.reason)}) — 신규 참석 신청이 잠겨있습니다</div>` : ''; })()}
     ${(() => { const fClosed = state.data.genderClosed && state.data.genderClosed[ev.id+'|여']; const mClosed = state.data.genderClosed && state.data.genderClosed[ev.id+'|남'];
       const banners = [];
       if(fClosed) banners.push(`<div class="court3-note" style="color:var(--danger);border-color:var(--danger-soft);background:var(--danger-soft);font-size:calc(13px * var(--font-scale, 1));font-weight:800;">🚫 여자참석 마감 — 신규 여자 참석은 대기로 자동 등록됩니다</div>`);
       if(mClosed) banners.push(`<div class="court3-note" style="color:var(--danger);border-color:var(--danger-soft);background:var(--danger-soft);font-size:calc(13px * var(--font-scale, 1));font-weight:800;">🚫 남자참석 마감 — 신규 남자 참석은 대기로 자동 등록됩니다</div>`);
       return banners.join(''); })()}
-    ${(() => { const fClosed = state.data.genderClosed && state.data.genderClosed[ev.id+'|여']; const mClosed = state.data.genderClosed && state.data.genderClosed[ev.id+'|남']; return `<div class="admin-row" style="display:${hasAdminPower()?'flex':'none'}">
-      <button class="court3-toggle-btn ${fClosed?'confirmed':''}" data-gender-close-toggle="${ev.id}" data-gender-close-value="여" style="font-size:calc(11px * var(--font-scale, 1));padding:6px 10px;border-radius:8px;border:1px solid var(--line);background:${fClosed?'var(--danger-soft)':'var(--panel)'};color:${fClosed?'var(--danger)':'var(--ink)'};cursor:pointer;white-space:nowrap;width:100%;">
-        ${fClosed ? '🚫 여자참석 마감중' : '🚫 여자참석 마감'}
-      </button>
-      <button class="court3-toggle-btn ${mClosed?'confirmed':''}" data-gender-close-toggle="${ev.id}" data-gender-close-value="남" style="font-size:calc(11px * var(--font-scale, 1));padding:6px 10px;border-radius:8px;border:1px solid var(--line);background:${mClosed?'var(--danger-soft)':'var(--panel)'};color:${mClosed?'var(--danger)':'var(--ink)'};cursor:pointer;white-space:nowrap;width:100%;">
-        ${mClosed ? '🚫 남자참석 마감중' : '🚫 남자참석 마감'}
-      </button>
-    </div>`; })()}
-    <div class="admin-row" style="display:${hasAdminPower()?'flex':'none'}">
-      <button class="court3-toggle-btn" data-force-promote="${ev.id}" style="font-size:calc(11px * var(--font-scale, 1));padding:6px 10px;border-radius:8px;border:1px solid var(--brand);background:var(--brand-soft);color:var(--brand-dark);cursor:pointer;white-space:nowrap;width:100%;font-weight:800;">
-        ⚡ 지금 자동승급 실행
-      </button>
+    <div class="close-actions-row" style="display:${hasAdminPower()?'flex':'none'}">
+      <button class="court3-toggle-btn" data-close-sheet="${ev.id}">🔒 마감</button>
+      <button class="court3-toggle-btn" data-force-promote="${ev.id}" style="border-color:var(--brand);background:var(--brand-soft);color:var(--brand-dark);">⚡ 승급</button>
     </div>
+    ${(() => {
+      const isPreClosed = state.data.preClosed && state.data.preClosed[ev.id];
+      const fClosed = state.data.genderClosed && state.data.genderClosed[ev.id+'|여'];
+      const mClosed = state.data.genderClosed && state.data.genderClosed[ev.id+'|남'];
+      const wc = state.data.wholeCancelled && state.data.wholeCancelled[ev.id];
+      return `<div class="close-sheet-backdrop" id="closeSheetBackdrop-${ev.id}" style="display:none;">
+      <div class="attend-sheet">
+        <div class="attend-sheet-title">마감 방식을 선택하세요</div>
+        <button class="attend-sheet-opt" data-close-opt="preclose" data-ev="${ev.id}">
+          <b>1&nbsp;&nbsp;선마감${isPreClosed ? ' ✓ (해제하려면 클릭)' : ''}</b><span>신규 참석 전체 대기로 등록</span>
+        </button>
+        <button class="attend-sheet-opt" data-close-opt="female" data-ev="${ev.id}">
+          <b>2&nbsp;&nbsp;여마감${fClosed ? ' ✓ (해제하려면 클릭)' : ''}</b><span>여자 신규 참석만 대기로 등록</span>
+        </button>
+        <button class="attend-sheet-opt" data-close-opt="male" data-ev="${ev.id}">
+          <b>3&nbsp;&nbsp;남마감${mClosed ? ' ✓ (해제하려면 클릭)' : ''}</b><span>남자 신규 참석만 대기로 등록</span>
+        </button>
+        <button class="attend-sheet-opt" data-close-opt="wholecancel" data-ev="${ev.id}" style="color:var(--danger);">
+          <b>4&nbsp;&nbsp;코트취소${wc ? ' ✓ (복구하려면 클릭)' : ''}</b><span>우천·행사·공사·폭설 등</span>
+        </button>
+        <button class="attend-sheet-cancel" data-close-opt="close" data-ev="${ev.id}">닫기</button>
+      </div>
+    </div>`; })()}
     ${[0,6].includes(ev.dow) ? `<div class="admin-row" style="display:${hasAdminPower()?'flex':'none'}">
       <button class="court3-toggle-btn ${ev.inviteCourts > 0 ?'confirmed':''}" data-invite-toggle="${ev.id}" style="font-size:calc(11px * var(--font-scale, 1));padding:6px 10px;border-radius:8px;border:1px solid var(--line);background:${ev.inviteCourts > 0 ?'var(--accent-soft)':'var(--panel)'};cursor:pointer;white-space:nowrap;width:100%;">
         ${ev.inviteCourts > 0 ? `👨‍👩‍👧 초청코트 ${ev.inviteCourts}개 지정중 (해제하려면 클릭)` : '👨‍👩‍👧 가족&지인 초청코트 지정'}
@@ -3656,15 +3668,29 @@ function renderEventCard(ev){
   if(inviteCloseBtn) inviteCloseBtn.onclick = () => toggleInviteClose(ev.id);
   const court3Btn = card.querySelector('[data-court3-toggle]');
   if(court3Btn) court3Btn.onclick = () => toggleCourt3Confirmed(ev.id);
-  const precloseBtn = card.querySelector('[data-preclose-toggle]');
-  if(precloseBtn) precloseBtn.onclick = () => togglePreClose(ev.id);
-  const wholeCancelBtn = card.querySelector('[data-whole-cancel]');
-  if(wholeCancelBtn) wholeCancelBtn.onclick = () => cancelWholeEvent(ev.id);
-  const restoreCancelBtn = card.querySelector('[data-restore-cancel]');
-  if(restoreCancelBtn) restoreCancelBtn.onclick = () => restoreWholeCancelledEvent(ev.id);
-  card.querySelectorAll('[data-gender-close-toggle]').forEach(btn => {
-    btn.onclick = () => toggleGenderClose(ev.id, btn.getAttribute('data-gender-close-value'));
+  const closeSheetBtn = card.querySelector('[data-close-sheet]');
+  if(closeSheetBtn) closeSheetBtn.onclick = () => {
+    const backdrop = card.querySelector(`#closeSheetBackdrop-${ev.id}`);
+    if(backdrop) backdrop.style.display = 'flex';
+  };
+  card.querySelectorAll('[data-close-opt]').forEach(btn => {
+    btn.onclick = () => {
+      const opt = btn.getAttribute('data-close-opt');
+      const evId = btn.getAttribute('data-ev') || ev.id;
+      const backdrop = card.querySelector(`#closeSheetBackdrop-${ev.id}`);
+      if(backdrop) backdrop.style.display = 'none';
+      if(opt === 'close') return;
+      if(opt === 'preclose') togglePreClose(evId);
+      else if(opt === 'female') toggleGenderClose(evId, '여');
+      else if(opt === 'male') toggleGenderClose(evId, '남');
+      else if(opt === 'wholecancel'){
+        const wc = state.data.wholeCancelled && state.data.wholeCancelled[evId];
+        if(wc) restoreWholeCancelledEvent(evId); else cancelWholeEvent(evId);
+      }
+    };
   });
+  const closeSheetBackdrop = card.querySelector(`#closeSheetBackdrop-${ev.id}`);
+  if(closeSheetBackdrop) closeSheetBackdrop.onclick = (e) => { if(e.target === closeSheetBackdrop) closeSheetBackdrop.style.display = 'none'; };
   const forcePromoteBtn = card.querySelector('[data-force-promote]');
   if(forcePromoteBtn) forcePromoteBtn.onclick = () => adminForcePromote(ev.id);
   const inviteToggleBtn = card.querySelector('[data-invite-toggle]');
