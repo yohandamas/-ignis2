@@ -293,13 +293,13 @@
     display:inline-flex;align-items:center;gap:3px;flex-wrap:wrap;max-width:100%;box-sizing:border-box;}
   .name-chip-hidden{background:var(--accent-soft) !important;color:var(--accent-dark) !important;border:1px solid var(--accent);}
   .chip-hidden-tag{font-size:calc(9px * var(--font-scale, 1));font-weight:800;color:var(--accent-dark);margin-left:2px;}
-  .chip-promoted-tag{font-size:calc(9px * var(--font-scale, 1));font-weight:800;color:var(--brand-dark);margin-left:2px;}
+  .chip-promoted-tag{font-size:calc(9px * var(--font-scale, 1));font-weight:800;color:var(--brand-dark);margin-left:2px;white-space:nowrap;}
   .name-chip-invite{background:var(--panel);border:1px solid var(--accent);}
   .chip-invite-tag{font-size:calc(9px * var(--font-scale, 1));font-weight:800;border-radius:5px;padding:1px 5px;margin-left:2px;}
   .chip-invite-tag.member{background:var(--brand-soft);color:var(--brand-dark);}
   .chip-invite-tag.guest{background:var(--accent-soft);color:var(--accent-dark);}
-  .chip-invite-by{font-size:calc(9px * var(--font-scale, 1));color:var(--ink-soft);margin-left:3px;}
-  .chip-ts{font-size:calc(10px * var(--font-scale, 1));font-weight:600;opacity:.75;margin-left:2px;}
+  .chip-invite-by{font-size:calc(9px * var(--font-scale, 1));color:var(--ink-soft);margin-left:3px;white-space:nowrap;}
+  .chip-ts{font-size:calc(10px * var(--font-scale, 1));font-weight:600;opacity:.75;margin-left:2px;white-space:nowrap;}
   .chip-district{font-size:calc(9px * var(--font-scale, 1));font-weight:700;background:var(--bg);color:var(--ink-soft);
     border-radius:5px;padding:1px 4px;margin-left:3px;}
   .chip-district-gwae{background:var(--accent-soft);color:var(--accent-dark);}
@@ -551,7 +551,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.175</span>
+      <span id="buildVersionTop" class="build-version-top">v.176</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -3317,7 +3317,12 @@ function renderNameChips(entries, suffix, showDistrict, eventId, startIdx){
     // 다른 항목이 이 뱃지를 잘못 받을 위험은 없음 — DB 스키마 변경 없이 조건만 단순화하면 안전하게 해결됨
     const guestInviteTag = e.invitedBy ? ` <span class="chip-invite-by">(${escapeHtml(e.invitedBy)}님 초청)</span>` : ''; // 게스트 옆에 누가 초대했는지 표시
     const histAttr = eventId ? ` data-hist-key="${eventId}|${escapeHtml(name)}" data-fallback-ts="${ts||''}"` : '';
-    const label = `${startIdx+idx+1}. ${escapeHtml(name)}${hiddenTag}${promotedTag}${districtTag}${suffix}${timeStr ? `<span class="chip-ts"${histAttr} style="${eventId?'cursor:pointer;text-decoration:underline dotted;':''}">${timeStr}</span>` : ''}${lateTag}${lessonTag}${guestInviteTag}`;
+    // ⚠️ 버그수정: 기존엔 "순번. 이름"과 시간/레슨/늦참 태그가 하나의 텍스트로 뒤섞여 name-chip(flex-wrap) 안에 들어가다 보니,
+    // flex가 "레슨"과 "19:30)" 사이처럼 의미상 붙어있어야 할 것도 제멋대로 갈라서 줄바꿈하는 문제가 있었음(실제 재현 확인).
+    // 이름 부분을 별도 nowrap span으로 감싸 칩 내부 요소들이 각자 하나의 단위로만 줄바꿈되도록 수정
+    // (매우 긴 게스트 이름 대비 overflow-wrap:anywhere로, 정말 안 들어갈 땐 강제로라도 화면 밖으로 안 나가게 안전장치)
+    const nameLabel = `<span style="white-space:nowrap;overflow-wrap:anywhere;">${startIdx+idx+1}. ${escapeHtml(name)}${hiddenTag}${promotedTag}${districtTag}${suffix}</span>`;
+    const label = `${nameLabel}${timeStr ? `<span class="chip-ts"${histAttr} style="${eventId?'cursor:pointer;text-decoration:underline dotted;':''}">${timeStr}</span>` : ''}${lateTag}${lessonTag}${guestInviteTag}`;
     let chipClass = e.hidden ? 'name-chip name-chip-hidden' : 'name-chip';
     if(hasAdminPower()){
       const evForChip = eventId ? getInstances().find(x => x.id === eventId) : null;
