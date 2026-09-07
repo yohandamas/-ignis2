@@ -315,6 +315,14 @@
   .ev-actions{display:flex;flex-direction:column;gap:6px;padding-top:10px;border-top:1px solid var(--bg);}
   .ev-actions-main{display:flex;gap:6px;}
   .ev-actions-sub{display:flex;gap:6px;flex-wrap:wrap;}
+  .attend-sheet-backdrop{display:none;position:fixed;inset:0;z-index:900;background:rgba(0,0,0,0.5);align-items:flex-end;justify-content:center;}
+  .attend-sheet{width:100%;max-width:520px;background:var(--panel);border-radius:20px 20px 0 0;border-top:1px solid var(--line);padding:16px 14px calc(16px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:8px;}
+  .attend-sheet-title{font-size:calc(12px * var(--font-scale, 1));color:var(--ink-soft);font-weight:700;margin-bottom:2px;}
+  .attend-sheet-opt{border:1px solid var(--line);background:var(--bg);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;cursor:pointer;}
+  .attend-sheet-opt b{font-size:calc(14px * var(--font-scale, 1));font-weight:800;color:var(--ink);}
+  .attend-sheet-opt span{font-size:calc(11px * var(--font-scale, 1));color:var(--ink-soft);}
+  .attend-sheet-opt:active{background:var(--brand-soft);}
+  .attend-sheet-cancel{border:1px solid var(--line);background:transparent;color:var(--ink-soft);border-radius:12px;height:42px;font-size:calc(12px * var(--font-scale, 1));font-weight:700;cursor:pointer;margin-top:4px;}
   .vote-btn{flex:1;min-width:70px;border:1.5px solid var(--line);background:var(--panel);border-radius:20px;padding:8px 4px;
     font-size:calc(12px * var(--font-scale, 1));font-weight:700;color:var(--ink-soft);cursor:pointer;}
   .vote-btn.attend-main{padding:0;height:44px;display:flex;align-items:center;justify-content:center;box-sizing:border-box;font-size:calc(14px * var(--font-scale, 1));font-weight:800;border-radius:12px;border-width:2px;} /* 참석·불참 높이를 고정해 항상 일정하게(위쪽 주요 선택) */
@@ -531,7 +539,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.172</span>
+      <span id="buildVersionTop" class="build-version-top">v.173</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -3395,6 +3403,16 @@ function renderEventCard(ev){
   const isPendingA = pending && pending.status==='absent';
   const isPendingW = pending && pending.status==='waiting';
 
+  // ⚠️ 신규: 참석/불참 2개 메인버튼만 남기고, 늦참·레슨·대기는 "참석" 버튼 클릭시 뜨는 선택시트로 통합(심플버전과 동일한 UX패턴).
+  // "참석" 버튼 자체의 라벨이 현재 내 상태(정상참석/늦참/레슨/대기)에 따라 동적으로 바뀌어, 버튼 하나로 상태를 표시하고 진입점도 됨
+  let attendLabel = `✅ 참석${state.myIsStaff?' ★':''}`;
+  if(myStatus === 'attend' && !pending){
+    if(myVote.lateArrival) attendLabel = `⏰ 참석·늦참 ${myVote.lateMinutes||''}분`;
+    else if(myVote.lessonTime) attendLabel = `📚 참석·레슨 ${myVote.lessonTime}`;
+  } else if(myStatus === 'waiting' && !pending){
+    attendLabel = '🕐 대기중';
+  }
+
   const memberOptions = getActiveMembers().slice().sort((a,b)=>a.name.localeCompare(b.name,'ko'))
     .map(m => `<option value="${escapeHtml(m.name)}">${escapeHtml(m.name)} (${m.gender}/${m.district})</option>`).join('');
   const isLocked = !hasAdminPower() && isLockedForMembers(ev);
@@ -3492,13 +3510,26 @@ function renderEventCard(ev){
     ${lateRequestHtml}
     <div class="ev-actions">
       <div class="ev-actions-main">
-        <button class="vote-btn attend-main ${isPendingF || isPendingM ? 'pending-sel' : (myStatus==='attend' ? (myHidden ? 'sel-attend-hidden' : (myVote.gender==='여' ? 'sel-attend-f' : 'sel-attend-m')) : '')}" data-status="attend">✅ 참석${state.myIsStaff?' ★':''}</button>
+        <button class="vote-btn attend-main ${isPendingF || isPendingM || isPendingW ? 'pending-sel' : (myStatus==='attend' ? (myHidden ? 'sel-attend-hidden' : (myVote.gender==='여' ? 'sel-attend-f' : 'sel-attend-m')) : (myStatus==='waiting' ? 'sel-waiting' : ''))}" data-attend-sheet="${ev.id}">${attendLabel}</button>
         <button class="vote-btn attend-main ${isPendingA ? 'pending-sel' : (myStatus==='absent'?'sel-absent':'')}" data-status="absent">🚫 불참</button>
       </div>
-      <div class="ev-actions-sub">
-        <button class="late-arrival-btn" data-late-arrival="${ev.id}">⏰ 늦참</button>
-        <button class="late-arrival-btn" data-lesson-participate="${ev.id}">📚 레슨</button>
-        <button class="vote-btn ${isPendingW ? 'pending-sel' : (myStatus==='waiting'?'sel-waiting':'')}" data-status="waiting">대기</button>
+    </div>
+    <div class="attend-sheet-backdrop" id="attendSheetBackdrop-${ev.id}" style="display:none;">
+      <div class="attend-sheet">
+        <div class="attend-sheet-title">어떤 방식으로 참석하시겠어요?</div>
+        <button class="attend-sheet-opt" data-attend-opt="attend" data-ev="${ev.id}">
+          <b>1&nbsp;&nbsp;참석</b><span>정상 시간에 참석</span>
+        </button>
+        <button class="attend-sheet-opt" data-attend-opt="late" data-ev="${ev.id}">
+          <b>2&nbsp;&nbsp;늦참</b><span>늦는 시간(분) 입력</span>
+        </button>
+        <button class="attend-sheet-opt" data-attend-opt="lesson" data-ev="${ev.id}">
+          <b>3&nbsp;&nbsp;레슨</b><span>레슨 시간 입력</span>
+        </button>
+        <button class="attend-sheet-opt" data-attend-opt="waiting" data-ev="${ev.id}">
+          <b>4&nbsp;&nbsp;대기</b><span>정원 초과 시 대기로 등록</span>
+        </button>
+        <button class="attend-sheet-cancel" data-attend-opt="close" data-ev="${ev.id}">닫기</button>
       </div>
     </div>
     <details class="guest-add-toggle">
@@ -3589,10 +3620,27 @@ function renderEventCard(ev){
   if(guestBtn) guestBtn.onclick = () => addGuest(ev.id);
   const ballQuickBtn = card.querySelector('[data-ball-quick]');
   if(ballQuickBtn) ballQuickBtn.onclick = () => checkBallQuickUse(ev.id);
-  const lateArrivalBtn = card.querySelector('[data-late-arrival]');
-  if(lateArrivalBtn) lateArrivalBtn.onclick = () => checkLateArrival(ev.id);
-  const lessonBtn = card.querySelector('[data-lesson-participate]');
-  if(lessonBtn) lessonBtn.onclick = () => checkLessonParticipation(ev.id);
+  const attendSheetBtn = card.querySelector('[data-attend-sheet]');
+  if(attendSheetBtn) attendSheetBtn.onclick = () => {
+    if(!state.myGender){ alert('성별 정보가 없어요. 관리자에게 문의해 주세요.'); return; }
+    const backdrop = card.querySelector(`#attendSheetBackdrop-${ev.id}`);
+    if(backdrop) backdrop.style.display = 'flex';
+  };
+  card.querySelectorAll('[data-attend-opt]').forEach(btn => {
+    btn.onclick = () => {
+      const opt = btn.getAttribute('data-attend-opt');
+      const evId = btn.getAttribute('data-ev') || ev.id;
+      const backdrop = card.querySelector(`#attendSheetBackdrop-${ev.id}`);
+      if(backdrop) backdrop.style.display = 'none';
+      if(opt === 'close') return;
+      if(opt === 'attend') selectPending(evId, 'attend', state.myGender);
+      else if(opt === 'waiting') selectPending(evId, 'waiting', state.myGender);
+      else if(opt === 'late') checkLateArrival(evId);
+      else if(opt === 'lesson') checkLessonParticipation(evId);
+    };
+  });
+  const attendSheetBackdrop = card.querySelector(`#attendSheetBackdrop-${ev.id}`);
+  if(attendSheetBackdrop) attendSheetBackdrop.onclick = (e) => { if(e.target === attendSheetBackdrop) attendSheetBackdrop.style.display = 'none'; };
   const inviteBtn = card.querySelector(`#inviteAddBtn-${ev.id}`);
   if(inviteBtn) inviteBtn.onclick = () => addInviteAttendee(ev.id);
   const inviteSelfBtn = card.querySelector('[data-invite-self]');
