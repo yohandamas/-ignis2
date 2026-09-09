@@ -161,7 +161,13 @@
   .guest-add-toggle summary::-webkit-details-marker{display:none;}
   .guest-add-toggle[open] summary{border-radius:8px 8px 0 0;border-bottom:none;}
   .guest-add-toggle .guest-add-form{border:1px solid var(--line);border-top:none;border-radius:0 0 8px 8px;padding:10px;}
-  .guest-add-form{display:flex;gap:5px;margin-top:6px;flex-wrap:wrap;}
+  /* ⚠️ 심각한 버그 발견·수정: .guest-add-form에 display:flex가 details의 열림여부와 무관하게 항상 적용되고 있었음.
+     <details>는 원래 브라우저가 "닫혀있으면 summary 이후 내용을 자동으로 숨김" 처리하는데, 여기에 display:flex를
+     명시적으로 줘버려서 그 기본 숨김 기능이 무효화됨 - 닫혀있어도 폼(이름입력·성별선택·구력입력·추가버튼)이
+     실제로는 81px 높이로 "보이지는 않지만 존재"하면서 details 박스(44px) 밖으로 넘쳐, 옆 버튼과의 경계선이
+     흐릿해지거나 아래 줄(마감/승급)과 애매하게 겹치는 시각적 결함을 만들었음. 열렸을 때만 flex 적용되도록 수정 */
+  .guest-add-form{display:none;gap:5px;margin-top:6px;flex-wrap:wrap;}
+  .guest-add-toggle[open] .guest-add-form{display:flex;}
   .ev-actions-row2,.close-actions-row{display:flex;gap:8px;margin-top:8px;}
   .ev-actions-row2:has(.guest-add-toggle[open]){flex-direction:column;} /* 게스트폼이 열리면 세로쌓기로 전환해 옆 버튼(클럽볼)과 겹치지 않도록 */
   .ev-actions-row2 .guest-add-toggle.row2-item,.ev-actions-row2 .ball-quick-btn.row2-item,.close-actions-row .court3-toggle-btn{
@@ -551,7 +557,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.179</span>
+      <span id="buildVersionTop" class="build-version-top">v.180</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
