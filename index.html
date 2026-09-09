@@ -557,7 +557,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.180</span>
+      <span id="buildVersionTop" class="build-version-top">v.181</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -4300,7 +4300,10 @@ async function checkLessonParticipation(eventId){
 // ⚠️ 신규기능: "참석취소" 통계 - ①참석 후 재클릭으로 완전삭제(unset), ②참석 후 불참으로 전환(to_absent) 두 경우를
 // 모두 별도 테이블(ignis_attend_cancels)에 기록. ignis_state(매 폴링마다 통째로 재조회되는 곳)에는 넣지 않고
 // 독립 테이블로 분리해 egress 부담 없이 월간/분기/연간 집계가 가능하도록 설계
+// ⚠️ 요청에 따라 운영진(관리자/스태프/VIP3)은 카운트에서 제외 - 회원 인원수를 보고 코트간 인원조정을 위해
+// 부득이하게 본인 참석을 취소하는 경우가 많아, 이를 "참취왕" 랭킹에 반영하는 건 부적절하다는 판단
 async function recordAttendCancel(eventId, cancelType){
+  if(hasAdminPower() || state.myIsStaff || isVip3(state.myName)) return; // 운영진은 카운트 제외
   try{
     await sb.from('ignis_attend_cancels').insert({ member_name: state.myName, event_id: eventId, cancel_type: cancelType, ts: Date.now() });
   }catch(e){ console.error('참석취소 기록 실패', e); }
