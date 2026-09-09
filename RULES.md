@@ -1887,3 +1887,22 @@ egress 5GB 무료한도 초과 발생. 원인분석 결과 20초마다 모든 �
 ### 검증
 - node -c 구문검증, ID매칭, 중복함수, 전역 MEMBERS 정상 전체 통과
 - 실제 renderNameChips()로 최윤하/서힘찬/홍진경/임유나 예시데이터 렌더링 - 정확히 "이름 시간 사유" 형식으로 줄맞춰 표시되는 것 스크린샷 확인
+
+## v178. "참석취소왕(참취왕)" 랭킹 신설 - 참석랭킹 패널에 통합
+
+### 배경
+참석 눌렀다가 ①본인 재클릭으로 완전삭제 또는 ②불참으로 전환하는 두 경우를 구분감지해서 카운트, 월간/분기/연간 Top5 랭킹으로 참석랭킹 패널에 표시 요청
+
+### 설계
+| 항목 | 내용 |
+|---|---|
+| 신규 테이블 | ignis_attend_cancels(member_name, event_id, cancel_type['to_absent'|'unset'], ts) - ignis_state(매 폴링시 통째로 재조회)에 안 넣고 별도 테이블로 분리해 egress 부담 없이 기간별 집계 가능하도록 설계 |
+| 감지지점① | setVote()에서 참석버튼 재클릭으로 완전삭제(delete votes[name])되는 기존 로직 지점에 cancel_type:'unset'으로 기록 |
+| 감지지점② | setVote()에서 "직전상태가 참석이었는데 이번 status가 참석이 아님"을 이미 판별하던 기존 조건문(cancelRelatedConsecutiveWaiting 호출지점)에, status==='absent'인 경우만 cancel_type:'to_absent'로 기록 - 참석→대기 전환은 제외 |
+| UI | 기존 참석랭킹 패널(rankModal) 하단에 "🚫 참석취소왕(참취왕)" 섹션 신설, 월간/분기/연간 자체 탭, Top5 리스트, 1위는 👑(참취왕) 표시 |
+| 기존기능과 구분 | 기존 sameDayCancelStats(당일취소, 3시간이내·복식무산 조건부 페널티용)와는 목적이 다른 별도 통계 - 조건 없이 모든 참석취소를 집계 |
+
+### 검증
+- node -c 구문검증, ID매칭, 중복함수, 전역 MEMBERS 정상 전체 통과
+- recordAttendCancel() 호출지점 정확히 2곳(unset/to_absent) 확인
+- 실제 브라우저에서 mock 데이터(곽선주3회·김태주2회·이수진1회)로 renderCancelRankBody() 실행 - 정확한 내림차순 정렬 및 1위 참취왕 왕관표시 확인

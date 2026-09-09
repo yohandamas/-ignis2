@@ -551,7 +551,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.177</span>
+      <span id="buildVersionTop" class="build-version-top">v.178</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -594,6 +594,16 @@
       <div class="rank-period-label" id="rankPeriodLabel"></div>
       <div id="rankContent"></div>
       <div class="rank-note">같은 날 연속 세션(연참)에 참석하면 그 날은 2회로 계산됩니다.</div>
+      <div style="border-top:1px dashed var(--line);margin:14px 0;"></div>
+      <div style="font-weight:800;font-size:calc(14px * var(--font-scale, 1));color:var(--danger);margin-bottom:8px;">🚫 참석취소왕 (참취왕)</div>
+      <div class="rank-tabs">
+        <button class="rank-tab on" data-cancel-period="month">월간</button>
+        <button class="rank-tab" data-cancel-period="quarter">분기</button>
+        <button class="rank-tab" data-cancel-period="year">연간</button>
+      </div>
+      <div class="rank-period-label" id="cancelRankPeriodLabel"></div>
+      <div id="cancelRankContent"></div>
+      <div class="rank-note">참석 등록 후 재클릭으로 취소하거나, 불참으로 바꾼 경우를 합산합니다.</div>
     </div>
   </div>
   <div class="guide-modal" id="guideModal">
@@ -930,6 +940,12 @@ function getQuarterRange(){
   const first = new Date(now.getFullYear(), q*3, 1);
   const last = new Date(now.getFullYear(), q*3+3, 0);
   return [localIso(first), localIso(last), q+1];
+}
+function getYearRange(){
+  const now = new Date();
+  const first = new Date(now.getFullYear(), 0, 1);
+  const last = new Date(now.getFullYear(), 11, 31);
+  return [localIso(first), localIso(last)];
 }
 
 function extractDateFromEventId(eventId){
@@ -4275,6 +4291,15 @@ async function checkLessonParticipation(eventId){
   }
 }
 
+// ⚠️ 신규기능: "참석취소" 통계 - ①참석 후 재클릭으로 완전삭제(unset), ②참석 후 불참으로 전환(to_absent) 두 경우를
+// 모두 별도 테이블(ignis_attend_cancels)에 기록. ignis_state(매 폴링마다 통째로 재조회되는 곳)에는 넣지 않고
+// 독립 테이블로 분리해 egress 부담 없이 월간/분기/연간 집계가 가능하도록 설계
+async function recordAttendCancel(eventId, cancelType){
+  try{
+    await sb.from('ignis_attend_cancels').insert({ member_name: state.myName, event_id: eventId, cancel_type: cancelType, ts: Date.now() });
+  }catch(e){ console.error('참석취소 기록 실패', e); }
+}
+
 async function setVote(eventId, status, gender){
   if(!state.myName){ alert('먼저 로그인하거나 회원을 선택해 주세요.'); return; }
   const ev = getInstances().find(e => e.id === eventId);
@@ -4355,6 +4380,7 @@ async function setVote(eventId, status, gender){
     if(existing && existing.status === 'attend' && existing.gender === g){
       delete votes[state.myName];
       pushNotification(`${state.myName}님이 ${label} 참석을 취소했습니다.`, {eventId, actor: state.myName});
+      recordAttendCancel(eventId, 'unset');
 
       // 당일취소 판정: 시작 3시간 이내 취소 OR 본인 취소로 복식(4인) 불가능
       // 단, 참석 체크 후 30분 이내 취소는 오조작 가능성을 감안해 카운트하지 않음
@@ -4569,6 +4595,7 @@ async function setVote(eventId, status, gender){
   await saveVoteRow(eventId, state.myName, votes[state.myName] || null);
   if(status !== 'attend' && existing && existing.status === 'attend'){
     await cancelRelatedConsecutiveWaiting(ev, state.myName);
+    if(status === 'absent') recordAttendCancel(eventId, 'to_absent'); // 참석→불참 전환만 카운트(참석→대기 전환은 제외)
   }
   checkDoublesBroken(ev, beforeCounts, state.myName, hasAdminPower());
   if(status === 'attend' && ev.location === '종합운동장' && state.myDistrict === '관내'){
@@ -5235,7 +5262,7 @@ function syncAdminUI(){
 
 document.getElementById('undoPanelBtn').onclick = () => undoLastAdminAction();
 document.getElementById('topTodayBtn').onclick = toggleTodayPanel;
-document.getElementById('topRankBtn').onclick = () => { openPanel('rankModal'); renderRankBody(); };
+document.getElementById('topRankBtn').onclick = () => { openPanel('rankModal'); renderRankBody(); renderCancelRankBody(); };
 document.getElementById('adminToggle').onclick = async () => {
   if(!state.adminMode){
     if(state.myIsStaff){
@@ -6754,6 +6781,58 @@ document.getElementById('guideToggle').onclick = () => {
 document.getElementById('guideModalClose').onclick = () => closePanels();
 
 let currentRankPeriod = 'week';
+let currentCancelRankPeriod = 'month';
+
+async function renderCancelRankBody(){
+  let startIso, endIso, label;
+  if(currentCancelRankPeriod === 'month'){
+    [startIso, endIso] = getMonthRange();
+    label = `${new Date().getMonth()+1}월`;
+  } else if(currentCancelRankPeriod === 'quarter'){
+    const [s, e, qn] = getQuarterRange();
+    startIso = s; endIso = e;
+    label = `${qn}분기`;
+  } else {
+    [startIso, endIso] = getYearRange();
+    label = `${new Date().getFullYear()}년`;
+  }
+  document.getElementById('cancelRankPeriodLabel').textContent = label;
+  const content = document.getElementById('cancelRankContent');
+  content.innerHTML = `<div class="rank-empty">불러오는 중...</div>`;
+
+  const startTs = new Date(startIso + 'T00:00:00').getTime();
+  const endTs = new Date(endIso + 'T23:59:59').getTime();
+  try{
+    const { data, error } = await sb.from('ignis_attend_cancels').select('member_name').gte('ts', startTs).lte('ts', endTs);
+    if(error) throw error;
+    const counts = {};
+    (data || []).forEach(row => { counts[row.member_name] = (counts[row.member_name] || 0) + 1; });
+    const ranking = Object.entries(counts).map(([name, count]) => ({name, count})).sort((a,b) => b.count - a.count).slice(0, 5);
+    if(ranking.length === 0){
+      content.innerHTML = `<div class="rank-empty">해당 기간 참석취소 기록이 없습니다.</div>`;
+      return;
+    }
+    content.innerHTML = ranking.map((r, i) => `
+      <div class="rank-row">
+        <span class="rank-num">${i===0 ? '👑' : (i+1)+'.'}</span>
+        <span class="rank-name">${escapeHtml(r.name)}${i===0 ? ' <b style="color:var(--danger);">(참취왕)</b>' : ''}</span>
+        <span class="rank-score">${r.count}회</span>
+      </div>
+    `).join('');
+  }catch(e){
+    console.error('참석취소랭킹 조회 실패', e);
+    content.innerHTML = `<div class="rank-empty">불러오기 실패 — 잠시 후 다시 시도해 주세요.</div>`;
+  }
+}
+document.querySelectorAll('.rank-tab[data-cancel-period]').forEach(tab => {
+  tab.onclick = () => {
+    document.querySelectorAll('.rank-tab[data-cancel-period]').forEach(t => t.classList.remove('on'));
+    tab.classList.add('on');
+    currentCancelRankPeriod = tab.getAttribute('data-cancel-period');
+    renderCancelRankBody();
+  };
+});
+
 let currentRankCategory = '전체';
 
 function renderRankBody(){
