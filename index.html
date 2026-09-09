@@ -551,7 +551,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.178</span>
+      <span id="buildVersionTop" class="build-version-top">v.179</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -2791,7 +2791,7 @@ async function buildWeeklyReport(){
   lines.push('⚠️ 복식 무산 유발 취소 (누적)');
   lines.push(cancelLines.length ? cancelLines.join('\n') : '취소 기록 없음');
   lines.push('');
-  lines.push('🚨 당일취소 (시작 3시간 이내 또는 복식무산 유발, 누적)');
+  lines.push('🚨 당일취소 (시작 4시간 이내 또는 복식무산 유발, 누적)');
   lines.push(sameDayLines.length ? sameDayLines.join('\n') : '기록 없음');
   lines.push('');
   lines.push(`🔐 지문체크 미완료 (${notDone.length}/${targets.length}명)`);
@@ -4382,14 +4382,14 @@ async function setVote(eventId, status, gender){
       pushNotification(`${state.myName}님이 ${label} 참석을 취소했습니다.`, {eventId, actor: state.myName});
       recordAttendCancel(eventId, 'unset');
 
-      // 당일취소 판정: 시작 3시간 이내 취소 OR 본인 취소로 복식(4인) 불가능
+      // 당일취소 판정: 시작 4시간 이내 취소 OR 본인 취소로 복식(4인) 불가능
       // 단, 참석 체크 후 30분 이내 취소는 오조작 가능성을 감안해 카운트하지 않음
       // 관리자는 당일취소 카운트/페널티 완전 면제
       const minutesSinceAttended = (Date.now() - (existing.ts || 0)) / (1000*60);
       const withinGracePeriod = minutesSinceAttended <= 30;
       const startDt = getEventDateTime(ev);
       const hoursUntilStart = (startDt.getTime() - Date.now()) / (1000*60*60);
-      const isTimeBased = hoursUntilStart >= 0 && hoursUntilStart <= 3;
+      const isTimeBased = hoursUntilStart >= 0 && hoursUntilStart <= 4;
       const afterCounts = computedCounts(ev);
       const brokenGeneral = beforeCounts.doublesMixed && !afterCounts.doublesMixed;
       const brokenMale = beforeCounts.doublesMale && !afterCounts.doublesMale;
@@ -4411,7 +4411,7 @@ async function setVote(eventId, status, gender){
         const newCount = (state.data.sameDayCancelStats[state.myName] || 0) + 1;
         state.data.sameDayCancelStats[state.myName] = newCount;
         markDirty('sameDayCancelStats', state.myName);
-        const reason = isTimeBased && isDoublesBroken ? '시작 3시간 이내 취소 + 복식 무산' : isTimeBased ? '시작 3시간 이내 취소' : '복식 무산 유발';
+        const reason = isTimeBased && isDoublesBroken ? '시작 4시간 이내 취소 + 복식 무산' : isTimeBased ? '시작 4시간 이내 취소' : '복식 무산 유발';
         if(!state.data.warnings) state.data.warnings = {};
         if(!state.data.warnings[state.myName]) state.data.warnings[state.myName] = [];
         const autoWarnId = 'w' + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
