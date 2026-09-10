@@ -557,7 +557,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.181</span>
+      <span id="buildVersionTop" class="build-version-top">v.182</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -4598,13 +4598,15 @@ async function setVote(eventId, status, gender){
       } else {
         votes[state.myName] = { status, gender: state.myGender, district: state.myDistrict, ts: Date.now() };
         pushNotification(`${state.myName}님 ${label} 불참 체크`, {eventId, actor: state.myName});
+        // ⚠️ 요청에 따라 범위 확장: 기존엔 "참석→불참 전환"만 카운트했는데, 처음부터 바로 불참을 누르거나
+        // 대기하다가 불참으로 바꾸는 경우도 전부 포함되도록 여기(불참으로 실제 저장되는 지점)로 이동
+        recordAttendCancel(eventId, 'to_absent');
       }
     }
   }
   await saveVoteRow(eventId, state.myName, votes[state.myName] || null);
   if(status !== 'attend' && existing && existing.status === 'attend'){
     await cancelRelatedConsecutiveWaiting(ev, state.myName);
-    if(status === 'absent') recordAttendCancel(eventId, 'to_absent'); // 참석→불참 전환만 카운트(참석→대기 전환은 제외)
   }
   checkDoublesBroken(ev, beforeCounts, state.myName, hasAdminPower());
   if(status === 'attend' && ev.location === '종합운동장' && state.myDistrict === '관내'){
