@@ -557,7 +557,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.182</span>
+      <span id="buildVersionTop" class="build-version-top">v.183</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -6076,7 +6076,7 @@ function checkDawnFourPlusPopup(){
   });
 }
 
-// ⚠️ 신규기능: 당일 코트 시작 4시간전 시점에 남자/여자 인원이 "홀수"이거나 "4명 미만"이면 복식 진행이 어려울 수 있음을
+// ⚠️ 신규기능: 당일 코트 시작 4시간전 시점에 남자/여자 인원이 "4명 미만"이면 복식 진행이 어려울 수 있음을
 // 관리자/운영진에게 미리 경고 - 기존 checkCourt3ConfirmPopup과 동일한 패턴(N시간전 구간 체크, localStorage 1회제한, isPrivileged 대상)
 // 단, 인원수가 바뀌면 상황이 달라지니 "같은 인원수 조합"에 대해서만 1회로 제한(인원이 변하면 다시 알림)
 function checkDoublesShortagePopup(){
@@ -6092,7 +6092,10 @@ function checkDoublesShortagePopup(){
     if(!isPrivileged) return;
 
     const counts = computedCounts(ev);
-    const isShortage = (n) => n > 0 && (n % 2 !== 0 || n < 4); // 홀수 또는 4명 미만(단, 0명은 애초에 복식 시도 자체가 없던 것이라 제외)
+    // ⚠️ 수정: 기존엔 "홀수 또는 4명 미만"일 때 경고했는데, 5·7명처럼 4명 이상이면서 홀수인 경우는
+    // 이미 4명이서 정상적으로 복식(2:2) 진행이 가능하고 나머지는 대기·로테이션하면 되니 "복식이 어렵다"는
+    // 경고를 띄울 이유가 없음(실사례로 5명일 때도 경고가 뜨는 문제 제보받아 확인). 4명 미만일 때만 경고하도록 수정
+    const isShortage = (n) => n > 0 && n < 4; // 0명은 애초에 복식 시도 자체가 없던 것이라 제외, 4명 이상이면 항상 복식 가능하니 제외
     const maleShort = isShortage(counts.male);
     const femaleShort = isShortage(counts.female);
     if(!maleShort && !femaleShort) return;
