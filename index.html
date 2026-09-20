@@ -557,7 +557,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.183</span>
+      <span id="buildVersionTop" class="build-version-top">v.184</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -2188,18 +2188,9 @@ function buildCourtArrangementSuggestion(female, male, courtCount, waitingCount)
     core = `혼복`;
   }
   const particle = /(교대|코트)$/.test(core) ? '로' : '으로';
-  const closing = pickVariant([
-    '즐테하세요! 🎾',
-    '화이팅 하세요! 💪',
-    '재밌게 치세요! 😊',
-    '다치지 않고 즐겁게 운동하세요! 🎾',
-    '오늘도 화이팅! 🔥',
-    '빡겜 기원합니다! 🔥',
-    '쫄깃한 게임 보여주세요! 🎾',
-    '이기는 팀이 우리 팀! 😄',
-    '행테하세요! 🎾'
-  ]);
-  return `오늘 참석 인원은 여${female}+남${male}=${total}명이에요. ${core}${particle} 진행하시면 좋을 것 같아요. ${closing}`;
+  // ⚠️ 요청에 따라 "쫄깃한 게임 보여주세요", "이기는 팀이 우리 팀" 등 촌스러운 응원 멘트 9종을 완전히 제거하고
+  // 담백하게 정보전달만 하도록 문장 정리 (기존: "~하시면 좋을 것 같아요. [랜덤 응원문구]")
+  return `오늘 참석 인원은 여${female}+남${male}=${total}명입니다. ${core}${particle} 진행을 추천드려요.`;
 }
 
 async function checkCourtArrangementSuggestion(){
