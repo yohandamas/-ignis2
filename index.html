@@ -557,7 +557,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.184</span>
+      <span id="buildVersionTop" class="build-version-top">v.185</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -2692,6 +2692,9 @@ async function checkHeavyWaitingList(){
   const tmr = localIso(new Date(Date.now() + 86400000));
   for(const ev of getInstances()){
     if(ev.event_date !== t && ev.event_date !== tmr) continue;
+    // ⚠️ 요청에 따라 제외: 3번코트 미확보 이벤트는 코트 특성상 확보 전까지 대기가 계속 쌓일 수밖에 없는 구조라
+    // 이 "대기 많이 쌓임" 알림 자체가 무의미함(정상적인 상황인데 매번 알림이 뜨는 문제) - 3번코트 확보되면 다시 대상에 포함됨
+    if(ev.includesCourt3 && !ev.court3Confirmed) continue;
     const counts = computedCounts(ev);
     const totalWaiting = counts.waiting;
     const flagKey = 'heavy_wait_' + ev.id;
@@ -4193,13 +4196,9 @@ async function checkLateArrival(eventId){
     state.data.comments[eventId].push({ id: newId, name: state.myName, text: commentText, ts: Date.now() });
 
     pushNotification(`${state.myName}님이 ${label}에 늦참(${lateMinutes}분) 예정으로 ${actuallyAttended ? '참석' : '대기'} 등록되었습니다.`, {eventId, actor: state.myName});
-    if(actuallyAttended){
-      await postAiAdminComment(eventId, `⏰ ${state.myName}님이 늦참(${lateMinutes}분) 예정으로 참석 처리되었습니다.${isWithin30 ? ' (30분 이내라 일반 참석과 동일하게 처리)' : ''}`);
-    } else if(isWithin30){
-      await postAiAdminComment(eventId, `⏰ ${state.myName}님이 늦참(${lateMinutes}분) 예정으로 신청하셨지만, 정원이 이미 차있어 일반 대기와 동일하게 대기 처리되었습니다. 자리가 나면 순서대로 승급됩니다.`);
-    } else {
-      await postAiAdminComment(eventId, `⏰ ${state.myName}님이 늦참(${lateMinutes}분) 예정으로 등록되었습니다. 30분을 초과해서 선대기 상태이며, 자리가 나면 자동으로 참석 승급됩니다. (우선순위: 일반대기>늦참>연속참석대기)`);
-    }
+    // ⚠️ 요청에 따라 제거: 기존엔 본인이 직접 쓴 댓글(위 insertCommentRow) 외에 AI관리자가 같은 내용을 또 댓글로 남겨서
+    // 사실상 같은 정보가 2번(본인 댓글 + AI관리자 댓글) 달리던 문제. 이미 참석칩에 "N분 늦참" 배지로도 표시되니
+    // AI관리자 댓글은 중복이라 제거, 본인이 쓴 위 댓글만 유지
 
     const ok = await saveData();
     if(!ok) alert('저장에 실패했습니다. 다시 시도해 주세요.');
@@ -4275,7 +4274,9 @@ async function checkLessonParticipation(eventId){
       }
     }
 
-    await postAiAdminComment(eventId, `📚 ${state.myName}님이 ${lessonTime} 레슨 예정으로 등록되었습니다. 해당 시간대에는 잠시 자리를 비울 수 있어요.`);
+    // ⚠️ 요청에 따라 제거: 레슨 정상등록시엔 별도 댓글을 남기지 않음 - 이미 참석칩에 "HH:MM 레슨시작" 배지로 표시되니
+    // AI관리자 댓글은 중복 정보라 판단. 단, 위쪽의 "복식부족으로 대기 전환"되는 특수 상황은 예상과 다른 중요한
+    // 상태변화이므로 그 댓글(4258번줄 근처)은 그대로 유지함
 
     const ok = await saveData();
     if(!ok) alert('저장에 실패했습니다. 다시 시도해 주세요.');
