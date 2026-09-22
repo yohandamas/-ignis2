@@ -557,7 +557,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.185</span>
+      <span id="buildVersionTop" class="build-version-top">v.186</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -2487,60 +2487,69 @@ async function tryAutoPromote(ev){
   }
   if(state.data.preClosed && state.data.preClosed[ev.id]) return false;
 
-  const votes = state.data.votes[ev.id] || {};
-  const counts = computedCounts(ev);
-  let available = ev.max_players - counts.regularTotal;
-  if(available <= 0) return false;
-
-  const flex = state.data.genderFlex && state.data.genderFlex[ev.id];
-  const waitingEntries = Object.entries(votes)
-    .filter(([,v]) => {
-      if(v.status !== 'waiting') return false;
-      if(['gwae_review','late_request','gwae_wait'].includes(v.type)) return false;
-      if(state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender]) return false; // 관리자가 이 성별을 수동마감했으면, 이미 대기중인 사람도 자동승급 절대 금지(관리자가 이동▾으로 개별 추가하는 것만 예외)
-        if(v.type === 'late_consecutive') return false; // 늦참+연참 동시는 계절 무관 항상 제외 — 시작1시간전 전용경로(checkConsecutiveWaitingLatePromotion)로만 승급
-        if(isPeakSeason() && v.type === 'consecutive') return false; // 순수 연참은 성수기에만 제외 — 시작 1시간전에 별도 승급 기회를 줌
-      if(ev.court_count === 2 && !isDawnEvent(ev)){
-        // 성별당 상한은 코트수에 비례(quota의 절반) — 3번코트 확보시엔 상한 자체를 없애는 게 아니라 늘어난 정원만큼만 비례 확대
-        const myGenderCount = v.gender === '여' ? counts.female : counts.male;
-        const oppositeGenderCount = v.gender === '여' ? counts.male : counts.female;
-        const flexFavorsThisGender = oppositeGenderCount <= 3; // 복식(4명) 기준: 반대성별이 4명 미만(=3명 이하)이면 자기들끼리 복식조차 못 이루니 상한초과 허용. 4명 이상 되는 순간 예외 사라짐(영구고정 genderFlex 대신 매번 실시간 재판정)
-        const genderCap = Math.floor(ev.max_players / 2); // 신규등록(setVote)과 동일 공식 — 확보상태 반영한 현재 정원 기준으로 통일(quota 고정값 쓰면 미확보 구간에서 신규등록과 충돌)
-        if(myGenderCount >= genderCap && !flexFavorsThisGender) return false;
-      }
-      return true;
-    })
-    .sort((a,b) => waitingSortKey(a[1]) - waitingSortKey(b[1]));
-
   let changed = false;
-  for(const [name, v] of waitingEntries){
+  // ⚠️ 신규 버그수정: 아래 로직도 promoteWaitingForCapacity와 동일한 순서역전 위험이 있어 동일하게 재시도루프로 감쌈
+  // (레슨자가 canPromoteRespectingLessonMinimum에 막혀 건너뛰어진 뒤, 같은 패스에서 다른 후보 승급으로 인원이
+  // 늘어나면 레슨자도 승급조건을 만족할 수 있는데, 재시도가 없으면 순서가 역전됨)
+  for(let pass=0; pass<20; pass++){
+    const votes = state.data.votes[ev.id] || {};
+    const counts = computedCounts(ev);
+    let available = ev.max_players - counts.regularTotal;
     if(available <= 0) break;
-    const liveCounts = computedCounts(ev); // 매 승급마다 최신 카운트로 재확인
-    if(!canPromoteRespectingGwaeLimit(ev, liveCounts, v)) continue; // 관외비율 초과시 건너뛰고 다음 후보로
-    if(!canPromoteRespectingLessonMinimum(ev, liveCounts, v)) continue; // 레슨자는 승급후 4명미만이면 건너뛰고 다음 후보로
-    // ⚠️ 핵심: 위쪽 필터링은 "루프 시작 전 한 번"만 계산된 카운트 기준이라, 한 사이클에 여러 명이 연달아 승급되면
-    // 상한을 넘어설 수 있었음(첫 승급 후 카운트가 바뀌어도 재확인이 없었음) — 매 승급 직전 서버 실시간 카운트로 최종 재확인.
-    // 성별상한(2코트일때만)뿐 아니라 전체정원도 court_count와 무관하게 항상 재확인 — 1코트 이벤트가 여러 세션 동시접속으로
-    // 로컬캐시 지연 때문에 정원을 초과해 채워지던 버그로 발견(8/18 유니온 저녁, 정원6명인데 8명까지 채워짐)
-    const liveGenderCounts = await getLiveGenderCounts(ev.id);
-    if(!liveGenderCounts){ continue; } // 실시간 조회 실패시 안전을 위해 이번엔 승급 보류
-    if((liveGenderCounts.male + liveGenderCounts.female) >= ev.max_players) continue; // 실시간 기준 이미 전체정원 도달
-    if(ev.court_count === 2 && !isDawnEvent(ev)){
-      const myLiveCount = v.gender === '여' ? liveGenderCounts.female : liveGenderCounts.male;
-      const genderCap = Math.floor(ev.max_players / 2);
-      const oppositeLiveCount = v.gender === '여' ? liveGenderCounts.male : liveGenderCounts.female;
-      const flexFavorsThisGender = oppositeLiveCount <= 3; // 복식(4명) 기준 — 반대성별 3명이하일때만 예외(실시간 판정, 영구고정 genderFlex 대신)
-      if((myLiveCount >= genderCap || (state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender])) && !flexFavorsThisGender) continue; // 이미 상한 도달 또는 관리자 수동마감 — 이 사람은 건너뛰고 다음 후보로
+
+    const flex = state.data.genderFlex && state.data.genderFlex[ev.id];
+    const waitingEntries = Object.entries(votes)
+      .filter(([,v]) => {
+        if(v.status !== 'waiting') return false;
+        if(['gwae_review','late_request','gwae_wait'].includes(v.type)) return false;
+        if(state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender]) return false; // 관리자가 이 성별을 수동마감했으면, 이미 대기중인 사람도 자동승급 절대 금지(관리자가 이동▾으로 개별 추가하는 것만 예외)
+          if(v.type === 'late_consecutive') return false; // 늦참+연참 동시는 계절 무관 항상 제외 — 시작1시간전 전용경로(checkConsecutiveWaitingLatePromotion)로만 승급
+          if(isPeakSeason() && v.type === 'consecutive') return false; // 순수 연참은 성수기에만 제외 — 시작 1시간전에 별도 승급 기회를 줌
+        if(ev.court_count === 2 && !isDawnEvent(ev)){
+          // 성별당 상한은 코트수에 비례(quota의 절반) — 3번코트 확보시엔 상한 자체를 없애는 게 아니라 늘어난 정원만큼만 비례 확대
+          const myGenderCount = v.gender === '여' ? counts.female : counts.male;
+          const oppositeGenderCount = v.gender === '여' ? counts.male : counts.female;
+          const flexFavorsThisGender = oppositeGenderCount <= 3; // 복식(4명) 기준: 반대성별이 4명 미만(=3명 이하)이면 자기들끼리 복식조차 못 이루니 상한초과 허용. 4명 이상 되는 순간 예외 사라짐(영구고정 genderFlex 대신 매번 실시간 재판정)
+          const genderCap = Math.floor(ev.max_players / 2); // 신규등록(setVote)과 동일 공식 — 확보상태 반영한 현재 정원 기준으로 통일(quota 고정값 쓰면 미확보 구간에서 신규등록과 충돌)
+          if(myGenderCount >= genderCap && !flexFavorsThisGender) return false;
+        }
+        return true;
+      })
+      .sort((a,b) => waitingSortKey(a[1]) - waitingSortKey(b[1]));
+    if(waitingEntries.length === 0) break;
+
+    let promotedThisPass = false;
+    for(const [name, v] of waitingEntries){
+      if(available <= 0) break;
+      const liveCounts = computedCounts(ev); // 매 승급마다 최신 카운트로 재확인
+      if(!canPromoteRespectingGwaeLimit(ev, liveCounts, v)) continue; // 관외비율 초과시 건너뛰고 다음 후보로
+      if(!canPromoteRespectingLessonMinimum(ev, liveCounts, v)) continue; // 레슨자는 승급후 4명미만이면 건너뛰고 다음 후보로 — 이번 패스에서 막혀도 다음 pass에서 재시도됨
+      // ⚠️ 핵심: 위쪽 필터링은 "루프 시작 전 한 번"만 계산된 카운트 기준이라, 한 사이클에 여러 명이 연달아 승급되면
+      // 상한을 넘어설 수 있었음(첫 승급 후 카운트가 바뀌어도 재확인이 없었음) — 매 승급 직전 서버 실시간 카운트로 최종 재확인.
+      // 성별상한(2코트일때만)뿐 아니라 전체정원도 court_count와 무관하게 항상 재확인 — 1코트 이벤트가 여러 세션 동시접속으로
+      // 로컬캐시 지연 때문에 정원을 초과해 채워지던 버그로 발견(8/18 유니온 저녁, 정원6명인데 8명까지 채워짐)
+      const liveGenderCounts = await getLiveGenderCounts(ev.id);
+      if(!liveGenderCounts){ continue; } // 실시간 조회 실패시 안전을 위해 이번엔 승급 보류
+      if((liveGenderCounts.male + liveGenderCounts.female) >= ev.max_players) continue; // 실시간 기준 이미 전체정원 도달
+      if(ev.court_count === 2 && !isDawnEvent(ev)){
+        const myLiveCount = v.gender === '여' ? liveGenderCounts.female : liveGenderCounts.male;
+        const genderCap = Math.floor(ev.max_players / 2);
+        const oppositeLiveCount = v.gender === '여' ? liveGenderCounts.male : liveGenderCounts.female;
+        const flexFavorsThisGender = oppositeLiveCount <= 3; // 복식(4명) 기준 — 반대성별 3명이하일때만 예외(실시간 판정, 영구고정 genderFlex 대신)
+        if((myLiveCount >= genderCap || (state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender])) && !flexFavorsThisGender) continue; // 이미 상한 도달 또는 관리자 수동마감 — 이 사람은 건너뛰고 다음 후보로
+      }
+      const promotedFrom = v.type === 'consecutive' ? 'consecutive' : 'wait';
+      votes[name] = { status:'attend', gender: v.gender, district: v.district, hidden:false, promotedFrom, lateArrival: v.lateArrival || false, lateMinutes: v.lateMinutes || null, lessonTime: v.lessonTime || null, ts: Date.now() };
+      await saveVoteRow(ev.id, name, votes[name], '자동승급(시스템)');
+      pushNotification(`${name}님이 대기에서 자동 승급되어 ${shortEventLabel(ev)} 참석으로 전환되었습니다.`, {eventId: ev.id, actor: name, category:'promotion'});
+      if(v.type === 'late'){
+        await postAiAdminComment(ev.id, v.lessonTime ? `📚 ${name}님이 레슨 선대기에서 참석으로 자동 승급되었습니다. (레슨 ${v.lessonTime} 예정, 자리가 나서 정상 승급)` : `⏰ ${name}님이 늦참 선대기에서 참석으로 자동 승급되었습니다. (늦참 ${v.lateMinutes || 0}분 예정, 자리가 나서 정상 승급)`);
+      }
+      available--;
+      changed = true;
+      promotedThisPass = true;
     }
-    const promotedFrom = v.type === 'consecutive' ? 'consecutive' : 'wait';
-    votes[name] = { status:'attend', gender: v.gender, district: v.district, hidden:false, promotedFrom, lateArrival: v.lateArrival || false, lateMinutes: v.lateMinutes || null, lessonTime: v.lessonTime || null, ts: Date.now() };
-    await saveVoteRow(ev.id, name, votes[name], '자동승급(시스템)');
-    pushNotification(`${name}님이 대기에서 자동 승급되어 ${shortEventLabel(ev)} 참석으로 전환되었습니다.`, {eventId: ev.id, actor: name, category:'promotion'});
-    if(v.type === 'late'){
-      await postAiAdminComment(ev.id, v.lessonTime ? `📚 ${name}님이 레슨 선대기에서 참석으로 자동 승급되었습니다. (레슨 ${v.lessonTime} 예정, 자리가 나서 정상 승급)` : `⏰ ${name}님이 늦참 선대기에서 참석으로 자동 승급되었습니다. (늦참 ${v.lateMinutes || 0}분 예정, 자리가 나서 정상 승급)`);
-    }
-    available--;
-    changed = true;
+    if(!promotedThisPass) break; // 이번 패스에 아무도 승급 못 했으면 더 반복해도 소용없음
   }
   return changed;
 }
@@ -4642,10 +4651,17 @@ function checkDoublesBroken(ev, before, actorName, isAdminExempt){
 
 async function promoteWaitingForCapacity(ev){
   let changed = false;
-  const votes = state.data.votes[ev.id] || {};
-  const counts = computedCounts(ev);
-  let available = ev.max_players - counts.regularTotal;
-  if(available > 0){
+  // ⚠️ 신규 버그수정(힘찬님 제보): 레슨대기자가 canPromoteRespectingLessonMinimum에 걸려 건너뛰어진(continue) 후,
+  // 같은 패스 안에서 다른 후보가 승급되어 전체인원이 늘어나면 레슨자도 이제 승급 가능한 조건이 될 수 있는데,
+  // 기존엔 단일 for순회라 재시도가 없어서 "레슨대기가 먼저 신청했는데도, 그 사이 인원조건을 만족한 나중 신청자가
+  // 먼저 승급되는" 순서역전이 발생했음(실사례: 9/22 화 유니온저녁, 전은지 레슨대기 vs 이어진 일반). 이번 함수가
+  // 이런 순서역전이 발생하는지 확인, 후보목록/정원/카운트를 매 패스 새로 계산해 "이번 패스에 1명이라도 승급되면
+  // 다시 처음부터 전체 재순회"하도록 바깥에 재시도루프 추가 — promoteGenderFlexWaiting에 이미 있던 것과 동일 패턴
+  for(let pass=0; pass<20; pass++){
+    const votes = state.data.votes[ev.id] || {};
+    const counts = computedCounts(ev);
+    let available = ev.max_players - counts.regularTotal;
+    if(available <= 0) break;
     const waitingEntries = Object.entries(votes)
       .filter(([,v]) => {
         if(v.status !== 'waiting') return false;
@@ -4664,6 +4680,7 @@ async function promoteWaitingForCapacity(ev){
         return true;
       })
       .sort((a,b) => waitingSortKey(a[1]) - waitingSortKey(b[1]));
+    if(waitingEntries.length === 0) break;
 
     // v145: 기존엔 .find()로 최우선(선착순+우선순위) 후보 딱 1명만 골라서, 그 사람이 실시간 재확인(getLiveGenderCounts)에서
     // 막히면 break로 이번 함수 호출 전체를 중단시켰음 — 이러면 3번코트 확보로 정원이 늘어나는 바로 그 순간,
@@ -4673,11 +4690,12 @@ async function promoteWaitingForCapacity(ev){
     // "성별대기가 더 먼저 등록했는데 일반대기가 먼저 승급되는" 순서 역전이 발생했음 (힘찬님 제보로 발견).
     // tryAutoPromote/forcePromoteWaitingNow와 동일하게, 막힌 후보는 continue로 건너뛰고 다음 후보를 계속 시도하도록 수정 —
     // 선착순+우선순위(타입 등급) 정렬은 그대로 유지하면서, 성별정원도 매 승급 직전 실시간으로 계속 지킴.
+    let promotedThisPass = false;
     for(const [name, v] of waitingEntries){
       if(available <= 0) break;
       const liveCounts = computedCounts(ev); // 매 승급마다 최신 카운트로 재확인
       if(!canPromoteRespectingGwaeLimit(ev, liveCounts, v)) continue; // 관외비율 초과시 건너뛰고 다음 후보로
-    if(!canPromoteRespectingLessonMinimum(ev, liveCounts, v)) continue; // 레슨자는 승급후 4명미만이면 건너뛰고 다음 후보로
+    if(!canPromoteRespectingLessonMinimum(ev, liveCounts, v)) continue; // 레슨자는 승급후 4명미만이면 건너뛰고 다음 후보로 — 이번 패스에서 막혀도 다른 사람 승급으로 인원이 늘면 다음 pass에서 재시도됨
       const promotedFrom = v.type === 'consecutive' ? 'consecutive' : 'wait';
       // 성별상한 재확인(2코트일때만) 여부와 무관하게, 전체 정원은 모든 이벤트에서 항상 서버 실시간으로 최종 재확인
       // — 로컬캐시(available 변수)만 믿으면, 여러 세션이 동시접속중일 때 각자 "아직 자리 있다"고 오판해 정원을 초과시킬 수 있었음
@@ -4699,8 +4717,10 @@ async function promoteWaitingForCapacity(ev){
         await postAiAdminComment(ev.id, v.lessonTime ? `📚 ${name}님이 레슨 선대기에서 참석으로 자동 승급되었습니다. (레슨 ${v.lessonTime} 예정, 정원 확대로 승급)` : `⏰ ${name}님이 늦참 선대기에서 참석으로 자동 승급되었습니다. (늦참 ${v.lateMinutes || 0}분 예정, 정원 확대로 승급)`);
       }
       changed = true;
+      promotedThisPass = true;
       available--;
     }
+    if(!promotedThisPass) break; // 이번 패스에 아무도 승급 못 했으면 더 반복해도 소용없음 — 종료
   }
   if(ev.location === '종합운동장'){
     if(await tryPromoteGwaeWaiting(ev)) changed = true;
@@ -4782,60 +4802,67 @@ async function toggleCourt3Confirmed(eventId){
 }
 
 async function forcePromoteWaitingNow(ev){
-  const votes = state.data.votes[ev.id] || {};
-  const counts = computedCounts(ev);
-  let available = ev.max_players - counts.regularTotal;
-  if(available <= 0) return false;
-
-  const flex = state.data.genderFlex && state.data.genderFlex[ev.id];
-  const waitingEntries = Object.entries(votes)
-    .filter(([,v]) => {
-      if(v.status !== 'waiting') return false;
-      if(['gwae_review','late_request','gwae_wait'].includes(v.type)) return false;
-      if(state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender]) return false; // 관리자가 이 성별을 수동마감했으면, 이미 대기중인 사람도 자동승급 절대 금지(관리자가 이동▾으로 개별 추가하는 것만 예외)
-        if(v.type === 'late_consecutive') return false; // 늦참+연참 동시는 계절 무관 항상 제외 — 시작1시간전 전용경로(checkConsecutiveWaitingLatePromotion)로만 승급 (관리자 수동실행도 이 규칙은 동일 적용해 다른 자동경로와 일관성 유지)
-      if(isPeakSeason() && v.type === 'consecutive') return false; // 순수 연참은 성수기에만 제외
-      if(ev.court_count === 2 && !isDawnEvent(ev)){
-        // 성별당 상한은 코트수에 비례(quota의 절반) — 3번코트 확보시엔 상한 자체를 없애는 게 아니라 늘어난 정원만큼만 비례 확대
-        const myGenderCount = v.gender === '여' ? counts.female : counts.male;
-        const oppositeGenderCount = v.gender === '여' ? counts.male : counts.female;
-        const flexFavorsThisGender = oppositeGenderCount <= 3; // 복식(4명) 기준: 반대성별이 4명 미만(=3명 이하)이면 자기들끼리 복식조차 못 이루니 상한초과 허용. 4명 이상 되는 순간 예외 사라짐(영구고정 genderFlex 대신 매번 실시간 재판정)
-        const genderCap = Math.floor(ev.max_players / 2); // 신규등록(setVote)과 동일 공식 — 확보상태 반영한 현재 정원 기준으로 통일(quota 고정값 쓰면 미확보 구간에서 신규등록과 충돌)
-        if(myGenderCount >= genderCap && !flexFavorsThisGender) return false;
-      }
-      return true;
-    })
-    .sort((a,b) => waitingSortKey(a[1]) - waitingSortKey(b[1]));
-
   let changed = false;
-  for(const [name, v] of waitingEntries){
+  // ⚠️ 신규 버그수정: promoteWaitingForCapacity/tryAutoPromote와 동일한 순서역전 위험이 있어 동일하게 재시도루프로 감쌈
+  for(let pass=0; pass<20; pass++){
+    const votes = state.data.votes[ev.id] || {};
+    const counts = computedCounts(ev);
+    let available = ev.max_players - counts.regularTotal;
     if(available <= 0) break;
-    const liveCounts = computedCounts(ev);
-    if(!canPromoteRespectingGwaeLimit(ev, liveCounts, v)) continue; // 관외비율 초과시 건너뛰고 다음 후보로
-    if(!canPromoteRespectingLessonMinimum(ev, liveCounts, v)) continue; // 레슨자는 승급후 4명미만이면 건너뛰고 다음 후보로 (관리자 수동실행이라도 비율규칙은 유지)
-    // ⚠️ 핵심: 성별상한(2코트일때만)뿐 아니라 전체정원도 court_count와 무관하게 항상 서버 실시간으로 재확인
-    // — 1코트 이벤트가 여러 세션 동시접속으로 로컬캐시 지연 때문에 정원을 초과해 채워지던 버그로 발견
-    const liveGenderCounts = await getLiveGenderCounts(ev.id);
-    if(!liveGenderCounts){ continue; }
-    if((liveGenderCounts.male + liveGenderCounts.female) >= ev.max_players) continue; // 실시간 기준 이미 전체정원 도달
-    if(ev.court_count === 2 && !isDawnEvent(ev)){
-      const myLiveCount = v.gender === '여' ? liveGenderCounts.female : liveGenderCounts.male;
-      const genderCap = Math.floor(ev.max_players / 2);
-      const oppositeLiveCount = v.gender === '여' ? liveGenderCounts.male : liveGenderCounts.female;
-      const flexFavorsThisGender = oppositeLiveCount <= 3; // 복식(4명) 기준 — 반대성별 3명이하일때만 예외(실시간 판정, 영구고정 genderFlex 대신)
-      if((myLiveCount >= genderCap || (state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender])) && !flexFavorsThisGender) continue;
+
+    const flex = state.data.genderFlex && state.data.genderFlex[ev.id];
+    const waitingEntries = Object.entries(votes)
+      .filter(([,v]) => {
+        if(v.status !== 'waiting') return false;
+        if(['gwae_review','late_request','gwae_wait'].includes(v.type)) return false;
+        if(state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender]) return false; // 관리자가 이 성별을 수동마감했으면, 이미 대기중인 사람도 자동승급 절대 금지(관리자가 이동▾으로 개별 추가하는 것만 예외)
+          if(v.type === 'late_consecutive') return false; // 늦참+연참 동시는 계절 무관 항상 제외 — 시작1시간전 전용경로(checkConsecutiveWaitingLatePromotion)로만 승급 (관리자 수동실행도 이 규칙은 동일 적용해 다른 자동경로와 일관성 유지)
+        if(isPeakSeason() && v.type === 'consecutive') return false; // 순수 연참은 성수기에만 제외
+        if(ev.court_count === 2 && !isDawnEvent(ev)){
+          // 성별당 상한은 코트수에 비례(quota의 절반) — 3번코트 확보시엔 상한 자체를 없애는 게 아니라 늘어난 정원만큼만 비례 확대
+          const myGenderCount = v.gender === '여' ? counts.female : counts.male;
+          const oppositeGenderCount = v.gender === '여' ? counts.male : counts.female;
+          const flexFavorsThisGender = oppositeGenderCount <= 3; // 복식(4명) 기준: 반대성별이 4명 미만(=3명 이하)이면 자기들끼리 복식조차 못 이루니 상한초과 허용. 4명 이상 되는 순간 예외 사라짐(영구고정 genderFlex 대신 매번 실시간 재판정)
+          const genderCap = Math.floor(ev.max_players / 2); // 신규등록(setVote)과 동일 공식 — 확보상태 반영한 현재 정원 기준으로 통일(quota 고정값 쓰면 미확보 구간에서 신규등록과 충돌)
+          if(myGenderCount >= genderCap && !flexFavorsThisGender) return false;
+        }
+        return true;
+      })
+      .sort((a,b) => waitingSortKey(a[1]) - waitingSortKey(b[1]));
+    if(waitingEntries.length === 0) break;
+
+    let promotedThisPass = false;
+    for(const [name, v] of waitingEntries){
+      if(available <= 0) break;
+      const liveCounts = computedCounts(ev);
+      if(!canPromoteRespectingGwaeLimit(ev, liveCounts, v)) continue; // 관외비율 초과시 건너뛰고 다음 후보로
+      if(!canPromoteRespectingLessonMinimum(ev, liveCounts, v)) continue; // 레슨자는 승급후 4명미만이면 건너뛰고 다음 후보로 (관리자 수동실행이라도 비율규칙은 유지) — 이번 패스에서 막혀도 다음 pass에서 재시도됨
+      // ⚠️ 핵심: 성별상한(2코트일때만)뿐 아니라 전체정원도 court_count와 무관하게 항상 서버 실시간으로 재확인
+      // — 1코트 이벤트가 여러 세션 동시접속으로 로컬캐시 지연 때문에 정원을 초과해 채워지던 버그로 발견
+      const liveGenderCounts = await getLiveGenderCounts(ev.id);
+      if(!liveGenderCounts){ continue; }
+      if((liveGenderCounts.male + liveGenderCounts.female) >= ev.max_players) continue; // 실시간 기준 이미 전체정원 도달
+      if(ev.court_count === 2 && !isDawnEvent(ev)){
+        const myLiveCount = v.gender === '여' ? liveGenderCounts.female : liveGenderCounts.male;
+        const genderCap = Math.floor(ev.max_players / 2);
+        const oppositeLiveCount = v.gender === '여' ? liveGenderCounts.male : liveGenderCounts.female;
+        const flexFavorsThisGender = oppositeLiveCount <= 3; // 복식(4명) 기준 — 반대성별 3명이하일때만 예외(실시간 판정, 영구고정 genderFlex 대신)
+        if((myLiveCount >= genderCap || (state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender])) && !flexFavorsThisGender) continue;
+      }
+      const promotedFrom = v.type === 'consecutive' ? 'consecutive' : 'wait';
+      votes[name] = { status:'attend', gender: v.gender, district: v.district, hidden:false, promotedFrom, lateArrival: v.lateArrival || false, lateMinutes: v.lateMinutes || null, lessonTime: v.lessonTime || null, ts: Date.now() };
+      await saveVoteRow(ev.id, name, votes[name]);
+      pushNotification(`${name}님이 대기에서 자동 승급되어 ${shortEventLabel(ev)} 참석으로 전환되었습니다. (관리자 즉시실행)`, {eventId: ev.id, actor: name, category:'promotion'});
+      if(v.type === 'late'){
+        await postAiAdminComment(ev.id, v.lessonTime ? `📚 ${name}님이 관리자의 "지금 자동승급 실행"으로 레슨 선대기에서 참석으로 승급되었습니다. (레슨 ${v.lessonTime} 예정)` : `⏰ ${name}님이 관리자의 "지금 자동승급 실행"으로 늦참 선대기에서 참석으로 승급되었습니다. (늦참 ${v.lateMinutes || 0}분 예정)`);
+      } else {
+        await postAiAdminComment(ev.id, `${name}님이 관리자의 "지금 자동승급 실행"으로 대기에서 참석으로 승급되었습니다.`);
+      }
+      available--;
+      changed = true;
+      promotedThisPass = true;
     }
-    const promotedFrom = v.type === 'consecutive' ? 'consecutive' : 'wait';
-    votes[name] = { status:'attend', gender: v.gender, district: v.district, hidden:false, promotedFrom, lateArrival: v.lateArrival || false, lateMinutes: v.lateMinutes || null, lessonTime: v.lessonTime || null, ts: Date.now() };
-    await saveVoteRow(ev.id, name, votes[name]);
-    pushNotification(`${name}님이 대기에서 자동 승급되어 ${shortEventLabel(ev)} 참석으로 전환되었습니다. (관리자 즉시실행)`, {eventId: ev.id, actor: name, category:'promotion'});
-    if(v.type === 'late'){
-      await postAiAdminComment(ev.id, v.lessonTime ? `📚 ${name}님이 관리자의 "지금 자동승급 실행"으로 레슨 선대기에서 참석으로 승급되었습니다. (레슨 ${v.lessonTime} 예정)` : `⏰ ${name}님이 관리자의 "지금 자동승급 실행"으로 늦참 선대기에서 참석으로 승급되었습니다. (늦참 ${v.lateMinutes || 0}분 예정)`);
-    } else {
-      await postAiAdminComment(ev.id, `${name}님이 관리자의 "지금 자동승급 실행"으로 대기에서 참석으로 승급되었습니다.`);
-    }
-    available--;
-    changed = true;
+    if(!promotedThisPass) break; // 이번 패스에 아무도 승급 못 했으면 더 반복해도 소용없음
   }
   return changed;
 }
