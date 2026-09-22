@@ -66,6 +66,7 @@
   [data-theme="courtnight"] .sub-box.consec .sub-head{color:#C9A6E8 !important;}
   [data-theme="courtnight"] .me .district-tag{background:var(--chip-bg) !important;color:var(--ink-soft) !important;}
   [data-theme="courtnight"] .rank-tab.on{background:var(--brand);color:var(--bg);}
+  [data-theme="courtnight"] .notif-tab.on{background:var(--brand);color:var(--bg);}
   [data-theme="courtnight"] .rank-score{color:var(--accent);}
   /* 라임/골드 배경 위 흰 글자는 대비가 깨져서 배경색에 맞춰 어두운 글자로 보정 */
   [data-theme="courtnight"] .theme-btn.active,
@@ -402,6 +403,10 @@
     color:var(--ink-soft);font-weight:700;background:transparent;border:none;}
   .rank-tab.on{color:#fff;background:#B8860B;}
   .rank-period-label{font-size:calc(11px * var(--font-scale, 1));color:var(--ink-soft);text-align:center;margin-bottom:14px;}
+  .notif-tabs{display:flex;gap:6px;margin-bottom:10px;background:var(--bg);padding:5px;border-radius:12px;}
+  .notif-tab{flex:1;text-align:center;padding:9px 8px;border-radius:8px;cursor:pointer;font-size:calc(13px * var(--font-scale, 1));
+    color:var(--ink-soft);font-weight:700;background:transparent;border:none;}
+  .notif-tab.on{color:#fff;background:var(--brand-dark);}
   .podium{display:flex;align-items:flex-end;justify-content:center;gap:8px;margin-bottom:20px;}
   .podium-item{flex:1;max-width:120px;text-align:center;border-radius:12px 12px 0 0;padding:10px 6px;color:#fff;}
   .podium-item .medal{font-size:calc(26px * var(--font-scale, 1));}
@@ -557,7 +562,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.187</span>
+      <span id="buildVersionTop" class="build-version-top">v.188</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -2748,6 +2753,15 @@ async function checkMonthlyNotification(){
 async function pushNotification(text, meta){
   if(!state.data.notifications) state.data.notifications = [];
   const ts = Date.now();
+  // ⚠️ 신규기능: 시스템 알림(category가 있는 것 - promotion/court_status/announcement/warning)이
+  // 폴링 주기 등으로 인해 짧은 시간 안에 완전히 동일한 문구로 중복 발생하는 사례 제보 - 직전 1분 이내
+  // 완전히 같은 텍스트의 시스템알림이 이미 있으면 새로 추가하지 않음(활동알림은 각자 다른 회원의
+  // 실제 행동이라 중복이 사실상 없으므로 대상에서 제외, category 없을때만 그대로 통과)
+  if(meta && meta.category){
+    const oneMinuteAgo = ts - 60000;
+    const isDuplicate = state.data.notifications.some(n => n.text === text && n.ts >= oneMinuteAgo);
+    if(isDuplicate) return;
+  }
   const localEntry = { ts, text, read: false, meta: meta || null };
   state.data.notifications.unshift(localEntry);
   if(state.data.notifications.length > 150) state.data.notifications.length = 150;
@@ -2909,6 +2923,18 @@ function wireNotifSettingsToggles(){
     renderNotifPanel();
   };
 }
+function wireNotifTabToggles(){
+  document.querySelectorAll('[data-notif-tab]').forEach(btn => {
+    btn.onclick = () => {
+      notifTab = btn.getAttribute('data-notif-tab');
+      notifPage = 0; // 탭 바꾸면 첫 페이지로
+      renderNotifPanel();
+    };
+  });
+}
+// ⚠️ 신규기능: 시스템 알림(category 있음 - 자동생성: 승급/코트상태/공지/경고)과 활동 알림(category 없음 -
+// 회원 개인의 직접 행동: 참석/불참/게스트추가 등)을 명확히 구분해서 탭으로 나눠 보여줌
+let notifTab = 'system';
 function getRelevantNotifications(){
   const list = state.data.notifications || [];
   const prefs = getNotifPrefs();
@@ -2918,9 +2944,10 @@ function getRelevantNotifications(){
     if(cat === 'court_status' && prefs.court_status === false) return false;
     return true;
   });
-  if(hasAdminPower() || state.myIsStaff) return categoryFiltered;
-  if(!state.myName) return [];
-  return categoryFiltered.filter(n => {
+  let visible;
+  if(hasAdminPower() || state.myIsStaff) visible = categoryFiltered;
+  else if(!state.myName) visible = [];
+  else visible = categoryFiltered.filter(n => {
     if(!n.meta) return false;
     if(n.meta.category === 'announcement') return true;
     if(n.meta.category === 'warning') return n.meta.actor === state.myName; // 경고성 알림은 본인만 (다른 회원에게는 안 보임)
@@ -2929,6 +2956,7 @@ function getRelevantNotifications(){
     if(n.meta.actor === state.myName) return true;
     return false;
   });
+  return visible.filter(n => notifTab === 'system' ? !!(n.meta && n.meta.category) : !(n.meta && n.meta.category));
 }
 
 function renderNotifBell(){
@@ -2956,6 +2984,10 @@ function renderNotifPanel(){
   panel.style.display = 'block';
   const list = getRelevantNotifications();
   const prefs = getNotifPrefs();
+  const tabsHtml = `<div class="notif-tabs">
+    <button class="notif-tab ${notifTab==='system'?'on':''}" data-notif-tab="system">🔔 시스템 알림</button>
+    <button class="notif-tab ${notifTab==='activity'?'on':''}" data-notif-tab="activity">👤 활동 알림</button>
+  </div>`;
   const settingsHtml = `<details class="notif-settings-toggle">
     <summary>⚙️ 알림 설정</summary>
     <div class="notif-settings-body">
@@ -2964,8 +2996,9 @@ function renderNotifPanel(){
     </div>
   </details>`;
   if(list.length === 0){
-    panel.innerHTML = settingsHtml + `<div style="font-size:calc(12px * var(--font-scale, 1));color:var(--ink-soft);">받은 알림이 없습니다.</div>
+    panel.innerHTML = tabsHtml + settingsHtml + `<div style="font-size:calc(12px * var(--font-scale, 1));color:var(--ink-soft);">받은 알림이 없습니다.</div>
       <button class="notif-clear" id="notifManualRefreshBtn">🔄 새로고침</button>`;
+    wireNotifTabToggles();
     wireNotifSettingsToggles();
     const rb = document.getElementById('notifManualRefreshBtn');
     if(rb) rb.onclick = () => refreshNotifPanelContent();
@@ -2977,7 +3010,7 @@ function renderNotifPanel(){
   if(notifPage >= totalPages) notifPage = totalPages - 1;
   if(notifPage < 0) notifPage = 0;
   const pageItems = capped.slice(notifPage * pageSize, notifPage * pageSize + pageSize);
-  panel.innerHTML = settingsHtml + `<div style="max-height:400px;overflow-y:auto;">` +
+  panel.innerHTML = tabsHtml + settingsHtml + `<div style="max-height:400px;overflow-y:auto;">` +
     pageItems.map(n => `
     <div class="notif-row ${n.read?'':'unread'}">
       <span class="n-time">${new Date(n.ts).toLocaleString('ko-KR')}</span>${escapeHtml(n.text)}
@@ -2996,6 +3029,7 @@ function renderNotifPanel(){
     btn.onclick = () => deleteNotification(btn.getAttribute('data-delete-notif'));
   });
   wireNotifSettingsToggles();
+  wireNotifTabToggles();
   const prevBtn = document.getElementById('notifPrevPage');
   if(prevBtn) prevBtn.onclick = () => { notifPage--; renderNotifPanel(); };
   const nextBtn = document.getElementById('notifNextPage');
