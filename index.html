@@ -342,6 +342,12 @@
   .attend-sheet-opt span{font-size:calc(11px * var(--font-scale, 1));color:var(--ink-soft);}
   .attend-sheet-opt:active{background:var(--brand-soft);}
   .attend-sheet-cancel{border:1px solid var(--line);background:transparent;color:var(--ink-soft);border-radius:12px;height:42px;font-size:calc(12px * var(--font-scale, 1));font-weight:700;cursor:pointer;margin-top:4px;}
+  .guest-info-warning{background:var(--danger-soft);border:1.5px solid var(--danger);border-radius:10px;padding:12px;}
+  .guest-info-warning b{display:block;font-size:calc(14px * var(--font-scale, 1));font-weight:800;color:var(--danger);line-height:1.4;}
+  .guest-info-warning span{display:block;font-size:calc(11.5px * var(--font-scale, 1));color:var(--ink-soft);margin-top:6px;line-height:1.5;}
+  .guest-info-divider{border-top:1px solid var(--line);margin:12px 0;}
+  .guest-info-section b{display:block;font-size:calc(12px * var(--font-scale, 1));font-weight:800;color:var(--ink);margin-bottom:4px;}
+  .guest-info-section p{font-size:calc(11.5px * var(--font-scale, 1));color:var(--ink-soft);line-height:1.6;margin:0 0 10px;}
   .vote-btn{flex:1;min-width:70px;border:1.5px solid var(--line);background:var(--panel);border-radius:20px;padding:8px 4px;
     font-size:calc(12px * var(--font-scale, 1));font-weight:700;color:var(--ink-soft);cursor:pointer;}
   .vote-btn.attend-main{padding:0;height:44px;display:flex;align-items:center;justify-content:center;box-sizing:border-box;font-size:calc(14px * var(--font-scale, 1));font-weight:800;border-radius:12px;border-width:2px;} /* 참석·불참 높이를 고정해 항상 일정하게(위쪽 주요 선택) */
@@ -562,7 +568,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.188</span>
+      <span id="buildVersionTop" class="build-version-top">v.189</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -3620,6 +3626,28 @@ function renderEventCard(ev){
       </details>
       <button class="ball-quick-btn row2-item" data-ball-quick="${ev.id}">🎾 클럽볼</button>
     </div>
+    <div class="attend-sheet-backdrop" id="guestInfoBackdrop-${ev.id}" style="display:none;">
+      <div class="attend-sheet">
+        <div class="guest-info-warning">
+          <b>⚠️ 운영진과 협의되지 않은 게스트는 참석이 제한될 수 있습니다</b>
+          <span>게스트를 초대하시기 전에 반드시 운영진과 먼저 협의해 주세요.</span>
+        </div>
+        <div class="guest-info-divider"></div>
+        <div class="guest-info-section">
+          <b>초대 가능 시점</b>
+          <p>· 16시 이전 일정 → 전날 18시 이후<br>· 18~20시 일정 → 당일 08시 이후<br>· 20~22시 일정 → 당일 14시 이후</p>
+        </div>
+        <div class="guest-info-section">
+          <b>초대 조건</b>
+          <p>인원 4명 이하이거나, 코트 2개인데 한쪽 성별만 복식이 안 되는 경우</p>
+        </div>
+        <div class="guest-info-section">
+          <b>비용</b>
+          <p>5,000원 (전 코트 동일 적용)</p>
+        </div>
+        <button class="attend-sheet-cancel" data-guest-info-close="${ev.id}">확인했어요</button>
+      </div>
+    </div>
     ${pending ? `<div class="confirm-row">
       <button class="confirm-btn" id="confirmBtn-${ev.id}">✓ 확정</button>
       <button class="confirm-cancel" id="cancelBtn-${ev.id}">선택 취소</button>
@@ -3702,11 +3730,23 @@ function renderEventCard(ev){
   const guestBtn = card.querySelector(`#guestAddBtn-${ev.id}`);
   if(guestBtn) guestBtn.onclick = () => addGuest(ev.id);
   // ⚠️ 신규기능: 게스트 버튼 클릭시(폼이 열리기 전) 클럽 회칙 기반 게스트초대 안내를 먼저 보여줌
+  // - 상단에 "운영진과 협의되지 않은 게스트는 참석이 제한될 수 있습니다" 경고를 눈에 띄게 표시
   // - 초대 가능 시점, 초대 조건(4명이하 또는 2코트 한쪽성별 복식불가), 비용(5,000원 전코트 통일)
+  // alert()는 텍스트 크기 조절이 불가능해 경고 문구를 강조 표시할 수 없어서, 스타일링 가능한 커스텀 모달로 구현
+  // (모달이 여닫히는 동안 details의 네이티브 토글은 그대로 진행되므로, 별도로 "닫으면 폼 열기" 로직 불필요 -
+  //  모달이 화면을 덮고 있는 사이 뒤에서 폼이 이미 열려 있다가, 확인 누르면 바로 보이는 자연스러운 흐름)
   const guestSummary = card.querySelector(`#guestSummary-${ev.id}`);
   if(guestSummary) guestSummary.onclick = () => {
-    alert(`👤 게스트 초대 안내 (클럽 회칙 기준)\n\n[초대 가능 시점]\n· 16시 이전 일정 → 전날 18시 이후\n· 18~20시 일정 → 당일 08시 이후\n· 20~22시 일정 → 당일 14시 이후\n\n[초대 조건]\n인원이 4명 이하이거나, 코트 2개인데 한쪽 성별만 복식이 안 되는 경우에만 게스트를 부를 수 있어요.\n\n[비용]\n5,000원 (전 코트 동일 적용)\n\n게스트를 초대한 회원은 게스트 관리 및 비용 납부 책임을 집니다.`);
+    const backdrop = card.querySelector(`#guestInfoBackdrop-${ev.id}`);
+    if(backdrop) backdrop.style.display = 'flex';
   };
+  const guestInfoCloseBtn = card.querySelector(`[data-guest-info-close="${ev.id}"]`);
+  if(guestInfoCloseBtn) guestInfoCloseBtn.onclick = () => {
+    const backdrop = card.querySelector(`#guestInfoBackdrop-${ev.id}`);
+    if(backdrop) backdrop.style.display = 'none';
+  };
+  const guestInfoBackdrop = card.querySelector(`#guestInfoBackdrop-${ev.id}`);
+  if(guestInfoBackdrop) guestInfoBackdrop.onclick = (e) => { if(e.target === guestInfoBackdrop) guestInfoBackdrop.style.display = 'none'; };
   const ballQuickBtn = card.querySelector('[data-ball-quick]');
   if(ballQuickBtn) ballQuickBtn.onclick = () => checkBallQuickUse(ev.id);
   const attendSheetBtn = card.querySelector('[data-attend-sheet]');
