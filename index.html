@@ -568,7 +568,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.189</span>
+      <span id="buildVersionTop" class="build-version-top">v.190</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -708,7 +708,7 @@
       </div>
       <div class="manual-item">
         <div class="manual-h">⑩ 새벽테니스 운영방침 (2026년 8월, 훈련 위주 시범운영)</div>
-        <p>새벽테니스(평일 06:00~08:00)는 <strong>기본 4명</strong>으로 운영돼요. 3번코트를 현장에서 확보하면 정원이 <strong>8명(2코트)</strong>까지 늘어나요.</p>
+        <p>새벽테니스(평일 06:00~08:00)는 3번코트 확보 절차 없이 <strong>항상 정원 8명(2코트)</strong>으로 운영돼요.</p>
         <p>· 참석 인원이 <strong>4명 이상</strong> 모이면, 시작 시간보다 조금 더 일찍 나오셔서 3번코트를 확보하고 8명·2코트로 진행하는 걸 권장드려요.<br>
         · 레슨자는 위 ⑧번 안내처럼 이 인원수 계산에서 제외돼요.</p>
         <p style="color:var(--ink-soft);font-size:calc(11px * var(--font-scale, 1));">※ 이 운영방침은 시범 운영이에요. 운영해보면서 복잡해지거나 불편함이 크면, 운영진 논의를 거쳐 이전 방식으로 되돌아갈 수 있어요.</p>
@@ -2424,20 +2424,29 @@ async function checkGenderFlexPromotions(){
     const prevDay = new Date(startDt.getTime() - 24 * 60 * 60 * 1000);
     const decisionTime = new Date(prevDay.getFullYear(), prevDay.getMonth(), prevDay.getDate(), 12, 0, 0); // 일정 전날 낮 12시(정오) 고정
     if(now < decisionTime) continue; // 아직 전날 낮 12시 전
-    if(now >= startDt) { state.data.genderFlex[ev.id] = 'expired'; markDirty('genderFlex', ev.id); continue; } // 이미 시작한 일정은 처리 안 함
+    if(now >= startDt) { if(state.data.genderFlex[ev.id] !== 'expired'){ state.data.genderFlex[ev.id] = 'expired'; markDirty('genderFlex', ev.id); } continue; } // 이미 시작한 일정은 처리 안 함
     const counts = computedCounts(ev);
+    // ⚠️ v190 긴급수정: "매번 실시간 재판정"으로 바꾼 이후, 상태가 그대로('남'→'남')여도 60초 폴링마다·접속자마다
+    // 알림을 새로 쌓고 genderFlex를 다시 저장하고 있었음 → 7일간 동일 알림 1,300건+(누적 7,772건) 발생, 알림함 150개 한도를
+    // 이 스팸이 다 차지해 진짜 알림이 밀려나고, 매 주기 ignis_state 쓰기로 egress도 낭비. "상태가 바뀌는 순간"에만
+    // 알림·저장하도록 수정(승급 시도는 대기자가 새로 생길 수 있으니 매번 유지). category도 부여해 시스템 탭으로 분류
+    const prevFlex = state.data.genderFlex[ev.id];
     if(counts.female <= 3 && counts.male > 3){
-      state.data.genderFlex[ev.id] = '남';
-      markDirty('genderFlex', ev.id);
-      pushNotification(`📢 ${shortEventLabel(ev)} : 여자 참석이 ${counts.female}명으로 소수라 남자 참석 인원이 최대 ${ev.quota}명까지 확대되었습니다.`);
-      await promoteGenderFlexWaiting(ev, '남');
-      changed = true;
+      if(prevFlex !== '남'){
+        state.data.genderFlex[ev.id] = '남';
+        markDirty('genderFlex', ev.id);
+        pushNotification(`📢 ${shortEventLabel(ev)} : 여자 참석이 ${counts.female}명으로 소수라 남자 참석 인원이 최대 ${ev.quota}명까지 확대되었습니다.`, {eventId: ev.id, category:'court_status'});
+        changed = true;
+      }
+      if(await promoteGenderFlexWaiting(ev, '남')) changed = true;
     } else if(counts.male <= 3 && counts.female > 3){
-      state.data.genderFlex[ev.id] = '여';
-      markDirty('genderFlex', ev.id);
-      pushNotification(`📢 ${shortEventLabel(ev)} : 남자 참석이 ${counts.male}명으로 소수라 여자 참석 인원이 최대 ${ev.quota}명까지 확대되었습니다.`);
-      await promoteGenderFlexWaiting(ev, '여');
-      changed = true;
+      if(prevFlex !== '여'){
+        state.data.genderFlex[ev.id] = '여';
+        markDirty('genderFlex', ev.id);
+        pushNotification(`📢 ${shortEventLabel(ev)} : 남자 참석이 ${counts.male}명으로 소수라 여자 참석 인원이 최대 ${ev.quota}명까지 확대되었습니다.`, {eventId: ev.id, category:'court_status'});
+        changed = true;
+      }
+      if(await promoteGenderFlexWaiting(ev, '여')) changed = true;
     } else {
       if(state.data.genderFlex[ev.id] !== '균형'){
         state.data.genderFlex[ev.id] = '균형';
@@ -2450,6 +2459,7 @@ async function checkGenderFlexPromotions(){
 }
 
 async function promoteGenderFlexWaiting(ev, flexGender){
+  let promotedAny = false; // v190: 승급여부를 호출측에 알려 불필요한 재렌더/저장 방지
   for(let i=0;i<20;i++){
     const votes = state.data.votes[ev.id] || {};
     const counts = computedCounts(ev);
@@ -2475,12 +2485,14 @@ async function promoteGenderFlexWaiting(ev, flexGender){
     votes[name] = { status:'attend', gender: v.gender, district: v.district, hidden:false, promotedFrom, lateArrival: v.lateArrival || false, lateMinutes: v.lateMinutes || null, lessonTime: v.lessonTime || null, ts: v.ts };
     await saveVoteRow(ev.id, name, votes[name], '자동승급(성별균형 시스템)');
     pushNotification(`${name}님이 대기에서 자동 승급되어 ${shortEventLabel(ev)} 참석으로 전환되었습니다. (성별 유연 승급)`, {eventId: ev.id, actor: name, category:'promotion'});
+    promotedAny = true;
     if(v.type === 'late'){
       await postAiAdminComment(ev.id, v.lessonTime ? `📚 ${name}님이 레슨 선대기에서 참석으로 자동 승급되었습니다. (사유: 성별 유연승급, 레슨 ${v.lessonTime} 예정)` : `⏰ ${name}님이 늦참 선대기에서 참석으로 자동 승급되었습니다. (사유: 성별 유연승급, 늦참 ${v.lateMinutes || 0}분 예정)`);
     } else {
       await postAiAdminComment(ev.id, `${name}님이 대기에서 참석으로 자동 승급되었습니다. (사유: ${flexGender === '남' ? '여자' : '남자'} 참석 소수(3명 이하, 복식 미만)로 성별 유연승급 발동 — 전날 낮 12시 기준)`);
     }
   }
+  return promotedAny;
 }
 
 async function tryAutoPromote(ev){
@@ -4018,7 +4030,7 @@ async function adminMoveMember(eventId, name, action){
   renderNotifBell();
 }
 
-async function approveGwaeReview(eventId, name){
+</script><script>async function approveGwaeReview(eventId, name){
   const votes = state.data.votes[eventId];
   if(!votes || !votes[name]) return;
   const v = votes[name];
