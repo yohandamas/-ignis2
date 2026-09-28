@@ -372,6 +372,7 @@
   .gp-chip .gp-name{white-space:nowrap;}
   .gp-chip .gp-actions{display:inline-flex;gap:4px;margin-left:auto;}
   .gp-chip .gp-actions button{white-space:nowrap;}
+  .guest-timer.off{color:var(--ink-soft);font-weight:700;white-space:normal;}
   .guest-timer{font-size:calc(10px * var(--font-scale, 1));font-weight:800;color:#e0891b;white-space:nowrap;}
   .guest-info-approval .urgent-rule{margin-top:8px;padding-top:8px;border-top:1px dashed rgba(79,140,255,0.5);color:var(--ink);}
   .guest-info-approval .urgent-rule b{display:inline;font-size:inherit;color:#e0891b;font-weight:800;}
@@ -616,7 +617,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.197</span>
+      <span id="buildVersionTop" class="build-version-top">v.200</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -3600,7 +3601,9 @@ function renderEventCard(ev){
   if(counts.guestPendingNames.length){
     guestPendingHtml = `<div class="review-row guest-pending">👤<span class="review-label">게스트 운영진 승인 대기</span>` +
       counts.guestPendingNames.map(g => { const gv = votesForEv[g.name]; const urgent = isUrgentGuestRequest(ev, gv);
-        const timer = urgent ? ` <span class="guest-timer">⏱ ${urgentGuestMinutesLeft(gv) > 0 ? urgentGuestMinutesLeft(gv) + '분 후 자동 참석' : '곧 자동 참석'}</span>` : '';
+        const timer = urgent ? (guestRecruitAllowed(ev, gv.gender, counts).ok
+          ? ` <span class="guest-timer">⏱ ${guestAutoApproveLabel(ev, gv)}</span>`
+          : ` <span class="guest-timer off">4명 이상이라 자동참석 안 됨 · 운영진 승인 필요</span>`) : '';
         return `<span class="review-chip gp-chip"><span class="gp-name">${escapeHtml(g.name)}</span>${g.invitedBy ? ` <span class="chip-invite-by">(${escapeHtml(g.invitedBy)}님 요청)</span>` : ''}${timer}${canApproveGuest ? `<span class="gp-actions"><button data-approve-guest="${escapeHtml(g.name)}">승인</button><button class="reject" data-reject-guest="${escapeHtml(g.name)}">거절</button></span>` : ''}</span>`; }).join('') +
       `</div>`;
   }
@@ -3837,7 +3840,8 @@ function renderEventCard(ev){
         <div class="guest-info-approval">
           <b>✅ 운영진이 승낙해야 게스트 참석이 가능해요</b>
           <span>게스트를 추가하면 "승인 대기"로 등록되고, 운영진이 승인한 뒤에 참석 명단에 올라가요.</span>
-          <span class="urgent-rule">⏱ 당일 코트 시작 <b>4시간 전부터</b> 급하게 구한 게스트는 <b>10분 안에 운영진 응답이 없으면 자동으로 참석</b>돼요. (정원이 남아 있을 때)</span>
+          <span class="urgent-rule">⏱ 코트 시작 <b>1시간 전까지 운영진 응답이 없으면</b>, 1시간 전부터 <b>10분 후 자동으로 참석</b>돼요. 시작 1시간 이내에 요청하면 요청 10분 후 자동 참석돼요. (정원이 남아 있고 4인 미달일 때)</span>
+          <span class="urgent-rule">📅 <b>미리 게스트 요청 가능 시간</b> (회칙)<br>· 16시 이전 일정: 전날 18시 이후<br>· 18~20시 일정: 당일 08시 이후<br>· 20~22시 일정: 당일 14시 이후</span>
         </div>
         <div class="guest-info-warning">
           <b>⚠️ 운영진과 협의되지 않은 게스트는 참석이 제한될 수 있습니다</b>
@@ -3850,7 +3854,7 @@ function renderEventCard(ev){
         </div>
         <div class="guest-info-section">
           <b>초대 조건</b>
-          <p>인원 4명 이하이거나, 코트 2개인데 한쪽 성별만 복식이 안 되는 경우</p>
+          <p>회칙상 <b>같은 성별 참석이 4인 미달일 때만</b> 게스트를 모집할 수 있어요. (예: 남자 참석이 4명 미만이면 남자 게스트 가능)</p>
         </div>
         <div class="guest-info-section">
           <b>비용</b>
@@ -4315,6 +4319,14 @@ async function addGuest(eventId){
   if(!ev) return;
   const displayName = `${rawName}(게스트${career ? '·'+career : ''})`;
   if(!state.data.votes[eventId]) state.data.votes[eventId] = {};
+  // v200: 회칙 "게스트 모집은 4인 미달 시에만 가능" — 일반회원은 조건 미충족시 요청 불가(운영진은 재량으로 추가·승인 가능)
+  if(!(hasAdminPower() || state.myIsStaff)){
+    const gr = guestRecruitAllowed(ev, gender);
+    if(!gr.ok){
+      alert(`지금은 ${gender} 게스트를 추가할 수 없어요.\n\n회칙상 게스트 모집은 같은 성별 참석이 4인 미달일 때만 가능해요.\n(현재 ${gr.label}으로 이미 4명 이상)\n\n꼭 필요하시면 운영진에게 먼저 문의해 주세요.`);
+      return;
+    }
+  }
   // v195: 일반회원이 추가한 게스트는 "운영진 승인 대기"로 등록 — 운영진이 승인해야 참석 명단에 올라감(운영진이 직접 추가하면 바로 참석)
   const isStaffAdder = hasAdminPower() || state.myIsStaff;
   const entry = isStaffAdder
@@ -4327,8 +4339,12 @@ async function addGuest(eventId){
   } else {
     pushNotification(`👤 ${state.myName || '회원'}님이 게스트 "${rawName}"님 참석을 요청했습니다. (${shortEventLabel(ev)}) — 운영진 승인 필요`, {eventId, actor: state.myName, category:'announcement'});
     if(isUrgentGuestRequest(ev, entry)){
-      alert(`급구 게스트 "${rawName}"님 참석 요청이 등록되었어요.\n\n운영진이 승인하면 참석 명단에 올라가요.\n10분 안에 운영진 응답이 없으면 자동으로 참석돼요. (정원이 남아 있을 때)`);
-      setTimeout(async () => { try{ if(await checkGuestAutoApprove()){ await saveData(); renderEventList(); renderNotifBell(); } }catch(e){ console.error('급구 게스트 자동승인 확인 오류', e); } }, URGENT_GUEST_AUTO_MIN * 60000 + 5000);
+      const lateReq = Date.now() >= getEventDateTime(ev).getTime() - 3600000;
+      alert(`게스트 "${rawName}"님 참석 요청이 등록되었어요.\n\n운영진이 승인하면 참석 명단에 올라가요.\n` + (lateReq
+        ? `코트 시작 1시간 이내 요청이라, 10분 안에 운영진 응답이 없으면 자동으로 참석돼요. (정원이 남아 있을 때)`
+        : `코트 시작 1시간 전까지 운영진 응답이 없으면, 그로부터 10분 뒤(${guestAutoApproveLabel(ev, entry).replace(' 자동 참석 예정','')}) 자동으로 참석돼요. (정원이 남아 있을 때)`));
+      const waitMs = guestAutoApproveAt(ev, entry) - Date.now() + 5000;
+      if(waitMs > 0 && waitMs < 3 * 3600000) setTimeout(async () => { try{ if(await checkGuestAutoApprove()){ await saveData(); renderEventList(); renderNotifBell(); } }catch(e){ console.error('게스트 자동승인 확인 오류', e); } }, waitMs);
     } else {
       alert(`게스트 "${rawName}"님 참석 요청이 등록되었어요.\n\n운영진이 승인하면 참석 명단에 올라가요.`);
     }
@@ -4444,36 +4460,67 @@ async function toggleInviteClose(eventId){
   renderNotifBell();
 }
 
-// v197: 급구 게스트 자동승인 — 당일 코트 시작 4시간 전~시작 전에 요청된 게스트는 10분간 운영진 응답이 없으면 자동 참석
-// (단, 정원이 이미 다 찼으면 자동승인하지 않고 운영진 판단을 기다림 — 급구는 인원이 부족할 때 부르는 것이므로)
-const URGENT_GUEST_WINDOW_H = 4, URGENT_GUEST_AUTO_MIN = 10;
+// v198: 급구 게스트 기준을 회칙 제7조 1항(일회성 게스트·당일 급구) 초대 시점으로 변경
+//  - 16시 이전 일정: 전날 18시 이후 / 18~20시 일정: 당일 08시 이후 / 20~22시 일정: 당일 14시 이후
+//  - 16~18시 일정은 회칙에 초대 시점이 없어 급구(자동참석) 대상에서 제외 — 운영진 승인만
+// 이 시점 이후~코트 시작 전에 요청된 게스트는 10분간 운영진 응답이 없으면 자동 참석(정원이 남아 있을 때)
+const URGENT_GUEST_AUTO_MIN = 10;
+function urgentGuestOpenTime(ev){
+  const start = getEventDateTime(ev);
+  const h = start.getHours() + start.getMinutes() / 60;
+  const d = new Date(start); d.setSeconds(0, 0);
+  if(h < 16){ d.setDate(d.getDate() - 1); d.setHours(18, 0); return d.getTime(); }
+  if(h >= 18 && h < 20){ d.setHours(8, 0); return d.getTime(); }
+  if(h >= 20){ d.setHours(14, 0); return d.getTime(); }
+  return null; // 16~18시: 회칙에 기준 없음
+}
+// v199: 급구 자동승인을 "시작 1시간 전 카운트다운"으로 변경 — 회칙 시간대(urgentGuestOpenTime)는 "미리 게스트 요청 가능 시간" 안내용으로만 사용
+//  - 코트 시작 1시간 전까지 운영진 응답이 없으면, 1시간 전부터 10분 후(=시작 50분 전) 자동 참석
+//  - 시작 1시간 이내에 요청된 게스트는 요청 10분 후 자동 참석
+//  - 정원이 다 찼으면 자동승인 안 함(운영진 판단 대기)
+// v200: 회칙 제7조 "게스트 모집은 4인 미달 시에만 가능" — 코트 개수와 무관하게 항상 "게스트와 같은 성별의 참석 인원이 4명 미만"일 때만 모집 가능
+// (예: 남3여2·여1남3·남1여4 전부 남자참석이 4명 미만이라 남자게스트 모집 가능 — 성별별로 복식4인이 채워지는지가 기준)
+function guestRecruitAllowed(ev, gender, counts){
+  const cc = counts || computedCounts(ev);
+  const n = gender === '여' ? cc.female : cc.male;
+  return { ok: n < 4, n, label: `${gender === '여' ? '여자' : '남자'} 참석 ${n}명` };
+}
+function guestAutoApproveAt(ev, v){
+  const start = getEventDateTime(ev).getTime();
+  return Math.max(start - 3600000, v.ts || 0) + URGENT_GUEST_AUTO_MIN * 60000;
+}
 function isUrgentGuestRequest(ev, v){
   if(!ev || !v || v.type !== 'guest_pending' || !v.ts) return false;
-  const start = getEventDateTime(ev).getTime();
-  const lead = start - v.ts;
-  return lead >= 0 && lead <= URGENT_GUEST_WINDOW_H * 3600000 && ev.event_date === localIso(new Date(v.ts));
+  return v.ts < getEventDateTime(ev).getTime(); // 코트 시작 전에 들어온 게스트 요청이면 모두 카운트다운 대상
 }
-function urgentGuestMinutesLeft(v){ return Math.max(0, Math.ceil((v.ts + URGENT_GUEST_AUTO_MIN * 60000 - Date.now()) / 60000)); }
+function guestAutoApproveLabel(ev, v){
+  const at = guestAutoApproveAt(ev, v), left = at - Date.now();
+  if(left <= 0) return '곧 자동 참석';
+  const hhmm = (() => { const d = new Date(at); return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0'); })();
+  if(left > 60 * 60000) return `${hhmm} 자동 참석 예정`;
+  return `${Math.ceil(left / 60000)}분 후 자동 참석`;
+}
 async function checkGuestAutoApprove(){
   let changed = false;
-  const today = todayIso();
+  const today = todayIso(), tomorrow = localIso(new Date(Date.now() + 86400000));
   for(const ev of getInstances()){
-    if(ev.event_date !== today) continue;
+    if(ev.event_date !== today && ev.event_date !== tomorrow) continue;
     const votes = state.data.votes[ev.id];
     if(!votes) continue;
     for(const [name, v] of Object.entries(votes)){
       if(!isUrgentGuestRequest(ev, v)) continue;
-      if(Date.now() - v.ts < URGENT_GUEST_AUTO_MIN * 60000) continue;
+      if(Date.now() < guestAutoApproveAt(ev, v)) continue; // 아직 자동승인 시각 전
       if(Date.now() >= getEventDateTime(ev).getTime() + 2 * 3600000) continue; // 이미 끝난 일정은 처리 안 함
       if(computedCounts(ev).regularTotal >= ev.max_players) continue; // 정원 다 찼으면 운영진 판단 대기
+      if(!guestRecruitAllowed(ev, v.gender).ok) continue; // 회칙: 4인 미달일 때만 게스트 모집 — 이미 4명 이상이면 자동승인 안 하고 운영진 판단 대기
       const live = await getLiveGenderCounts(ev.id);
       if(live && (live.male + live.female) >= ev.max_players) continue;
       const cur = state.data.votes[ev.id] && state.data.votes[ev.id][name];
       if(!cur || cur.type !== 'guest_pending') continue; // 그 사이 운영진이 처리했으면 건너뜀
       votes[name] = { status:'attend', gender: v.gender, district: v.district || '관외', hidden:false, isGuest:true, invitedBy: v.invitedBy || null, ts: v.ts };
-      await saveVoteRow(ev.id, name, votes[name], '자동승인(급구 게스트 10분 무응답)');
+      await saveVoteRow(ev.id, name, votes[name], '자동승인(시작 1시간전 카운트다운 무응답)');
       const guestLabel = name.replace(/\(게스트.*\)$/, '');
-      pushNotification(`⏱ 급구 게스트 "${guestLabel}"님이 운영진 10분 무응답으로 자동 참석되었습니다. (${shortEventLabel(ev)}${v.invitedBy ? ', ' + v.invitedBy + '님 요청' : ''})`, {eventId: ev.id, actor: v.invitedBy || null, category:'announcement'});
+      pushNotification(`⏱ 게스트 "${guestLabel}"님이 운영진 무응답으로 자동 참석되었습니다. (${shortEventLabel(ev)}${v.invitedBy ? ', ' + v.invitedBy + '님 요청' : ''})`, {eventId: ev.id, actor: v.invitedBy || null, category:'announcement'});
       changed = true;
     }
   }
