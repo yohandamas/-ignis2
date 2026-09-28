@@ -343,10 +343,13 @@
   .tournament-banner .tb-kicker{font-size:calc(11px * var(--font-scale, 1));font-weight:800;letter-spacing:1px;color:#ffb1ae;}
   .tournament-banner .tb-title{font-size:calc(24px * var(--font-scale, 1));font-weight:900;color:#fff;margin-top:4px;line-height:1.25;word-break:keep-all;}
   .tournament-banner .tb-sub{font-size:calc(11.5px * var(--font-scale, 1));color:#f6d0cf;margin-top:6px;}
-  .dawn-note{margin-top:6px;background:var(--brand-soft);border:1px solid var(--brand);border-radius:10px;padding:9px 10px;font-size:calc(12px * var(--font-scale, 1));line-height:1.6;color:var(--ink);}
-  .dawn-note b{color:var(--brand-dark);}
-  .dawn-note span{color:var(--ink-soft);font-size:calc(11px * var(--font-scale, 1));}
-  .court3-wait-box{border:1.5px dashed #7fa6ff !important;background:rgba(127,166,255,0.08) !important;margin-top:8px;}
+  .dawn-note{margin-top:6px;background:#FFF6CC;border:1px solid #EFD27A;border-radius:10px;padding:9px 10px;font-size:calc(12px * var(--font-scale, 1));line-height:1.6;color:#4A3B00;}
+  .dawn-note b{color:#8A5200;}
+  .dawn-note span{color:#6E5A1C;font-size:calc(11px * var(--font-scale, 1));}
+  /* v194: 새벽 3번코트 대기 박스를 참석 박스 옆(같은 줄, 같은 높이)으로 배치 — 확보 후(대기박스 없음)엔 참석 박스가 다시 가로 전체 */
+  .attend-box.unified-dawn.with-court3{grid-column:auto;}
+  .court3-wait-box{border:1.5px dashed #7fa6ff !important;background:rgba(127,166,255,0.08) !important;margin-top:0;}
+  .attend-box .c3w-sub{font-size:calc(10.5px * var(--font-scale, 1));color:var(--ink-soft);margin:1px 0 4px;}
   .court3-wait-box .box-head{color:#6f93e8 !important;}
   .guest-info-warning.invite{background:rgba(232,184,107,0.14);border-color:#e8b86b;}
   .guest-info-warning.invite b{color:#c98a1c;}
@@ -599,7 +602,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.193</span>
+      <span id="buildVersionTop" class="build-version-top">v.194</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -3655,12 +3658,13 @@ function renderEventCard(ev){
         // 정원(max_players)·전체인원(regularTotal) 계산 로직은 전혀 건드리지 않음 — 순수하게 화면에 "어떻게 보여줄지"만 다르게 함
         // (복잡해지면 언제든 원래(성별 분리) 방식으로 되돌리기 쉽도록, 계산 로직과 분리해서 표시만 다르게 구성)
         const allDawn = [...counts.femaleNames, ...counts.maleNames];
-        return `<div class="attend-box unified-dawn">
+        return `<div class="attend-box unified-dawn${dawnCourt3Slots > 0 ? ' with-court3' : ''}">
           <div class="box-head">참석 (${allDawn.length}/${ev.max_players}명)</div>
           <div class="name-tags">${renderNameChips(allDawn, '', false, ev.id)}</div>
         </div>${dawnCourt3Slots > 0 ? `
         <div class="attend-box court3-wait-box">
-          <div class="box-head">🎾 3번코트 대기 (${dawnCourt3Entries.length}/${dawnCourt3Slots}명) · 확보되면 바로 참석</div>
+          <div class="box-head">🎾 3번코트 대기 (${dawnCourt3Entries.length}/${dawnCourt3Slots})</div>
+          <div class="c3w-sub">확보되면 바로 참석</div>
           <div class="name-tags">${dawnCourt3Entries.length ? dawnCourt3Entries.map((e, i) => renderNameChips([e], e._suffix, false, ev.id, i)).join('') : '<span class="chip-empty">-</span>'}</div>
         </div>` : ''}`;
       })() : `
@@ -3747,7 +3751,7 @@ function renderEventCard(ev){
         <div class="name-tags">${renderNameChips(counts.absentNames, '', false, ev.id)}</div>
       </div>
       <div class="attend-box waiting">
-        <div class="box-head">대기 (${counts.waiting - dawnCourt3Entries.length})${dawnCourt3Slots > 0 ? ' · 3번코트 대기 초과분' : ''}</div>
+        <div class="box-head">대기 (${counts.waiting - dawnCourt3Entries.length})</div>${dawnCourt3Slots > 0 ? '<div class="c3w-sub">3번코트 대기 초과분</div>' : ''}
         <div class="name-tags">${renderCombinedWaitingList(counts, ev.id, dawnCourt3Entries.length)}${renderNameChips(counts.waitGwaeReviewNames,' (승인대기)',false,ev.id)}${renderNameChips(counts.waitGwaeWaitNames,' (관외대기)',false,ev.id)}${renderNameChips(counts.waitPrecloseNames,' (선마감대기)',false,ev.id)}</div>
       </div>
     </div>
