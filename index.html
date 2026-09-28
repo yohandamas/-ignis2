@@ -177,6 +177,9 @@
     font-size:calc(13px * var(--font-scale, 1));font-weight:700;cursor:pointer;padding:0;white-space:nowrap;
   } /* 참석·불참(attend-main)과 동일한 44px 높이·12px 라운드로 통일 - 게스트/클럽볼/마감/승급 6개 버튼이 일관된 그리드로 보이도록 */
   .ev-actions-row2 .ball-quick-btn.row2-item,.close-actions-row .court3-toggle-btn{display:flex;align-items:center;justify-content:center;} /* details는 자식(summary)이 align-items:center 때문에 내용크기로 줄어드는 문제가 있어 정렬속성은 버튼류에만 적용, details는 아래에서 summary에 직접 적용 */
+  /* v192: 게스트 버튼이 옆 클럽볼 버튼보다 테두리가 얇고(1px) 글씨가 흐려 보이던 차이 통일 */
+  .ev-actions-row2 .guest-add-toggle.row2-item{border:1.5px solid var(--line) !important;border-radius:12px;overflow:hidden;}
+  .ev-actions-row2 .guest-add-toggle.row2-item summary{color:var(--ink) !important;font-size:calc(13px * var(--font-scale, 1)) !important;}
   .ev-actions-row2 .guest-add-toggle.row2-item summary{width:100%;height:44px;box-sizing:border-box;border:none;padding:0;display:flex;align-items:center;justify-content:center;list-style:none;}
   .ev-actions-row2 .guest-add-toggle.row2-item summary::-webkit-details-marker{display:none;}
   .ev-actions-row2 .guest-add-toggle.row2-item[open] summary{border-radius:12px 12px 0 0;}
@@ -334,6 +337,25 @@
   .ev-actions{display:flex;flex-direction:column;gap:6px;padding-top:10px;border-top:1px solid var(--bg);}
   .ev-actions-main{display:flex;gap:6px;}
   .ev-actions-sub{display:flex;gap:6px;flex-wrap:wrap;}
+  .tournament-card{border:2px solid var(--danger) !important;box-shadow:0 2px 12px rgba(226,80,79,0.28);}
+  .tournament-card .tournament-banner{margin-top:22px;} /* 우상단 시간대 뱃지(밤/낮)와 겹치지 않게 */
+  .tournament-banner{background:linear-gradient(135deg,#6b1f1f,#3a1212);border-radius:12px;padding:14px 12px;text-align:center;margin-bottom:12px;}
+  .tournament-banner .tb-kicker{font-size:calc(11px * var(--font-scale, 1));font-weight:800;letter-spacing:1px;color:#ffb1ae;}
+  .tournament-banner .tb-title{font-size:calc(24px * var(--font-scale, 1));font-weight:900;color:#fff;margin-top:4px;line-height:1.25;word-break:keep-all;}
+  .tournament-banner .tb-sub{font-size:calc(11.5px * var(--font-scale, 1));color:#f6d0cf;margin-top:6px;}
+  .dawn-note{margin-top:6px;background:var(--brand-soft);border:1px solid var(--brand);border-radius:10px;padding:9px 10px;font-size:calc(12px * var(--font-scale, 1));line-height:1.6;color:var(--ink);}
+  .dawn-note b{color:var(--brand-dark);}
+  .dawn-note span{color:var(--ink-soft);font-size:calc(11px * var(--font-scale, 1));}
+  .court3-wait-box{border:1.5px dashed #7fa6ff !important;background:rgba(127,166,255,0.08) !important;margin-top:8px;}
+  .court3-wait-box .box-head{color:#6f93e8 !important;}
+  .guest-info-warning.invite{background:rgba(232,184,107,0.14);border-color:#e8b86b;}
+  .guest-info-warning.invite b{color:#c98a1c;}
+  .guest-info-warning.invite strong{color:var(--ink);}
+  .tm-label{font-size:calc(12px * var(--font-scale, 1));font-weight:800;color:var(--ink);margin:4px 0 2px;}
+  .tm-chips{display:flex;flex-wrap:wrap;gap:6px;}
+  .tm-chip{padding:7px 11px;border-radius:16px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font-size:calc(12px * var(--font-scale, 1));font-weight:700;cursor:pointer;}
+  .tm-mode{flex:1;height:40px;border:1.5px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font-size:calc(12.5px * var(--font-scale, 1));font-weight:700;cursor:pointer;}
+  .tm-mode.on{background:var(--brand);border-color:var(--brand);color:var(--bg);}
   .ui-dialog-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;}
   .ui-dialog-box{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;max-width:340px;width:100%;box-shadow:0 8px 24px rgba(0,0,0,0.3);display:flex;flex-direction:column;gap:12px;}
   .ui-dialog-text{font-size:calc(14px * var(--font-scale, 1));font-weight:600;color:var(--ink);line-height:1.55;white-space:pre-line;word-break:keep-all;}
@@ -575,7 +597,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.191</span>
+      <span id="buildVersionTop" class="build-version-top">v.192</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -715,7 +737,7 @@
       </div>
       <div class="manual-item">
         <div class="manual-h">⑩ 새벽테니스 운영방침 (2026년 8월, 훈련 위주 시범운영)</div>
-        <p>새벽테니스(평일 06:00~08:00)는 3번코트 확보 절차 없이 <strong>항상 정원 8명(2코트)</strong>으로 운영돼요.</p>
+        <p>새벽테니스(평일 06:00~08:00)는 <strong>기본 4명</strong>으로 운영돼요. 4명이 모이면 매일 <strong>05:40~05:50 현장 리스트업</strong>으로 3번코트를 확보하고, 확보되면 <strong>"3번코트 대기" 4명이 순서대로 참석</strong>해 최대 8명(2코트)으로 진행해요. 그 이후 신청은 일반 대기로 등록돼요.</p>
         <p>· 참석 인원이 <strong>4명 이상</strong> 모이면, 시작 시간보다 조금 더 일찍 나오셔서 3번코트를 확보하고 8명·2코트로 진행하는 걸 권장드려요.<br>
         · 레슨자는 위 ⑧번 안내처럼 이 인원수 계산에서 제외돼요.</p>
         <p style="color:var(--ink-soft);font-size:calc(11px * var(--font-scale, 1));">※ 이 운영방침은 시범 운영이에요. 운영해보면서 복잡해지거나 불편함이 크면, 운영진 논의를 거쳐 이전 방식으로 되돌아갈 수 있어요.</p>
@@ -1151,7 +1173,7 @@ function buildTemplates(){
 }
 
 function defaultData(){
-  return { templates: buildTemplates(), votes: {}, skippedDates: {}, capacityOverrides: {}, eventOverrides: {}, memberPins: {}, comments: {}, notifications: [], notifiedFlags: {}, fingerprintChecks: {}, extraMembers: [], removedMembers: {}, fingerprintExtraTargets: [], vip3Members: {}, vip3WelcomePending: {}, court3Confirmed: {}, cancelStats: {}, sameDayCancelStats: {}, genderFlex: {}, preClosed: {}, inviteCourts: {}, inviteClosed: {}, genderClosed: {}, penalties: {}, warnings: {}, monthlyChampions: {}, titleChoice: {}, pendingApproval: {}, removedTemplateIds: [], approvedAt: {}, districtOverrides: {}, staffOverrides: {}, wholeCancelled: {}, voteHistory: {}, ballStock: { '종합운동장': 0, '유니온': 0, '창고': 0 }, ballStockLastRefill: {}, ballRefillHistory: {} };
+  return { templates: buildTemplates(), votes: {}, skippedDates: {}, capacityOverrides: {}, eventOverrides: {}, memberPins: {}, comments: {}, notifications: [], notifiedFlags: {}, fingerprintChecks: {}, extraMembers: [], removedMembers: {}, fingerprintExtraTargets: [], vip3Members: {}, vip3WelcomePending: {}, court3Confirmed: {}, tournamentMarks: {}, cancelStats: {}, sameDayCancelStats: {}, genderFlex: {}, preClosed: {}, inviteCourts: {}, inviteClosed: {}, genderClosed: {}, penalties: {}, warnings: {}, monthlyChampions: {}, titleChoice: {}, pendingApproval: {}, removedTemplateIds: [], approvedAt: {}, districtOverrides: {}, staffOverrides: {}, wholeCancelled: {}, voteHistory: {}, ballStock: { '종합운동장': 0, '유니온': 0, '창고': 0 }, ballStockLastRefill: {}, ballRefillHistory: {} };
 }
 
 function getFingerprintTargets(){
@@ -1417,7 +1439,7 @@ async function saveData(){
         //  아무 저장이나 하면 다른 사람이 방금 바꾼 값을 되돌려버리는 문제가 있었음)
         // null 값은 "명시적으로 삭제됨"을 의미하며, 병합 후 실제로 키를 제거한다.
         const MERGE_MAP_FIELDS = ['memberPins','fingerprintChecks','court3Confirmed','genderFlex','preClosed',
-          'inviteCourts','inviteClosed','genderClosed','capacityOverrides','eventOverrides','cancelStats','sameDayCancelStats','notifiedFlags','skippedDates','monthlyChampions','titleChoice','pendingApproval','approvedAt','districtOverrides','staffOverrides','wholeCancelled','voteHistory','ballStock','ballStockLastRefill','ballRefillHistory','removedMembers','vip3Members','vip3WelcomePending'];
+          'inviteCourts','inviteClosed','genderClosed','capacityOverrides','tournamentMarks','eventOverrides','cancelStats','sameDayCancelStats','notifiedFlags','skippedDates','monthlyChampions','titleChoice','pendingApproval','approvedAt','districtOverrides','staffOverrides','wholeCancelled','voteHistory','ballStock','ballStockLastRefill','ballRefillHistory','removedMembers','vip3Members','vip3WelcomePending'];
         const MERGE_ARRAY_FIELDS = ['fingerprintExtraTargets'];
         MERGE_ARRAY_FIELDS.forEach(field => {
           // 배열 필드는 합집합으로 병합 (둘 중 하나라도 추가했으면 유지)
@@ -1503,15 +1525,25 @@ function computeCapacity(t, id, opts){
   const isConfirmed = !!(court3Confirmed && court3Confirmed[id]);
   // ⚠️ 새벽코트는 "3번코트 확보" 버튼 자체를 없애고, 확보여부와 무관하게 항상 8명(quota)으로 단순화
   // (요청: 정원 4명→8명으로 변경 = 3번코트 확보 절차 없이 항상 최대 8명까지 바로 등록 가능하게)
-  const computedDefault = isDawnCourt ? quota : (includesCourt3 ? (isConfirmed ? quota : unconfirmedMax) : quota);
+  // v192: 새벽코트를 다시 "기본 4명 / 3번코트 확보시 8명"으로 되돌림 (매일 05:40~05:50 현장 리스트업으로 확보)
+  const computedDefault = isDawnCourt ? (isConfirmed ? quota : 4) : (includesCourt3 ? (isConfirmed ? quota : unconfirmedMax) : quota);
   const inviteN = (inviteCourts && inviteCourts[id]) ? inviteCourts[id] : 0;
   const generalCourtCount = Math.max(0, t.courts.length - inviteN);
-  const generalQuota = inviteN > 0 ? generalCourtCount * 6 : quota;
+  const generalQuota = inviteN > 0 ? generalCourtCount * 6 : (isDawnCourt ? computedDefault : quota);
   const generalMax = (capacityOverrides && capacityOverrides[id] != null) ? capacityOverrides[id] : (inviteN > 0 ? generalQuota : computedDefault);
   const displayQuota = (capacityOverrides && capacityOverrides[id] != null) ? capacityOverrides[id] : generalQuota; // 정원 직접지정(월례대회 등) 시 "정원 N명" 표시도 동일하게 맞춤
+  // v192: 대회준비 코트 — 남녀 정원을 따로 지정하면 전체정원 = 남+여, 성별상한도 그 값으로 엄격 적용
+  const tm = (opts.tournamentMarks && opts.tournamentMarks[id]) || null;
+  let genderCaps = null, maxP = generalMax, dispQ = displayQuota;
+  if(tm && tm.maleCap != null && tm.femaleCap != null){
+    genderCaps = { '남': tm.maleCap, '여': tm.femaleCap };
+    maxP = tm.maleCap + tm.femaleCap; dispQ = maxP;
+  }
   return {
-    quota: displayQuota,
-    max_players: generalMax,
+    quota: dispQ,
+    max_players: maxP,
+    genderCaps,
+    tournament: tm ? { title: tm.title || '대회준비' } : null,
     includesCourt3,
     court3Confirmed: isConfirmed,
     inviteCourts: inviteN,
@@ -1519,7 +1551,7 @@ function computeCapacity(t, id, opts){
   };
 }
 
-function generateInstances(templates, startDate, days, skippedDates, capacityOverrides, court3Confirmed, inviteCourts, eventOverrides){
+function generateInstances(templates, startDate, days, skippedDates, capacityOverrides, court3Confirmed, inviteCourts, eventOverrides, tournamentMarks){
   const out = [];
   for(let i=0;i<days;i++){
     const d = new Date(startDate);
@@ -1542,7 +1574,7 @@ function generateInstances(templates, startDate, days, skippedDates, capacityOve
         endTime: ov.endTime || t.endTime,
         courts: ov.courts || t.courts
       }) : t;
-      const cap = computeCapacity(effT, id, { capacityOverrides, court3Confirmed, inviteCourts });
+      const cap = computeCapacity(effT, id, { capacityOverrides, court3Confirmed, inviteCourts, tournamentMarks });
       out.push({
         id, templateId: t.id,
         event_date: iso, weekday: WEEKDAY_KR[dow] + '요일', dow,
@@ -1554,6 +1586,8 @@ function generateInstances(templates, startDate, days, skippedDates, capacityOve
         max_players: cap.max_players,
         inviteCourts: cap.inviteCourts,
         inviteMax: cap.inviteMax,
+        genderCaps: cap.genderCaps,
+        tournament: cap.tournament,
         isSpecialEvent: !!t.specificDate, // 1회성 이벤트(월례대회 등) 여부 - 화면에 특별 표시용
         attend:0, absent:0, waiting:0, manager:'서힘찬'
       });
@@ -1567,7 +1601,7 @@ function getEventsInDateRange(startDate, endDate){
   const days = Math.round((endDate - startDate) / 86400000) + 1;
   const startIso = localIso(startDate);
   const endIso = localIso(endDate);
-  return generateInstances(state.data.templates, startDate, days, state.data.skippedDates, state.data.capacityOverrides, state.data.court3Confirmed, state.data.inviteCourts, state.data.eventOverrides)
+  return generateInstances(state.data.templates, startDate, days, state.data.skippedDates, state.data.capacityOverrides, state.data.court3Confirmed, state.data.inviteCourts, state.data.eventOverrides, state.data.tournamentMarks)
     .filter(e => e.event_date >= startIso && e.event_date <= endIso);
 }
 
@@ -1577,13 +1611,16 @@ function getInstances(){
   const yearEnd = new Date(start.getFullYear(), 11, 31);
   const rangeStart = new Date(Math.min(start.getTime(), startCal.getTime()));
   const days = Math.max(1, Math.round((yearEnd - rangeStart)/86400000)+1);
-  return generateInstances(state.data.templates, rangeStart, days, state.data.skippedDates, state.data.capacityOverrides, state.data.court3Confirmed, state.data.inviteCourts, state.data.eventOverrides);
+  return generateInstances(state.data.templates, rangeStart, days, state.data.skippedDates, state.data.capacityOverrides, state.data.court3Confirmed, state.data.inviteCourts, state.data.eventOverrides, state.data.tournamentMarks);
 }
 
 function hasAdminPower(){
   return state.adminMode;
 }
 
+// v192: 성별 상한 적용 여부/값 — 대회준비 코트에 남녀정원이 지정되면 그 값을 엄격 적용(다른 성별로 넘겨주지 않음)
+function hasGenderCaps(ev){ return !!(ev && (ev.genderCaps || (ev.court_count === 2 && !isDawnEvent(ev)))); }
+function genderCapFor(ev, g){ return (ev && ev.genderCaps) ? (ev.genderCaps[g] || 0) : Math.floor(ev.max_players / 2); }
 function isDawnEvent(ev){
   return !!(ev && ev.start_time === '06:00' && ev.end_time === '08:00');
 }
@@ -2348,14 +2385,14 @@ async function checkConsecutiveWaitingLatePromotion(){
           const isConsecutiveWaiting = v.type === 'late_consecutive' || (v.type === 'consecutive' && isPeakSeason());
           if(!isLessonWaiting && !isConsecutiveWaiting) return false;
           if(state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender]) return false; // 관리자가 이 성별을 수동마감했으면 연참 전용경로도 예외 없이 금지
-          if(ev.court_count === 2 && !isDawnEvent(ev)){
+          if(hasGenderCaps(ev)){
             // 연참·늦참연참·레슨자 전용경로도 다른 승급함수(tryAutoPromote 등)와 동일하게 성별상한을 적용해야 함
             // — 이 체크가 빠져있어서, 이미 한쪽 성별이 상한에 도달했는데도 연참 대기자만 상한 없이 계속 승급되던 버그가 있었음
             const flex = state.data.genderFlex && state.data.genderFlex[ev.id];
             const myGenderCount = v.gender === '여' ? counts.female : counts.male;
             const oppositeGenderCount = v.gender === '여' ? counts.male : counts.female;
-            const flexFavorsThisGender = oppositeGenderCount <= 3; // 복식(4명) 기준: 반대성별이 4명 미만(=3명 이하)이면 자기들끼리 복식조차 못 이루니 상한초과 허용. 4명 이상 되는 순간 예외 사라짐(영구고정 genderFlex 대신 매번 실시간 재판정)
-            const genderCap = Math.floor(ev.max_players / 2);
+            const flexFavorsThisGender = oppositeGenderCount <= 3 && !ev.genderCaps; // 복식(4명) 기준: 반대성별이 4명 미만(=3명 이하)이면 자기들끼리 복식조차 못 이루니 상한초과 허용. 4명 이상 되는 순간 예외 사라짐(영구고정 genderFlex 대신 매번 실시간 재판정)
+            const genderCap = genderCapFor(ev, v.gender);
             if(myGenderCount >= genderCap && !flexFavorsThisGender) return false;
           }
           return true;
@@ -2373,12 +2410,12 @@ async function checkConsecutiveWaitingLatePromotion(){
       const liveTotal = await getLiveGenderCounts(ev.id);
       if(!liveTotal) break; // 실시간 조회 실패시 안전을 위해 이번 사이클 중단
       if((liveTotal.male + liveTotal.female) >= ev.max_players) break; // 실시간 기준 이미 전체정원 도달 — 중단
-      if(ev.court_count === 2 && !isDawnEvent(ev)){
+      if(hasGenderCaps(ev)){
         const flex = state.data.genderFlex && state.data.genderFlex[ev.id];
         const myLiveCount = v.gender === '여' ? liveTotal.female : liveTotal.male;
-        const genderCap = Math.floor(ev.max_players / 2);
+        const genderCap = genderCapFor(ev, v.gender);
         const oppositeLiveCount = v.gender === '여' ? liveTotal.male : liveTotal.female;
-        const flexFavorsThisGender = oppositeLiveCount <= 3; // 복식(4명) 기준 — 반대성별 3명이하일때만 예외(실시간 판정, 영구고정 genderFlex 대신)
+        const flexFavorsThisGender = oppositeLiveCount <= 3 && !ev.genderCaps; // 복식(4명) 기준 — 반대성별 3명이하일때만 예외(실시간 판정, 영구고정 genderFlex 대신)
         if((myLiveCount >= genderCap || (state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender])) && !flexFavorsThisGender) break;
       }
       votes[name] = { status:'attend', gender: v.gender, district: v.district, hidden:false, promotedFrom: v.type, lateArrival: v.lateArrival || false, lateMinutes: v.lateMinutes || null, lessonTime: v.lessonTime || null, ts: Date.now() };
@@ -2442,6 +2479,7 @@ async function checkGenderFlexPromotions(){
   for(const ev of getInstances()){
     if(ev.court_count !== 2) continue;
     if(isDawnEvent(ev)) continue; // 새벽코트는 성별 상한 자체가 없어 유연승급 판정이 불필요
+    if(ev.genderCaps) continue; // v192: 대회준비 남녀정원 지정 코트는 유연승급 대상 아님
     if(ev.event_date !== t && ev.event_date !== tmr) continue; // 하루 전 사전예고 취지 복원 — 당일/익일 이틀치 검사
     // ⚠️ 예전엔 "남/여로 한번 확정되면 영구고정, 재검토 안 함" 이었으나, 이러면 그 이후 실제 인원이 회복돼도
     // genderFlex 필드(안내배지·알림 문구 등에 쓰임)가 계속 옛값에 박제되는 문제가 있었음(8/27 목요일 사례로 발견 —
@@ -2555,12 +2593,12 @@ async function tryAutoPromote(ev){
         if(state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender]) return false; // 관리자가 이 성별을 수동마감했으면, 이미 대기중인 사람도 자동승급 절대 금지(관리자가 이동▾으로 개별 추가하는 것만 예외)
           if(v.type === 'late_consecutive') return false; // 늦참+연참 동시는 계절 무관 항상 제외 — 시작1시간전 전용경로(checkConsecutiveWaitingLatePromotion)로만 승급
           if(isPeakSeason() && v.type === 'consecutive') return false; // 순수 연참은 성수기에만 제외 — 시작 1시간전에 별도 승급 기회를 줌
-        if(ev.court_count === 2 && !isDawnEvent(ev)){
+        if(hasGenderCaps(ev)){
           // 성별당 상한은 코트수에 비례(quota의 절반) — 3번코트 확보시엔 상한 자체를 없애는 게 아니라 늘어난 정원만큼만 비례 확대
           const myGenderCount = v.gender === '여' ? counts.female : counts.male;
           const oppositeGenderCount = v.gender === '여' ? counts.male : counts.female;
-          const flexFavorsThisGender = oppositeGenderCount <= 3; // 복식(4명) 기준: 반대성별이 4명 미만(=3명 이하)이면 자기들끼리 복식조차 못 이루니 상한초과 허용. 4명 이상 되는 순간 예외 사라짐(영구고정 genderFlex 대신 매번 실시간 재판정)
-          const genderCap = Math.floor(ev.max_players / 2); // 신규등록(setVote)과 동일 공식 — 확보상태 반영한 현재 정원 기준으로 통일(quota 고정값 쓰면 미확보 구간에서 신규등록과 충돌)
+          const flexFavorsThisGender = oppositeGenderCount <= 3 && !ev.genderCaps; // 복식(4명) 기준: 반대성별이 4명 미만(=3명 이하)이면 자기들끼리 복식조차 못 이루니 상한초과 허용. 4명 이상 되는 순간 예외 사라짐(영구고정 genderFlex 대신 매번 실시간 재판정)
+          const genderCap = genderCapFor(ev, v.gender); // 신규등록(setVote)과 동일 공식 — 확보상태 반영한 현재 정원 기준으로 통일(quota 고정값 쓰면 미확보 구간에서 신규등록과 충돌)
           if(myGenderCount >= genderCap && !flexFavorsThisGender) return false;
         }
         return true;
@@ -2581,11 +2619,11 @@ async function tryAutoPromote(ev){
       const liveGenderCounts = await getLiveGenderCounts(ev.id);
       if(!liveGenderCounts){ continue; } // 실시간 조회 실패시 안전을 위해 이번엔 승급 보류
       if((liveGenderCounts.male + liveGenderCounts.female) >= ev.max_players) continue; // 실시간 기준 이미 전체정원 도달
-      if(ev.court_count === 2 && !isDawnEvent(ev)){
+      if(hasGenderCaps(ev)){
         const myLiveCount = v.gender === '여' ? liveGenderCounts.female : liveGenderCounts.male;
-        const genderCap = Math.floor(ev.max_players / 2);
+        const genderCap = genderCapFor(ev, v.gender);
         const oppositeLiveCount = v.gender === '여' ? liveGenderCounts.male : liveGenderCounts.female;
-        const flexFavorsThisGender = oppositeLiveCount <= 3; // 복식(4명) 기준 — 반대성별 3명이하일때만 예외(실시간 판정, 영구고정 genderFlex 대신)
+        const flexFavorsThisGender = oppositeLiveCount <= 3 && !ev.genderCaps; // 복식(4명) 기준 — 반대성별 3명이하일때만 예외(실시간 판정, 영구고정 genderFlex 대신)
         if((myLiveCount >= genderCap || (state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender])) && !flexFavorsThisGender) continue; // 이미 상한 도달 또는 관리자 수동마감 — 이 사람은 건너뛰고 다음 후보로
       }
       const promotedFrom = v.type === 'consecutive' ? 'consecutive' : 'wait';
@@ -3475,7 +3513,7 @@ function renderNameChips(entries, suffix, showDistrict, eventId, startIdx){
   }).join('');
 }
 
-function renderCombinedWaitingList(counts, eventId){
+function getCombinedWaitingEntries(counts){
   // ⚠️ 요청: 성별대기·일반대기·연속참석대기가 각각 별도 배열로 따로 렌더링되다 보니, 카테고리마다 번호가
   // 1번부터 다시 시작해서 "같은 1번이 여러 개" 보이는 문제가 있었음. 실제 우선순위(waitingSortKey와 동일 기준
   // — 일반·성별대기(0, 동급) > 늦참·레슨대기(1, 동급) > 연속참석(2))로 전체를 하나로 합쳐 정렬한 뒤,
@@ -3491,7 +3529,10 @@ function renderCombinedWaitingList(counts, eventId){
   let combined = [];
   groups.forEach(g => { g.arr.forEach(e => combined.push(Object.assign({}, e, { _suffix: g.suffix, _priority: g.priority }))); });
   combined.sort((a, b) => (a._priority - b._priority) || ((a.ts||0) - (b.ts||0))); // 우선순위 먼저, 같은 우선순위 안에서는 선착순(ts)
-
+  return combined;
+}
+function renderCombinedWaitingList(counts, eventId, skip){
+  const combined = getCombinedWaitingEntries(counts).slice(skip || 0);
   let html = '';
   let idx = 0;
   combined.forEach(e => {
@@ -3507,9 +3548,13 @@ function renderEventCard(ev){
   const myStatus = myVote ? myVote.status : undefined;
   const myHidden = myVote ? !!myVote.hidden : false;
   const card = document.createElement('div');
-  card.className = 'event' + ((!hasAdminPower() && isLockedForMembers(ev)) ? ' locked-card' : '') + (ev.isSpecialEvent ? ' special-event-card' : '');
+  card.className = 'event' + ((!hasAdminPower() && isLockedForMembers(ev)) ? ' locked-card' : '') + (ev.isSpecialEvent && !ev.tournament ? ' special-event-card' : '') + (ev.tournament ? ' tournament-card' : '');
 
 
+  // v192: 새벽코트 3번코트 미확보시, 대기 앞순서 최대 4명(=확보시 늘어날 자리)을 "3번코트 대기"로 따로 표시
+  // (실제 승급 순서도 같은 정렬기준이라, 확보 버튼을 누르면 정확히 이 사람들이 먼저 참석으로 올라감)
+  const dawnCourt3Slots = (isDawnEvent(ev) && ev.includesCourt3 && !ev.court3Confirmed) ? Math.max(0, Math.min(4, 8 - counts.regularTotal)) : 0;
+  const dawnCourt3Entries = dawnCourt3Slots > 0 ? getCombinedWaitingEntries(counts).slice(0, dawnCourt3Slots) : [];
   let reviewHtml = "";
   const votesForEv = state.data.votes[ev.id] || {};
   const reviewNames = Object.entries(votesForEv).filter(([,v]) => v.status==='waiting' && v.type==='gwae_review').map(([n])=>n);
@@ -3563,6 +3608,11 @@ function renderEventCard(ev){
   const locColor = isLocked ? 'var(--ink-faint)' : (ev.location === '종합운동장' ? 'var(--vivid-green)' : 'var(--vivid-orange)');
 
   card.innerHTML = `
+    ${ev.tournament ? `<div class="tournament-banner">
+      <div class="tb-kicker">🏆 대회준비 코트</div>
+      <div class="tb-title">${escapeHtml(ev.tournament.title)}</div>
+      <div class="tb-sub">${ev.genderCaps ? `남자 ${ev.genderCaps['남']}명 · 여자 ${ev.genderCaps['여']}명 (총 ${ev.max_players}명)` : `정원 ${ev.max_players}명`}</div>
+    </div>` : ''}
     <span class="time-of-day-badge">${getTimeOfDayBadge(ev.start_time)}</span>
     <div class="ev-top" style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
       <div>
@@ -3573,7 +3623,10 @@ function renderEventCard(ev){
         </div>
         <div class="ev-time">${escapeHtml(ev.title)}</div>
         <div class="ev-meta">${ev.court_count}개 코트 · 정원 ${ev.quota}명(최대 ${ev.max_players}명)</div>
-        ${ev.includesCourt3 ? (ev.court3Confirmed
+        ${(ev.includesCourt3 && isDawnEvent(ev)) ? (ev.court3Confirmed
+          ? `<div class="court3-note confirmed">✅ 3번코트 확보 완료 — 새벽코트 정원 ${ev.max_players}명으로 진행</div>`
+          : `<div class="dawn-note">🌅 새벽코트는 <b>기본 4명</b>으로 운영돼요.<br>4명이 모이면 <b>3번코트 확보 시 4명 추가 참석</b> 가능해요.<br><span>3번코트 확보: 매일 05:40~05:50 현장 리스트업</span></div>`
+        ) : ev.includesCourt3 ? (ev.court3Confirmed
           ? `<div class="court3-note confirmed">✅ 3번코트 확보 완료 — 정원 ${ev.max_players}명으로 진행</div>`
           : `<div class="court3-note">⏳ 3번코트는 현장 확보 전까지 우선 ${ev.max_players}명만 모집 (확보 시 정원 확대 예정)</div>`
         ) : ''}
@@ -3584,7 +3637,8 @@ function renderEventCard(ev){
           return '';
         })()}
       </div>
-      ${hasAdminPower() ? `<div style="display:flex;gap:4px;flex-shrink:0;">
+      ${hasAdminPower() ? `<div style="display:flex;gap:4px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;">
+        <button class="ev-edit-btn" data-tournament-sheet="${ev.id}" style="border:1px solid var(--danger);background:var(--panel);color:var(--danger);border-radius:8px;padding:4px 8px;font-size:calc(10px * var(--font-scale, 1));cursor:pointer;white-space:nowrap;font-weight:800;">🏆 대회준비</button>
         <button class="ev-edit-btn" data-edit-occurrence="${ev.id}" style="border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:8px;padding:4px 8px;font-size:calc(10px * var(--font-scale, 1));cursor:pointer;white-space:nowrap;">✏️ 수정</button>
         <button class="ev-edit-btn" data-delete-occurrence="${ev.id}" style="border:1px solid var(--danger);background:var(--danger-soft);color:var(--danger);border-radius:8px;padding:4px 8px;font-size:calc(10px * var(--font-scale, 1));cursor:pointer;white-space:nowrap;">🗑️ 삭제</button>
       </div>` : ''}
@@ -3599,20 +3653,65 @@ function renderEventCard(ev){
         // (복잡해지면 언제든 원래(성별 분리) 방식으로 되돌리기 쉽도록, 계산 로직과 분리해서 표시만 다르게 구성)
         const allDawn = [...counts.femaleNames, ...counts.maleNames];
         return `<div class="attend-box unified-dawn">
-          <div class="box-head">참석 (${allDawn.length}명)</div>
+          <div class="box-head">참석 (${allDawn.length}/${ev.max_players}명)</div>
           <div class="name-tags">${renderNameChips(allDawn, '', false, ev.id)}</div>
-        </div>`;
+        </div>${dawnCourt3Slots > 0 ? `
+        <div class="attend-box court3-wait-box">
+          <div class="box-head">🎾 3번코트 대기 (${dawnCourt3Entries.length}/${dawnCourt3Slots}명) · 확보되면 바로 참석</div>
+          <div class="name-tags">${dawnCourt3Entries.length ? dawnCourt3Entries.map((e, i) => renderNameChips([e], e._suffix, false, ev.id, i)).join('') : '<span class="chip-empty">-</span>'}</div>
+        </div>` : ''}`;
       })() : `
       <div class="attend-box female">
-        <div class="box-head">여자 참석 (${counts.female}${counts.femaleNames.filter(e=>e.hidden).length ? '+'+counts.femaleNames.filter(e=>e.hidden).length+'★' : ''})${(state.data.genderClosed && state.data.genderClosed[ev.id+'|여']) ? ' <span class="gender-full">🚫수동마감</span>' : (counts.female >= 6 && ev.court_count === 1) ? ' <span class="gender-full">🔒마감</span>' : ''}</div>
+        <div class="box-head">여자 참석 (${counts.female}${ev.genderCaps ? '/' + ev.genderCaps['여'] : ''}${counts.femaleNames.filter(e=>e.hidden).length ? '+'+counts.femaleNames.filter(e=>e.hidden).length+'★' : ''})${(state.data.genderClosed && state.data.genderClosed[ev.id+'|여']) ? ' <span class="gender-full">🚫수동마감</span>' : ((ev.genderCaps && counts.female >= ev.genderCaps['여']) || (!ev.genderCaps && counts.female >= 6 && ev.court_count === 1)) ? ' <span class="gender-full">🔒마감</span>' : ''}</div>
         <div class="name-tags">${renderNameChips(counts.femaleNames, '', ev.location === '종합운동장', ev.id)}</div>
       </div>
       <div class="attend-box male">
-        <div class="box-head">남자 참석 (${counts.male}${counts.maleNames.filter(e=>e.hidden).length ? '+'+counts.maleNames.filter(e=>e.hidden).length+'★' : ''})${(state.data.genderClosed && state.data.genderClosed[ev.id+'|남']) ? ' <span class="gender-full">🚫수동마감</span>' : (counts.male >= 6 && ev.court_count === 1) ? ' <span class="gender-full">🔒마감</span>' : ''}</div>
+        <div class="box-head">남자 참석 (${counts.male}${ev.genderCaps ? '/' + ev.genderCaps['남'] : ''}${counts.maleNames.filter(e=>e.hidden).length ? '+'+counts.maleNames.filter(e=>e.hidden).length+'★' : ''})${(state.data.genderClosed && state.data.genderClosed[ev.id+'|남']) ? ' <span class="gender-full">🚫수동마감</span>' : ((ev.genderCaps && counts.male >= ev.genderCaps['남']) || (!ev.genderCaps && counts.male >= 6 && ev.court_count === 1)) ? ' <span class="gender-full">🔒마감</span>' : ''}</div>
         <div class="name-tags">${renderNameChips(counts.maleNames, '', ev.location === '종합운동장', ev.id)}</div>
       </div>`}
     </div>
     ${renderAttendSubBoxes(counts.femaleNames, counts.maleNames)}
+    ${ev.inviteCourts > 0 ? `<div class="attend-sheet-backdrop" id="inviteInfoBackdrop-${ev.id}" style="display:none;">
+      <div class="attend-sheet">
+        <div class="guest-info-warning invite">
+          <b>👨‍👩‍👧 가족·지인 초청코트 안내</b>
+          <span>초청코트는 <strong>코트가 남을 때에만 한정적으로</strong> 운영돼요. (관리이사 판단)</span>
+        </div>
+        <div class="guest-info-divider"></div>
+        <div class="guest-info-section"><b>외부 게스트</b><p>"가족과 지인" 외에 외부 게스트를 모집하실 때는 운영진에게 먼저 문의해 주세요.</p></div>
+        <div class="guest-info-section"><b>게스트 비용</b><p>5,000원</p></div>
+        <div class="ui-dialog-row">
+          <button class="attend-sheet-cancel" data-invite-info-cancel="${ev.id}" style="flex:1;margin-top:0;">취소</button>
+          <button class="ui-dialog-btn primary" data-invite-info-ok="${ev.id}" style="flex:1;">확인하고 참석</button>
+        </div>
+      </div>
+    </div>` : ''}
+    ${hasAdminPower() ? `<div class="attend-sheet-backdrop" id="tournamentBackdrop-${ev.id}" style="display:none;">
+      <div class="attend-sheet">
+        <div class="attend-sheet-title">🏆 대회준비 코트로 지정</div>
+        <div class="tm-label">종류 (눌러서 선택)</div>
+        <div class="tm-chips">${['단체전 준비','구대회 준비','시대회 준비','전국대회 준비'].map(t => `<button class="tm-chip" data-tm-preset="${t}" data-ev="${ev.id}">${t}</button>`).join('')}</div>
+        <div class="tm-label">제목 (크게 표시됨 · 직접 수정 가능)</div>
+        <input class="ui-dialog-input" id="tmTitle-${ev.id}" value="${ev.tournament ? escapeHtml(ev.tournament.title) : '단체전 준비'}">
+        <div class="tm-label">정원 방식</div>
+        <div class="ui-dialog-row">
+          <button class="tm-mode ${ev.genderCaps ? '' : 'on'}" data-tm-mode="total" data-ev="${ev.id}">전체 정원</button>
+          <button class="tm-mode ${ev.genderCaps ? 'on' : ''}" data-tm-mode="gender" data-ev="${ev.id}">남녀 따로</button>
+        </div>
+        <div id="tmTotalWrap-${ev.id}" style="display:${ev.genderCaps ? 'none' : 'block'};">
+          <div class="tm-label">전체 정원 (비우면 기존 정원 유지)</div>
+          <input class="ui-dialog-input" id="tmCap-${ev.id}" type="number" min="1" placeholder="현재 ${ev.max_players}명" value="${(!ev.genderCaps && state.data.tournamentMarks && state.data.tournamentMarks[ev.id] && state.data.tournamentMarks[ev.id].cap) || ''}">
+        </div>
+        <div id="tmGenderWrap-${ev.id}" class="ui-dialog-row" style="display:${ev.genderCaps ? 'flex' : 'none'};">
+          <div style="flex:1;"><div class="tm-label" style="color:var(--male-ink, #3d8b4f);">남자 정원</div><input class="ui-dialog-input" id="tmMale-${ev.id}" type="number" min="0" value="${ev.genderCaps ? ev.genderCaps['남'] : ''}"></div>
+          <div style="flex:1;"><div class="tm-label" style="color:var(--female-ink, #c0567a);">여자 정원</div><input class="ui-dialog-input" id="tmFemale-${ev.id}" type="number" min="0" value="${ev.genderCaps ? ev.genderCaps['여'] : ''}"></div>
+        </div>
+        <div class="ui-dialog-row" style="margin-top:6px;">
+          <button class="attend-sheet-cancel" data-tm-clear="${ev.id}" style="flex:1;margin-top:0;color:var(--danger);border-color:var(--danger);">${ev.tournament ? '지정 해제' : '닫기'}</button>
+          <button class="ui-dialog-btn primary" data-tm-save="${ev.id}" style="flex:1;">저장</button>
+        </div>
+      </div>
+    </div>` : ''}
     ${ev.inviteCourts > 0 ? (() => { const inviteClosed = state.data.inviteClosed && state.data.inviteClosed[ev.id]; const alreadyIn = myVote && myVote.isInvite && myStatus==='attend'; return `
     <div class="invite-court-box">
       <div class="invite-court-head">👨‍👩‍👧 가족 지인 초청코트 참석 (${counts.inviteNames.length}/${ev.inviteMax})${inviteClosed ? ' <span class="gender-full">🚫 마감</span>' : ''}</div>
@@ -3644,11 +3743,13 @@ function renderEventCard(ev){
         <div class="name-tags">${renderNameChips(counts.absentNames, '', false, ev.id)}</div>
       </div>
       <div class="attend-box waiting">
-        <div class="box-head">대기 (${counts.waiting})</div>
-        <div class="name-tags">${renderCombinedWaitingList(counts, ev.id)}${renderNameChips(counts.waitGwaeReviewNames,' (승인대기)',false,ev.id)}${renderNameChips(counts.waitGwaeWaitNames,' (관외대기)',false,ev.id)}${renderNameChips(counts.waitPrecloseNames,' (선마감대기)',false,ev.id)}</div>
+        <div class="box-head">대기 (${counts.waiting - dawnCourt3Entries.length})${dawnCourt3Slots > 0 ? ' · 3번코트 대기 초과분' : ''}</div>
+        <div class="name-tags">${renderCombinedWaitingList(counts, ev.id, dawnCourt3Entries.length)}${renderNameChips(counts.waitGwaeReviewNames,' (승인대기)',false,ev.id)}${renderNameChips(counts.waitGwaeWaitNames,' (관외대기)',false,ev.id)}${renderNameChips(counts.waitPrecloseNames,' (선마감대기)',false,ev.id)}</div>
       </div>
     </div>
-    ${myStatus === 'waiting' ? renderMyWaitingNotice(myVote, counts) : ''}
+    ${myStatus === 'waiting' ? ((() => { const di = dawnCourt3Entries.findIndex(e => e.name === state.myName); return di >= 0
+      ? `<div class="my-wait-notice">🎾 회원님은 <b>3번코트 대기 ${di + 1}번째</b>입니다. 매일 05:40~05:50 현장에서 3번코트가 확보되면 바로 참석 처리돼요.</div>`
+      : renderMyWaitingNotice(myVote, counts); })()) : ''}
     ${reviewHtml}
     ${lateRequestHtml}
     <div class="ev-actions">
@@ -3713,7 +3814,7 @@ function renderEventCard(ev){
       <button class="confirm-btn" id="confirmBtn-${ev.id}">✓ 확정</button>
       <button class="confirm-cancel" id="cancelBtn-${ev.id}">선택 취소</button>
     </div><div class="pending-note">선택하신 내용을 "확정" 버튼을 눌러야 최종 반영됩니다.</div>` : ''}
-    ${(ev.includesCourt3 && !isDawnEvent(ev)) ? `<div class="admin-row" style="display:${canConfirmCourt3(ev)?'flex':'none'}">
+    ${ev.includesCourt3 ? `<div class="admin-row" style="display:${canConfirmCourt3(ev)?'flex':'none'}">
       <button class="court3-toggle-btn ${ev.court3Confirmed?'confirmed':''}" data-court3-toggle="${ev.id}" style="font-size:calc(11px * var(--font-scale, 1));padding:6px 10px;border-radius:8px;border:1px solid var(--line);background:${ev.court3Confirmed?'var(--brand-soft)':'var(--panel)'};cursor:pointer;white-space:nowrap;width:100%;">
         ${ev.court3Confirmed ? '✅ 3번코트 확보됨 (해제하려면 클릭)' : '📍 3번코트 확보 확인'}
       </button>
@@ -3833,8 +3934,68 @@ function renderEventCard(ev){
   if(attendSheetBackdrop) attendSheetBackdrop.onclick = (e) => { if(e.target === attendSheetBackdrop) attendSheetBackdrop.style.display = 'none'; };
   const inviteBtn = card.querySelector(`#inviteAddBtn-${ev.id}`);
   if(inviteBtn) inviteBtn.onclick = () => addInviteAttendee(ev.id);
+  // v192: 초청코트 참석(신규) 전에 안내 팝업 — 확인해야 참석 진행. 이미 참석중이라 취소할 때는 팝업 없이 바로 처리
   const inviteSelfBtn = card.querySelector('[data-invite-self]');
-  if(inviteSelfBtn) inviteSelfBtn.onclick = () => attendInviteCourt(ev.id);
+  const inviteInfoBd = card.querySelector(`#inviteInfoBackdrop-${ev.id}`);
+  let inviteInfoAfter = null;
+  const openInviteInfo = (after, okLabel) => {
+    if(!inviteInfoBd){ if(after) after(); return; }
+    inviteInfoAfter = after;
+    const okBtn = inviteInfoBd.querySelector('[data-invite-info-ok]');
+    if(okBtn) okBtn.textContent = okLabel;
+    inviteInfoBd.style.display = 'flex';
+  };
+  if(inviteSelfBtn) inviteSelfBtn.onclick = () => {
+    const mv = (state.data.votes[ev.id] || {})[state.myName];
+    const already = mv && mv.isInvite && mv.status === 'attend';
+    if(already) attendInviteCourt(ev.id);
+    else openInviteInfo(() => attendInviteCourt(ev.id), '확인하고 참석');
+  };
+  const inviteGuestToggle = card.querySelector('.invite-court-box details.guest-add-toggle');
+  if(inviteGuestToggle) inviteGuestToggle.addEventListener('toggle', () => { if(inviteGuestToggle.open) openInviteInfo(null, '확인했어요'); });
+  if(inviteInfoBd){
+    const closeInfo = () => { inviteInfoBd.style.display = 'none'; inviteInfoAfter = null; };
+    inviteInfoBd.querySelector('[data-invite-info-cancel]').onclick = () => {
+      if(!inviteInfoAfter && inviteGuestToggle) inviteGuestToggle.open = false; // 동반추가를 열다 취소하면 폼도 닫음
+      closeInfo();
+    };
+    inviteInfoBd.querySelector('[data-invite-info-ok]').onclick = () => { const f = inviteInfoAfter; closeInfo(); if(f) f(); };
+    inviteInfoBd.onclick = (e) => { if(e.target === inviteInfoBd) closeInfo(); };
+  }
+  // v192: 대회준비 코트 설정창
+  const tmBd = card.querySelector(`#tournamentBackdrop-${ev.id}`);
+  const tmOpenBtn = card.querySelector('[data-tournament-sheet]');
+  if(tmOpenBtn && tmBd) tmOpenBtn.onclick = () => { tmBd.style.display = 'flex'; };
+  if(tmBd){
+    let tmMode = ev.genderCaps ? 'gender' : 'total';
+    tmBd.querySelectorAll('[data-tm-preset]').forEach(b => b.onclick = () => { card.querySelector(`#tmTitle-${ev.id}`).value = b.getAttribute('data-tm-preset'); });
+    tmBd.querySelectorAll('[data-tm-mode]').forEach(b => b.onclick = () => {
+      tmMode = b.getAttribute('data-tm-mode');
+      tmBd.querySelectorAll('[data-tm-mode]').forEach(x => x.classList.toggle('on', x === b));
+      card.querySelector(`#tmTotalWrap-${ev.id}`).style.display = tmMode === 'total' ? 'block' : 'none';
+      card.querySelector(`#tmGenderWrap-${ev.id}`).style.display = tmMode === 'gender' ? 'flex' : 'none';
+    });
+    tmBd.querySelector('[data-tm-save]').onclick = async () => {
+      const title = card.querySelector(`#tmTitle-${ev.id}`).value.trim() || '대회준비';
+      if(tmMode === 'gender'){
+        const m = parseInt(card.querySelector(`#tmMale-${ev.id}`).value, 10), f = parseInt(card.querySelector(`#tmFemale-${ev.id}`).value, 10);
+        if(!(m >= 0) || !(f >= 0) || (m + f) < 1){ alert('남자·여자 정원을 숫자로 입력해 주세요.'); return; }
+        tmBd.style.display = 'none';
+        await saveTournamentMark(ev.id, { title, maleCap: m, femaleCap: f });
+      } else {
+        const raw = card.querySelector(`#tmCap-${ev.id}`).value.trim();
+        const n = raw === '' ? null : parseInt(raw, 10);
+        if(raw !== '' && !(n >= 1)){ alert('정원은 1 이상의 숫자로 입력해 주세요.'); return; }
+        tmBd.style.display = 'none';
+        await saveTournamentMark(ev.id, { title, cap: n });
+      }
+    };
+    tmBd.querySelector('[data-tm-clear]').onclick = async () => {
+      tmBd.style.display = 'none';
+      if(ev.tournament) await clearTournamentMark(ev.id);
+    };
+    tmBd.onclick = (e) => { if(e.target === tmBd) tmBd.style.display = 'none'; };
+  }
   const inviteCloseBtn = card.querySelector('[data-invite-close-toggle]');
   if(inviteCloseBtn) inviteCloseBtn.onclick = () => toggleInviteClose(ev.id);
   const court3Btn = card.querySelector('[data-court3-toggle]');
@@ -4671,14 +4832,14 @@ async function setVote(eventId, status, gender){
 
       // 2코트 일정: 성별별 상한 (gender-flex 발동 전까지) — 3번코트 미확보로 전체 정원이 줄어있으면 성비도 그에 맞게 축소
       // 새벽코트는 성별 상한(성별대기)을 적용하지 않음 — 전체 정원 기준으로만 대기 처리
-      if(ev.court_count === 2 && !hasAdminPower() && !isDawnEvent(ev)){
+      if(hasGenderCaps(ev) && !hasAdminPower()){
         const flex = state.data.genderFlex && state.data.genderFlex[ev.id];
-        const genderCap = Math.floor(ev.max_players / 2);
+        const genderCap = genderCapFor(ev, g);
         const oppositeCount = g === '여' ? counts.male : counts.female;
         const isFavoredGender = flex === g;
         // 확대 혜택을 받는 쪽(다수)이라도, 반대쪽(원래 소수)이 4명 이상으로 자체 복식이 가능해지면
         // 대기시간 공정성을 위해 더 이상의 확대는 멈추고 다시 정상 상한을 적용함
-        const flexActiveForMe = isFavoredGender && oppositeCount < 4;
+        const flexActiveForMe = isFavoredGender && oppositeCount < 4 && !ev.genderCaps;
         if(!flexActiveForMe){
           const myGenderCount = g === '여' ? counts.female : counts.male;
           const selfAlreadyCounted = (existing && existing.status === 'attend' && existing.gender === g) ? 1 : 0;
@@ -4713,7 +4874,13 @@ async function setVote(eventId, status, gender){
         renderEventList();
         renderNotifBell();
         let reasonMsg;
-        if(ev.includesCourt3 && !ev.court3Confirmed && !isDawnEvent(ev)){
+        if(ev.includesCourt3 && !ev.court3Confirmed && isDawnEvent(ev)){
+          const aheadCount = getCombinedWaitingEntries(computedCounts(ev)).filter(e => e.name !== state.myName).length;
+          const slots = Math.max(0, Math.min(4, 8 - computedCounts(ev).regularTotal));
+          reasonMsg = aheadCount < slots
+            ? `새벽코트 기본 인원 4명이 다 차서 "3번코트 대기"로 등록되었어요.\n\n매일 05:40~05:50 현장에서 3번코트가 확보되면 신청 순서대로 바로 참석 처리됩니다.`
+            : `새벽코트 기본 4명과 3번코트 대기 4명이 모두 차서 "대기"로 등록되었어요.\n\n자리가 나면 순서대로 승급됩니다.`;
+        } else if(ev.includesCourt3 && !ev.court3Confirmed && !isDawnEvent(ev)){
           reasonMsg = `이 일정은 유니온 3번코트가 아직 현장에서 확보되지 않아서, 확보 전까지는 "${ev.max_players}명"만 우선 모집 중이에요.\n\n지금 그 인원이 다 차서 "대기"로 자동 등록되었습니다. 3번코트가 확보되면 정원이 늘어나면서 대기 순서대로 자동 참석 승급됩니다!`;
         } else {
           reasonMsg = `정원(${ev.max_players}명)이 다 차서 "대기"로 자동 등록되었습니다. 자리가 나면 순서대로 승급됩니다.`;
@@ -4810,12 +4977,12 @@ async function promoteWaitingForCapacity(ev){
         if(state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender]) return false; // 관리자가 이 성별을 수동마감했으면, 이미 대기중인 사람도 자동승급 절대 금지(관리자가 이동▾으로 개별 추가하는 것만 예외)
         if(v.type === 'late_consecutive') return false; // 늦참+연참 동시는 계절 무관 항상 제외 — 시작1시간전 전용경로(checkConsecutiveWaitingLatePromotion)로만 승급
         if(isPeakSeason() && v.type === 'consecutive') return false; // 순수 연참은 성수기에만 제외 — 시작 1시간전에 별도 승급 기회를 줌
-        if(ev.court_count === 2 && !isDawnEvent(ev)){
+        if(hasGenderCaps(ev)){
           // 성별당 상한은 코트수에 비례(quota의 절반) — 3번코트 확보시엔 상한 자체를 없애는 게 아니라 늘어난 정원만큼만 비례 확대
           const myGenderCount = v.gender === '여' ? counts.female : counts.male;
           const oppositeGenderCount = v.gender === '여' ? counts.male : counts.female;
-          const flexFavorsThisGender = oppositeGenderCount <= 3; // 복식(4명) 기준: 반대성별이 4명 미만(=3명 이하)이면 자기들끼리 복식조차 못 이루니 상한초과 허용. 4명 이상 되는 순간 예외 사라짐(영구고정 genderFlex 대신 매번 실시간 재판정)
-          const genderCap = Math.floor(ev.max_players / 2); // 신규등록(setVote)과 동일 공식 — 확보상태 반영한 현재 정원 기준으로 통일(quota 고정값 쓰면 미확보 구간에서 신규등록과 충돌)
+          const flexFavorsThisGender = oppositeGenderCount <= 3 && !ev.genderCaps; // 복식(4명) 기준: 반대성별이 4명 미만(=3명 이하)이면 자기들끼리 복식조차 못 이루니 상한초과 허용. 4명 이상 되는 순간 예외 사라짐(영구고정 genderFlex 대신 매번 실시간 재판정)
+          const genderCap = genderCapFor(ev, v.gender); // 신규등록(setVote)과 동일 공식 — 확보상태 반영한 현재 정원 기준으로 통일(quota 고정값 쓰면 미확보 구간에서 신규등록과 충돌)
           if(myGenderCount >= genderCap && !flexFavorsThisGender) return false;
         }
         return true;
@@ -4844,11 +5011,11 @@ async function promoteWaitingForCapacity(ev){
       const liveTotal2 = await getLiveGenderCounts(ev.id);
       if(!liveTotal2) continue;
       if((liveTotal2.male + liveTotal2.female) >= ev.max_players) continue; // 실시간 기준 이미 전체정원 도달 — 이 후보는 건너뛰고 다음 후보로
-      if(ev.court_count === 2 && !isDawnEvent(ev)){
+      if(hasGenderCaps(ev)){
         const myLiveCount = v.gender === '여' ? liveTotal2.female : liveTotal2.male;
-        const genderCap = Math.floor(ev.max_players / 2);
+        const genderCap = genderCapFor(ev, v.gender);
         const oppositeLiveCount = v.gender === '여' ? liveTotal2.male : liveTotal2.female;
-        const flexFavorsThisGender = oppositeLiveCount <= 3; // 복식(4명) 기준 — 반대성별 3명이하일때만 예외(실시간 판정, 영구고정 genderFlex 대신)
+        const flexFavorsThisGender = oppositeLiveCount <= 3 && !ev.genderCaps; // 복식(4명) 기준 — 반대성별 3명이하일때만 예외(실시간 판정, 영구고정 genderFlex 대신)
         if((myLiveCount >= genderCap || (state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender])) && !flexFavorsThisGender) continue; // 이 사람만 건너뛰고 다음 후보로 (전체 중단 금지)
       }
       votes[name] = { status:'attend', gender: v.gender, district: v.district, hidden:false, promotedFrom, lateArrival: v.lateArrival || false, lateMinutes: v.lateMinutes || null, lessonTime: v.lessonTime || null, ts: v.ts };
@@ -4913,6 +5080,34 @@ async function demoteExcessAfterCourt3Revert(ev){
   return changed;
 }
 
+// v192: 대회준비 코트 지정/해제 — 제목은 크게 배너로, 정원은 전체(capacityOverrides) 또는 남녀따로(genderCaps) 적용
+async function saveTournamentMark(eventId, mark){
+  if(!state.data.tournamentMarks) state.data.tournamentMarks = {};
+  if(!state.data.capacityOverrides) state.data.capacityOverrides = {};
+  const prev = state.data.tournamentMarks[eventId];
+  state.data.tournamentMarks[eventId] = mark;
+  markDirty('tournamentMarks', eventId);
+  if(mark.cap != null){ state.data.capacityOverrides[eventId] = mark.cap; markDirty('capacityOverrides', eventId); }
+  else if(prev && prev.cap != null){ state.data.capacityOverrides[eventId] = null; markDirty('capacityOverrides', eventId); }
+  const ev = getInstances().find(e => e.id === eventId);
+  const capText = mark.maleCap != null ? `남자 ${mark.maleCap}명·여자 ${mark.femaleCap}명` : (mark.cap != null ? `정원 ${mark.cap}명` : '정원 유지');
+  pushNotification(`🏆 ${ev ? shortEventLabel(ev) : ''} 코트가 "${mark.title}" 대회준비 코트로 지정되었습니다. (${capText})`, {eventId, actor: state.myName, category:'court_status'});
+  await saveData();
+  if(ev){ try{ if(await promoteWaitingForCapacity(ev)) await saveData(); }catch(e){ console.error('대회준비 정원확대 승급 오류', e); } }
+  renderEventList(); renderNotifBell();
+}
+async function clearTournamentMark(eventId){
+  if(!state.data.tournamentMarks) return;
+  const prev = state.data.tournamentMarks[eventId];
+  state.data.tournamentMarks[eventId] = null;
+  markDirty('tournamentMarks', eventId);
+  if(prev && prev.cap != null && state.data.capacityOverrides){ state.data.capacityOverrides[eventId] = null; markDirty('capacityOverrides', eventId); }
+  const ev = getInstances().find(e => e.id === eventId);
+  pushNotification(`${ev ? shortEventLabel(ev) : ''} 대회준비 코트 지정이 해제되었습니다.`, {eventId, actor: state.myName, category:'court_status'});
+  await saveData();
+  renderEventList(); renderNotifBell();
+}
+
 async function toggleCourt3Confirmed(eventId){
   const evBefore = getInstances().find(e => e.id === eventId);
   const prevMaxPlayers = evBefore ? evBefore.max_players : 0;
@@ -4922,7 +5117,7 @@ async function toggleCourt3Confirmed(eventId){
   state.data.court3Confirmed[eventId] = nowConfirmed;
   markDirty('court3Confirmed', eventId);
   // 수동으로 넣어둔 정원 오버라이드가 있으면 지워서 새 기본값(8명 또는 정상 정원)이 적용되게 함
-  if(state.data.capacityOverrides && state.data.capacityOverrides[eventId] != null){
+  if(state.data.capacityOverrides && state.data.capacityOverrides[eventId] != null && !(state.data.tournamentMarks && state.data.tournamentMarks[eventId])){
     state.data.capacityOverrides[eventId] = null;
     markDirty('capacityOverrides', eventId);
   }
@@ -4959,12 +5154,12 @@ async function forcePromoteWaitingNow(ev){
         if(state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender]) return false; // 관리자가 이 성별을 수동마감했으면, 이미 대기중인 사람도 자동승급 절대 금지(관리자가 이동▾으로 개별 추가하는 것만 예외)
           if(v.type === 'late_consecutive') return false; // 늦참+연참 동시는 계절 무관 항상 제외 — 시작1시간전 전용경로(checkConsecutiveWaitingLatePromotion)로만 승급 (관리자 수동실행도 이 규칙은 동일 적용해 다른 자동경로와 일관성 유지)
         if(isPeakSeason() && v.type === 'consecutive') return false; // 순수 연참은 성수기에만 제외
-        if(ev.court_count === 2 && !isDawnEvent(ev)){
+        if(hasGenderCaps(ev)){
           // 성별당 상한은 코트수에 비례(quota의 절반) — 3번코트 확보시엔 상한 자체를 없애는 게 아니라 늘어난 정원만큼만 비례 확대
           const myGenderCount = v.gender === '여' ? counts.female : counts.male;
           const oppositeGenderCount = v.gender === '여' ? counts.male : counts.female;
-          const flexFavorsThisGender = oppositeGenderCount <= 3; // 복식(4명) 기준: 반대성별이 4명 미만(=3명 이하)이면 자기들끼리 복식조차 못 이루니 상한초과 허용. 4명 이상 되는 순간 예외 사라짐(영구고정 genderFlex 대신 매번 실시간 재판정)
-          const genderCap = Math.floor(ev.max_players / 2); // 신규등록(setVote)과 동일 공식 — 확보상태 반영한 현재 정원 기준으로 통일(quota 고정값 쓰면 미확보 구간에서 신규등록과 충돌)
+          const flexFavorsThisGender = oppositeGenderCount <= 3 && !ev.genderCaps; // 복식(4명) 기준: 반대성별이 4명 미만(=3명 이하)이면 자기들끼리 복식조차 못 이루니 상한초과 허용. 4명 이상 되는 순간 예외 사라짐(영구고정 genderFlex 대신 매번 실시간 재판정)
+          const genderCap = genderCapFor(ev, v.gender); // 신규등록(setVote)과 동일 공식 — 확보상태 반영한 현재 정원 기준으로 통일(quota 고정값 쓰면 미확보 구간에서 신규등록과 충돌)
           if(myGenderCount >= genderCap && !flexFavorsThisGender) return false;
         }
         return true;
@@ -4983,11 +5178,11 @@ async function forcePromoteWaitingNow(ev){
       const liveGenderCounts = await getLiveGenderCounts(ev.id);
       if(!liveGenderCounts){ continue; }
       if((liveGenderCounts.male + liveGenderCounts.female) >= ev.max_players) continue; // 실시간 기준 이미 전체정원 도달
-      if(ev.court_count === 2 && !isDawnEvent(ev)){
+      if(hasGenderCaps(ev)){
         const myLiveCount = v.gender === '여' ? liveGenderCounts.female : liveGenderCounts.male;
-        const genderCap = Math.floor(ev.max_players / 2);
+        const genderCap = genderCapFor(ev, v.gender);
         const oppositeLiveCount = v.gender === '여' ? liveGenderCounts.male : liveGenderCounts.female;
-        const flexFavorsThisGender = oppositeLiveCount <= 3; // 복식(4명) 기준 — 반대성별 3명이하일때만 예외(실시간 판정, 영구고정 genderFlex 대신)
+        const flexFavorsThisGender = oppositeLiveCount <= 3 && !ev.genderCaps; // 복식(4명) 기준 — 반대성별 3명이하일때만 예외(실시간 판정, 영구고정 genderFlex 대신)
         if((myLiveCount >= genderCap || (state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender])) && !flexFavorsThisGender) continue;
       }
       const promotedFrom = v.type === 'consecutive' ? 'consecutive' : 'wait';
@@ -6127,10 +6322,10 @@ async function checkDawnFourPlusCourt3Request(){
     const votes = state.data.votes[ev.id] || {};
     Object.entries(votes).forEach(([name, v]) => {
       if(v.status === 'attend'){
-        pushNotification(`🙏 ${name}님, ${shortEventLabel(ev)}에 ${counts.regularTotal}명이 모여서 8명(2코트) 진행이 가능해요! 시작 시간보다 조금 일찍 나오셔서 3번코트 확보 부탁드려요.`, {eventId: ev.id, actor: name, category:'court_status'});
+        pushNotification(`🙏 ${name}님, ${shortEventLabel(ev)}에 ${counts.regularTotal}명이 모였어요! 05:40~05:50 사이 현장에서 3번코트를 확보해 주시면 3번코트 대기자분들까지 8명(2코트)으로 진행할 수 있어요.`, {eventId: ev.id, actor: name, category:'court_status'});
       }
     });
-    await postAiAdminComment(ev.id, `🎾 현재 ${counts.regularTotal}명이 참석 예정이에요! 8명(2코트)으로 진행하려면 3번코트 확보가 필요해요 — 조금 일찍 나오셔서 확보 부탁드립니다 🙏`);
+    await postAiAdminComment(ev.id, `🎾 현재 ${counts.regularTotal}명이 참석 예정이에요! 8명(2코트)으로 진행하려면 05:40~05:50 사이 3번코트 확보가 필요해요 🙏`);
     changed = true;
   }
   return changed;
