@@ -356,6 +356,8 @@
   .tm-chip{padding:7px 11px;border-radius:16px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font-size:calc(12px * var(--font-scale, 1));font-weight:700;cursor:pointer;}
   .tm-mode{flex:1;height:40px;border:1.5px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font-size:calc(12.5px * var(--font-scale, 1));font-weight:700;cursor:pointer;}
   .tm-mode.on{background:var(--brand);border-color:var(--brand);color:var(--bg);}
+  .invite-family-check{display:flex;align-items:center;gap:5px;width:100%;font-size:calc(12px * var(--font-scale, 1));font-weight:700;color:var(--ink);}
+  .chip-invite-tag.family{background:rgba(232,184,107,0.2);color:#c98a1c;}
   .ui-dialog-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;}
   .ui-dialog-box{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;max-width:340px;width:100%;box-shadow:0 8px 24px rgba(0,0,0,0.3);display:flex;flex-direction:column;gap:12px;}
   .ui-dialog-text{font-size:calc(14px * var(--font-scale, 1));font-weight:600;color:var(--ink);line-height:1.55;white-space:pre-line;word-break:keep-all;}
@@ -597,7 +599,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.192</span>
+      <span id="buildVersionTop" class="build-version-top">v.193</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -3359,7 +3361,8 @@ function renderInviteChips(entries){
   return entries.map((e, idx) => {
     const isMember = !!getActiveMembers().find(m => m.name === e.name);
     const cleanName = e.displayName || e.name;
-    const roleTag = isMember ? `<span class="chip-invite-tag member">정회원</span>` : `<span class="chip-invite-tag guest">게스트</span>`;
+    const isFamily = /\(초청·가족\)/.test(e.name || '');
+    const roleTag = isMember ? `<span class="chip-invite-tag member">정회원</span>` : (isFamily ? `<span class="chip-invite-tag family">가족</span>` : `<span class="chip-invite-tag guest">게스트</span>`);
     const invitedByTag = (!isMember && e.invitedBy) ? `<span class="chip-invite-by">${escapeHtml(e.invitedBy)}님 초청</span>` : '';
     const timeStr = formatTimestamp(e.ts);
     const label = `${idx+1}. ${escapeHtml(cleanName)} ${roleTag}${invitedByTag}${timeStr ? `<span class="chip-ts">${timeStr}</span>` : ''}`;
@@ -3674,12 +3677,12 @@ function renderEventCard(ev){
     ${ev.inviteCourts > 0 ? `<div class="attend-sheet-backdrop" id="inviteInfoBackdrop-${ev.id}" style="display:none;">
       <div class="attend-sheet">
         <div class="guest-info-warning invite">
-          <b>👨‍👩‍👧 가족·지인 초청코트 안내</b>
-          <span>초청코트는 <strong>코트가 남을 때에만 한정적으로</strong> 운영돼요. (관리이사 판단)</span>
+          <b>👨‍👩‍👧 게스트비 무료는 가족만 해당돼요</b>
+          <span>일부 악용 사례로 제도가 변경되어, 초청코트는 <strong>가족 동반만</strong> 가능하고 <strong>지인은 제외</strong>돼요.</span>
         </div>
         <div class="guest-info-divider"></div>
-        <div class="guest-info-section"><b>외부 게스트</b><p>"가족과 지인" 외에 외부 게스트를 모집하실 때는 운영진에게 먼저 문의해 주세요.</p></div>
-        <div class="guest-info-section"><b>게스트 비용</b><p>5,000원</p></div>
+        <div class="guest-info-section"><b>지인·외부 게스트</b><p>지인을 부르실 때는 일반 게스트로 운영진에게 먼저 문의해 주세요. <strong>게스트비 5,000원</strong>이 부과돼요.</p></div>
+        <div class="guest-info-section"><b>운영 방식</b><p>가족 초청코트는 <strong>코트가 남을 때에만 한정적으로</strong> 운영돼요. (관리이사 판단)</p></div>
         <div class="ui-dialog-row">
           <button class="attend-sheet-cancel" data-invite-info-cancel="${ev.id}" style="flex:1;margin-top:0;">취소</button>
           <button class="ui-dialog-btn primary" data-invite-info-ok="${ev.id}" style="flex:1;">확인하고 참석</button>
@@ -3714,7 +3717,7 @@ function renderEventCard(ev){
     </div>` : ''}
     ${ev.inviteCourts > 0 ? (() => { const inviteClosed = state.data.inviteClosed && state.data.inviteClosed[ev.id]; const alreadyIn = myVote && myVote.isInvite && myStatus==='attend'; return `
     <div class="invite-court-box">
-      <div class="invite-court-head">👨‍👩‍👧 가족 지인 초청코트 참석 (${counts.inviteNames.length}/${ev.inviteMax})${inviteClosed ? ' <span class="gender-full">🚫 마감</span>' : ''}</div>
+      <div class="invite-court-head">👨‍👩‍👧 가족 초청코트 참석 (${counts.inviteNames.length}/${ev.inviteMax})${inviteClosed ? ' <span class="gender-full">🚫 마감</span>' : ''}</div>
       <div class="name-tags">${renderInviteChips(counts.inviteNames)}</div>
       <div class="admin-row" style="display:${hasAdminPower()?'flex':'none'};margin-top:6px;">
         <button class="court3-toggle-btn ${inviteClosed?'confirmed':''}" data-invite-close-toggle="${ev.id}" style="font-size:calc(11px * var(--font-scale, 1));padding:6px 10px;border-radius:8px;border:1px solid var(--line);background:${inviteClosed?'var(--danger-soft)':'var(--panel)'};color:${inviteClosed?'var(--danger)':'var(--ink)'};cursor:pointer;white-space:nowrap;width:100%;">
@@ -3729,10 +3732,11 @@ function renderEventCard(ev){
       </div>` : ''}
       ${(!inviteClosed || hasAdminPower()) ? `
       <details class="guest-add-toggle" style="margin-top:6px;">
-        <summary>+ 동반 가족·지인 추가 (게스트)</summary>
+        <summary>+ 동반 가족 추가</summary>
         <div class="guest-add-form">
           <input type="text" id="inviteName-${ev.id}" placeholder="이름">
           <select id="inviteGender-${ev.id}"><option value="여">여자</option><option value="남">남자</option></select>
+          <label class="invite-family-check"><input type="checkbox" id="inviteFamily-${ev.id}"> 본인의 가족입니다 (지인 불가)</label>
           <button id="inviteAddBtn-${ev.id}">추가</button>
         </div>
       </details>` : `<div class="court3-note" style="color:var(--danger);border-color:var(--danger-soft);background:var(--danger-soft);">🚫 초청코트가 마감되어 신규 게스트 추가가 불가능합니다</div>`}
@@ -3855,10 +3859,10 @@ function renderEventCard(ev){
     </div>`; })()}
     ${[0,6].includes(ev.dow) ? `<div class="admin-row" style="display:${hasAdminPower()?'flex':'none'}">
       <button class="court3-toggle-btn ${ev.inviteCourts > 0 ?'confirmed':''}" data-invite-toggle="${ev.id}" style="font-size:calc(11px * var(--font-scale, 1));padding:6px 10px;border-radius:8px;border:1px solid var(--line);background:${ev.inviteCourts > 0 ?'var(--accent-soft)':'var(--panel)'};cursor:pointer;white-space:nowrap;width:100%;">
-        ${ev.inviteCourts > 0 ? `👨‍👩‍👧 초청코트 ${ev.inviteCourts}개 지정중 (해제하려면 클릭)` : '👨‍👩‍👧 가족&지인 초청코트 지정'}
+        ${ev.inviteCourts > 0 ? `👨‍👩‍👧 초청코트 ${ev.inviteCourts}개 지정중 (해제하려면 클릭)` : '👨‍👩‍👧 가족 초청코트 지정'}
       </button>
     </div>` : ''}
-    ${ev.inviteCourts > 0 ? `<div class="court3-note" style="color:var(--accent-dark);border-color:var(--accent);background:var(--accent-soft);">👨‍👩‍👧 가족&지인 초청코트 (${ev.inviteCourts}개 코트, 최대 4명 고정)</div>` : ''}
+    ${ev.inviteCourts > 0 ? `<div class="court3-note" style="color:var(--accent-dark);border-color:var(--accent);background:var(--accent-soft);">👨‍👩‍👧 가족 초청코트 (${ev.inviteCourts}개 코트, 최대 4명 고정 · 가족만 게스트비 무료)</div>` : ''}
     <div class="admin-row" style="display:${hasAdminPower()?'flex':'none'}">
       <div class="stepper">
         정원 <button data-act="capdown">−</button><span>${ev.max_players}</span><button data-act="capup">+</button>
@@ -4291,13 +4295,20 @@ async function addInviteAttendee(eventId){
     alert('초청코트가 마감되어 신규 게스트 추가가 불가능합니다.');
     return;
   }
+  // v193: 제도변경 — 초청코트는 가족만(게스트비 무료). 지인은 일반 게스트(운영진 문의, 5,000원)로 안내
+  const familyChk = document.getElementById(`inviteFamily-${eventId}`);
+  if(!familyChk || !familyChk.checked){
+    alert('가족 초청코트는 본인의 가족만 추가할 수 있어요.\n\n"본인의 가족입니다"를 체크해 주세요.\n지인은 일반 게스트로 운영진에게 문의해 주세요. (게스트비 5,000원)');
+    return;
+  }
   const uniqueSuffix = Date.now().toString(36).slice(-4);
-  const storageKey = `${rawName}(초청)#${uniqueSuffix}`;
+  const storageKey = `${rawName}(초청·가족)#${uniqueSuffix}`;
   if(!state.data.votes[eventId]) state.data.votes[eventId] = {};
   const entry = { status:'attend', gender, district:'', hidden:false, isInvite:true, invitedBy: state.myName, displayName: rawName, ts: Date.now() };
   state.data.votes[eventId][storageKey] = entry;
   await saveVoteRow(eventId, storageKey, entry);
-  pushNotification(`${state.myName}님이 초청코트에 "${rawName}"님(지인·가족)을 추가했습니다. (${shortEventLabel(ev)})`, {eventId, actor: state.myName});
+  pushNotification(`${state.myName}님이 가족 초청코트에 "${rawName}"님(가족)을 추가했습니다. (${shortEventLabel(ev)})`, {eventId, actor: state.myName});
+  if(familyChk) familyChk.checked = false;
   nameInput.value = '';
   renderEventList();
   renderNotifBell();
@@ -4333,7 +4344,7 @@ async function attendInviteCourt(eventId){
   const entry = { status:'attend', gender: state.myGender, district: state.myDistrict, hidden:false, isInvite:true, ts: Date.now() };
   votes[state.myName] = entry;
   await saveVoteRow(eventId, state.myName, entry);
-  pushNotification(`${state.myName}님이 ${label} 초청코트(가족&지인 동반)로 참석 체크했습니다.`, {eventId, actor: state.myName});
+  pushNotification(`${state.myName}님이 ${label} 가족 초청코트(가족 동반)로 참석 체크했습니다.`, {eventId, actor: state.myName});
   renderEventList();
   renderNotifBell();
 }
@@ -4344,7 +4355,7 @@ async function toggleInviteCourt(eventId){
   if(current > 0){
     state.data.inviteCourts[eventId] = null;
     markDirty('inviteCourts', eventId);
-    pushNotification(`${state.myName}(관리자)님이 가족&지인 초청코트 설정을 해제했습니다.`, {eventId, actor: state.myName, category:'court_status'});
+    pushNotification(`${state.myName}(관리자)님이 가족 초청코트 설정을 해제했습니다.`, {eventId, actor: state.myName, category:'court_status'});
   } else {
     const input = prompt('초청코트로 배정할 코트 개수를 입력하세요 (예: 1)', '1');
     if(input === null) return;
@@ -4352,7 +4363,7 @@ async function toggleInviteCourt(eventId){
     if(!n || n < 1){ alert('1 이상의 숫자를 입력해 주세요.'); return; }
     state.data.inviteCourts[eventId] = n;
     markDirty('inviteCourts', eventId);
-    pushNotification(`${state.myName}(관리자)님이 ${n}개 코트를 가족&지인 초청코트로 지정했습니다. (초청 인원 최대 4명 고정)`, {eventId, actor: state.myName, category:'court_status'});
+    pushNotification(`${state.myName}(관리자)님이 ${n}개 코트를 가족 초청코트로 지정했습니다. (초청 인원 최대 4명 고정)`, {eventId, actor: state.myName, category:'court_status'});
   }
   await saveData();
   renderEventList();
