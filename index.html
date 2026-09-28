@@ -368,6 +368,13 @@
   .review-chip button.reject,[data-theme="courtnight"] .review-chip button.reject{background:transparent;color:var(--danger) !important;border:1px solid var(--danger);} /* 코트나이트 테마의 버튼글씨 검정 강제규칙에 가려 안 보이던 문제 */
   .review-row.guest-pending .review-chip{border-color:#4f8cff;color:#3f7de8;}
   .review-row.guest-pending .review-chip button:not(.reject){background:#4f8cff;}
+  .review-chip.gp-chip{flex-wrap:wrap;row-gap:4px;width:100%;box-sizing:border-box;}
+  .gp-chip .gp-name{white-space:nowrap;}
+  .gp-chip .gp-actions{display:inline-flex;gap:4px;margin-left:auto;}
+  .gp-chip .gp-actions button{white-space:nowrap;}
+  .guest-timer{font-size:calc(10px * var(--font-scale, 1));font-weight:800;color:#e0891b;white-space:nowrap;}
+  .guest-info-approval .urgent-rule{margin-top:8px;padding-top:8px;border-top:1px dashed rgba(79,140,255,0.5);color:var(--ink);}
+  .guest-info-approval .urgent-rule b{display:inline;font-size:inherit;color:#e0891b;font-weight:800;}
   .ui-dialog-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;}
   .ui-dialog-box{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;max-width:340px;width:100%;box-shadow:0 8px 24px rgba(0,0,0,0.3);display:flex;flex-direction:column;gap:12px;}
   .ui-dialog-text{font-size:calc(14px * var(--font-scale, 1));font-weight:600;color:var(--ink);line-height:1.55;white-space:pre-line;word-break:keep-all;}
@@ -609,7 +616,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.196</span>
+      <span id="buildVersionTop" class="build-version-top">v.197</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -3315,6 +3322,7 @@ async function runAutoPromotions(){
   for(const ev of getInstances()){
     if(await tryAutoPromote(ev)) changed = true;
   }
+  if(await checkGuestAutoApprove()) changed = true;
   if(await checkDailyNotifications()) changed = true;
   if(await checkMonthlyNotification()) changed = true;
   if(await checkHeavyWaitingList()) changed = true;
@@ -3591,7 +3599,9 @@ function renderEventCard(ev){
   const canApproveGuest = hasAdminPower() || state.myIsStaff;
   if(counts.guestPendingNames.length){
     guestPendingHtml = `<div class="review-row guest-pending">👤<span class="review-label">게스트 운영진 승인 대기</span>` +
-      counts.guestPendingNames.map(g => `<span class="review-chip">${escapeHtml(g.name)}${g.invitedBy ? ` <span class="chip-invite-by">(${escapeHtml(g.invitedBy)}님 요청)</span>` : ''}${canApproveGuest ? `<button data-approve-guest="${escapeHtml(g.name)}">승인</button><button class="reject" data-reject-guest="${escapeHtml(g.name)}">거절</button>` : ''}</span>`).join('') +
+      counts.guestPendingNames.map(g => { const gv = votesForEv[g.name]; const urgent = isUrgentGuestRequest(ev, gv);
+        const timer = urgent ? ` <span class="guest-timer">⏱ ${urgentGuestMinutesLeft(gv) > 0 ? urgentGuestMinutesLeft(gv) + '분 후 자동 참석' : '곧 자동 참석'}</span>` : '';
+        return `<span class="review-chip gp-chip"><span class="gp-name">${escapeHtml(g.name)}</span>${g.invitedBy ? ` <span class="chip-invite-by">(${escapeHtml(g.invitedBy)}님 요청)</span>` : ''}${timer}${canApproveGuest ? `<span class="gp-actions"><button data-approve-guest="${escapeHtml(g.name)}">승인</button><button class="reject" data-reject-guest="${escapeHtml(g.name)}">거절</button></span>` : ''}</span>`; }).join('') +
       `</div>`;
   }
 
@@ -3827,6 +3837,7 @@ function renderEventCard(ev){
         <div class="guest-info-approval">
           <b>✅ 운영진이 승낙해야 게스트 참석이 가능해요</b>
           <span>게스트를 추가하면 "승인 대기"로 등록되고, 운영진이 승인한 뒤에 참석 명단에 올라가요.</span>
+          <span class="urgent-rule">⏱ 당일 코트 시작 <b>4시간 전부터</b> 급하게 구한 게스트는 <b>10분 안에 운영진 응답이 없으면 자동으로 참석</b>돼요. (정원이 남아 있을 때)</span>
         </div>
         <div class="guest-info-warning">
           <b>⚠️ 운영진과 협의되지 않은 게스트는 참석이 제한될 수 있습니다</b>
@@ -4315,7 +4326,12 @@ async function addGuest(eventId){
     pushNotification(`${state.myName || '회원'}님이 게스트 "${rawName}"님을 ${shortEventLabel(ev)}에 참석 추가했습니다.`, {eventId, actor: state.myName});
   } else {
     pushNotification(`👤 ${state.myName || '회원'}님이 게스트 "${rawName}"님 참석을 요청했습니다. (${shortEventLabel(ev)}) — 운영진 승인 필요`, {eventId, actor: state.myName, category:'announcement'});
-    alert(`게스트 "${rawName}"님 참석 요청이 등록되었어요.\n\n운영진이 승인하면 참석 명단에 올라가요.`);
+    if(isUrgentGuestRequest(ev, entry)){
+      alert(`급구 게스트 "${rawName}"님 참석 요청이 등록되었어요.\n\n운영진이 승인하면 참석 명단에 올라가요.\n10분 안에 운영진 응답이 없으면 자동으로 참석돼요. (정원이 남아 있을 때)`);
+      setTimeout(async () => { try{ if(await checkGuestAutoApprove()){ await saveData(); renderEventList(); renderNotifBell(); } }catch(e){ console.error('급구 게스트 자동승인 확인 오류', e); } }, URGENT_GUEST_AUTO_MIN * 60000 + 5000);
+    } else {
+      alert(`게스트 "${rawName}"님 참석 요청이 등록되었어요.\n\n운영진이 승인하면 참석 명단에 올라가요.`);
+    }
   }
   nameInput.value = ''; careerInput.value = '';
   renderEventList();
@@ -4426,6 +4442,42 @@ async function toggleInviteClose(eventId){
   await saveData();
   renderEventList();
   renderNotifBell();
+}
+
+// v197: 급구 게스트 자동승인 — 당일 코트 시작 4시간 전~시작 전에 요청된 게스트는 10분간 운영진 응답이 없으면 자동 참석
+// (단, 정원이 이미 다 찼으면 자동승인하지 않고 운영진 판단을 기다림 — 급구는 인원이 부족할 때 부르는 것이므로)
+const URGENT_GUEST_WINDOW_H = 4, URGENT_GUEST_AUTO_MIN = 10;
+function isUrgentGuestRequest(ev, v){
+  if(!ev || !v || v.type !== 'guest_pending' || !v.ts) return false;
+  const start = getEventDateTime(ev).getTime();
+  const lead = start - v.ts;
+  return lead >= 0 && lead <= URGENT_GUEST_WINDOW_H * 3600000 && ev.event_date === localIso(new Date(v.ts));
+}
+function urgentGuestMinutesLeft(v){ return Math.max(0, Math.ceil((v.ts + URGENT_GUEST_AUTO_MIN * 60000 - Date.now()) / 60000)); }
+async function checkGuestAutoApprove(){
+  let changed = false;
+  const today = todayIso();
+  for(const ev of getInstances()){
+    if(ev.event_date !== today) continue;
+    const votes = state.data.votes[ev.id];
+    if(!votes) continue;
+    for(const [name, v] of Object.entries(votes)){
+      if(!isUrgentGuestRequest(ev, v)) continue;
+      if(Date.now() - v.ts < URGENT_GUEST_AUTO_MIN * 60000) continue;
+      if(Date.now() >= getEventDateTime(ev).getTime() + 2 * 3600000) continue; // 이미 끝난 일정은 처리 안 함
+      if(computedCounts(ev).regularTotal >= ev.max_players) continue; // 정원 다 찼으면 운영진 판단 대기
+      const live = await getLiveGenderCounts(ev.id);
+      if(live && (live.male + live.female) >= ev.max_players) continue;
+      const cur = state.data.votes[ev.id] && state.data.votes[ev.id][name];
+      if(!cur || cur.type !== 'guest_pending') continue; // 그 사이 운영진이 처리했으면 건너뜀
+      votes[name] = { status:'attend', gender: v.gender, district: v.district || '관외', hidden:false, isGuest:true, invitedBy: v.invitedBy || null, ts: v.ts };
+      await saveVoteRow(ev.id, name, votes[name], '자동승인(급구 게스트 10분 무응답)');
+      const guestLabel = name.replace(/\(게스트.*\)$/, '');
+      pushNotification(`⏱ 급구 게스트 "${guestLabel}"님이 운영진 10분 무응답으로 자동 참석되었습니다. (${shortEventLabel(ev)}${v.invitedBy ? ', ' + v.invitedBy + '님 요청' : ''})`, {eventId: ev.id, actor: v.invitedBy || null, category:'announcement'});
+      changed = true;
+    }
+  }
+  return changed;
 }
 
 // v195: 게스트 참석요청 승인/거절 (운영진)
