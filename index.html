@@ -361,6 +361,13 @@
   .tm-mode.on{background:var(--brand);border-color:var(--brand);color:var(--bg);}
   .invite-family-check{display:flex;align-items:center;gap:5px;width:100%;font-size:calc(12px * var(--font-scale, 1));font-weight:700;color:var(--ink);}
   .chip-invite-tag.family{background:rgba(232,184,107,0.2);color:#c98a1c;}
+  .guest-info-approval{background:rgba(79,140,255,0.12);border:2px solid #4f8cff;border-radius:10px;padding:12px;margin-bottom:8px;}
+  .guest-info-approval b{display:block;font-size:calc(15px * var(--font-scale, 1));font-weight:900;color:#3f7de8;line-height:1.4;}
+  .guest-info-approval span{display:block;font-size:calc(11.5px * var(--font-scale, 1));color:var(--ink-soft);margin-top:6px;line-height:1.5;}
+  .review-row.guest-pending{border-color:#4f8cff;background:rgba(79,140,255,0.08);}
+  .review-chip button.reject,[data-theme="courtnight"] .review-chip button.reject{background:transparent;color:var(--danger) !important;border:1px solid var(--danger);} /* 코트나이트 테마의 버튼글씨 검정 강제규칙에 가려 안 보이던 문제 */
+  .review-row.guest-pending .review-chip{border-color:#4f8cff;color:#3f7de8;}
+  .review-row.guest-pending .review-chip button:not(.reject){background:#4f8cff;}
   .ui-dialog-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;}
   .ui-dialog-box{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;max-width:340px;width:100%;box-shadow:0 8px 24px rgba(0,0,0,0.3);display:flex;flex-direction:column;gap:12px;}
   .ui-dialog-text{font-size:calc(14px * var(--font-scale, 1));font-weight:600;color:var(--ink);line-height:1.55;white-space:pre-line;word-break:keep-all;}
@@ -602,7 +609,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.194</span>
+      <span id="buildVersionTop" class="build-version-top">v.196</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -1183,7 +1190,10 @@ function defaultData(){
 
 function getFingerprintTargets(){
   const extra = (state.data && state.data.fingerprintExtraTargets) ? state.data.fingerprintExtraTargets : [];
-  return [...FINGERPRINT_TARGETS, ...extra];
+  // v196: 추가대상 목록은 저장시 "서버+내 화면" 합집합으로 병합돼, DB에서 지워도 예전 화면을 켜둔 접속자가 저장하면 되살아남
+  // (예: 삭제된 중복회원 "주소연 2"가 계속 원복). 삭제된 회원(removedMembers)은 표시에서 항상 제외하고 중복 이름도 한 번만 표시
+  const removed = (state.data && state.data.removedMembers) || {};
+  return Array.from(new Set([...FINGERPRINT_TARGETS, ...extra])).filter(n => !removed[n]);
 }
 
 // ===== Supabase connection =====
@@ -2105,6 +2115,7 @@ function computedCounts(ev){
   let female=0, male=0, gwaeAttend=0, naeAttend=0, liveAbsent=0, waitRegular=0, waitConsecutive=0, waitGwaeReview=0, waitLateRequest=0, waitGwaeWait=0, waitGenderWait=0, waitPreclose=0, waitLate=0;
   const hiddenAttendees = [];
   const inviteNames = [];
+  const guestPendingNames = [];
   const femaleNames = [], maleNames = [], absentNames = [];
   const waitRegularNames = [], waitConsecutiveNames = [], waitGwaeReviewNames = [], waitLateRequestNames = [], waitGwaeWaitNames = [], waitGenderWaitNames = [], waitPrecloseNames = [], waitLateNames = [], waitLessonNames = [];
   Object.entries(votes).forEach(([name, v]) => {
@@ -2124,6 +2135,7 @@ function computedCounts(ev){
       if(v.type === 'consecutive' || v.type === 'late_consecutive'){ waitConsecutive++; waitConsecutiveNames.push(v.type === 'late_consecutive' ? Object.assign({}, entry, { lateArrival:true, lateMinutes: v.lateMinutes || null }) : entry); }
       else if(v.type === 'gwae_review'){ waitGwaeReview++; waitGwaeReviewNames.push(entry); }
       else if(v.type === 'late_request'){ waitLateRequest++; waitLateRequestNames.push(entry); }
+      else if(v.type === 'guest_pending'){ guestPendingNames.push(Object.assign({}, entry, { invitedBy: v.invitedBy || null, gender: v.gender || '' })); } // v195: 운영진 승인 전 게스트 — 참석·대기 인원 모두에서 제외
       else if(v.type === 'gwae_wait'){ waitGwaeWait++; waitGwaeWaitNames.push(entry); }
       else if(v.type === 'gender_wait'){ waitGenderWait++; waitGenderWaitNames.push(entry); }
       else if(v.type === 'preclose_wait'){ waitPreclose++; waitPrecloseNames.push(entry); }
@@ -2142,7 +2154,7 @@ function computedCounts(ev){
     absent: ev.absent + liveAbsent,
     waiting: ev.waiting + waitRegular + waitConsecutive + waitGwaeReview + waitLateRequest + waitGwaeWait + waitGenderWait + waitPreclose + waitLate,
     waitRegular, waitConsecutive, waitGwaeReview, waitLateRequest, waitGwaeWait, waitLate,
-    hiddenAttendees, regularTotal,
+    hiddenAttendees, regularTotal, guestPendingNames,
     isFull: regularTotal >= ev.max_players,
     doublesReady: (female + male) >= 4,
     doublesMale: male >= 4,
@@ -2594,7 +2606,7 @@ async function tryAutoPromote(ev){
     const waitingEntries = Object.entries(votes)
       .filter(([,v]) => {
         if(v.status !== 'waiting') return false;
-        if(['gwae_review','late_request','gwae_wait'].includes(v.type)) return false;
+        if(['gwae_review','late_request','gwae_wait','guest_pending'].includes(v.type)) return false;
         if(state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender]) return false; // 관리자가 이 성별을 수동마감했으면, 이미 대기중인 사람도 자동승급 절대 금지(관리자가 이동▾으로 개별 추가하는 것만 예외)
           if(v.type === 'late_consecutive') return false; // 늦참+연참 동시는 계절 무관 항상 제외 — 시작1시간전 전용경로(checkConsecutiveWaitingLatePromotion)로만 승급
           if(isPeakSeason() && v.type === 'consecutive') return false; // 순수 연참은 성수기에만 제외 — 시작 1시간전에 별도 승급 기회를 줌
@@ -3244,6 +3256,10 @@ function subscribeRealtime(){
             autoApprovedPopupPending: !!payload.new.auto_approved_popup_pending
           };
         }
+        if(payload.eventType === 'INSERT' && payload.new && payload.new.vote_type === 'guest_pending' && (hasAdminPower() || state.myIsStaff) && payload.new.invited_by !== state.myName){
+          const gev = getInstances().find(e => e.id === row.event_id);
+          alert(`👤 게스트 참석 승인 요청\n${payload.new.invited_by || '회원'}님이 "${gev ? shortEventLabel(gev) : row.event_id}" 일정에 게스트 "${String(row.member_name).replace(/\(게스트.*\)$/, '')}"님 참석을 요청했어요.\n해당 일정 카드에서 승인해 주세요.`);
+        }
         if(payload.eventType === 'INSERT' && payload.new && payload.new.vote_type === 'late_request' && hasAdminPower() && row.member_name !== state.myName){
           const ev = getInstances().find(e => e.id === row.event_id);
           const label = ev ? shortEventLabel(ev) : row.event_id;
@@ -3570,6 +3586,15 @@ function renderEventCard(ev){
       `</div>`;
   }
 
+  // v195: 게스트 운영진 승인 대기
+  let guestPendingHtml = "";
+  const canApproveGuest = hasAdminPower() || state.myIsStaff;
+  if(counts.guestPendingNames.length){
+    guestPendingHtml = `<div class="review-row guest-pending">👤<span class="review-label">게스트 운영진 승인 대기</span>` +
+      counts.guestPendingNames.map(g => `<span class="review-chip">${escapeHtml(g.name)}${g.invitedBy ? ` <span class="chip-invite-by">(${escapeHtml(g.invitedBy)}님 요청)</span>` : ''}${canApproveGuest ? `<button data-approve-guest="${escapeHtml(g.name)}">승인</button><button class="reject" data-reject-guest="${escapeHtml(g.name)}">거절</button>` : ''}</span>`).join('') +
+      `</div>`;
+  }
+
   let lateRequestHtml = "";
   const lateRequestNames = Object.entries(votesForEv).filter(([,v]) => v.status==='waiting' && v.type==='late_request').map(([n])=>n);
   if(lateRequestNames.length){
@@ -3760,6 +3785,7 @@ function renderEventCard(ev){
       : renderMyWaitingNotice(myVote, counts); })()) : ''}
     ${reviewHtml}
     ${lateRequestHtml}
+    ${guestPendingHtml}
     <div class="ev-actions">
       <div class="ev-actions-main">
         <button class="vote-btn attend-main ${isPendingF || isPendingM || isPendingW ? 'pending-sel' : (myStatus==='attend' ? (myHidden ? 'sel-attend-hidden' : (myVote.gender==='여' ? 'sel-attend-f' : 'sel-attend-m')) : (myStatus==='waiting' ? 'sel-waiting' : ''))}" data-attend-sheet="${ev.id}">${attendLabel}</button>
@@ -3798,6 +3824,10 @@ function renderEventCard(ev){
     </div>
     <div class="attend-sheet-backdrop" id="guestInfoBackdrop-${ev.id}" style="display:none;">
       <div class="attend-sheet">
+        <div class="guest-info-approval">
+          <b>✅ 운영진이 승낙해야 게스트 참석이 가능해요</b>
+          <span>게스트를 추가하면 "승인 대기"로 등록되고, 운영진이 승인한 뒤에 참석 명단에 올라가요.</span>
+        </div>
         <div class="guest-info-warning">
           <b>⚠️ 운영진과 협의되지 않은 게스트는 참석이 제한될 수 있습니다</b>
           <span>게스트를 초대하시기 전에 반드시 운영진과 먼저 협의해 주세요.</span>
@@ -4046,6 +4076,8 @@ function renderEventCard(ev){
   card.querySelectorAll('[data-approve]').forEach(btn => {
     btn.onclick = () => approveGwaeReview(ev.id, btn.getAttribute('data-approve'));
   });
+  card.querySelectorAll('[data-approve-guest]').forEach(btn => { btn.onclick = () => decideGuestRequest(ev.id, btn.getAttribute('data-approve-guest'), true); });
+  card.querySelectorAll('[data-reject-guest]').forEach(btn => { btn.onclick = () => decideGuestRequest(ev.id, btn.getAttribute('data-reject-guest'), false); });
   card.querySelectorAll('[data-approve-late]').forEach(btn => {
     btn.onclick = () => approveLateRequest(ev.id, btn.getAttribute('data-approve-late'));
   });
@@ -4272,10 +4304,19 @@ async function addGuest(eventId){
   if(!ev) return;
   const displayName = `${rawName}(게스트${career ? '·'+career : ''})`;
   if(!state.data.votes[eventId]) state.data.votes[eventId] = {};
-  const entry = { status:'attend', gender, district:'관외', hidden:false, isGuest:true, invitedBy: state.myName || null, ts: Date.now() };
+  // v195: 일반회원이 추가한 게스트는 "운영진 승인 대기"로 등록 — 운영진이 승인해야 참석 명단에 올라감(운영진이 직접 추가하면 바로 참석)
+  const isStaffAdder = hasAdminPower() || state.myIsStaff;
+  const entry = isStaffAdder
+    ? { status:'attend', gender, district:'관외', hidden:false, isGuest:true, invitedBy: state.myName || null, ts: Date.now() }
+    : { status:'waiting', type:'guest_pending', gender, district:'관외', hidden:false, isGuest:true, invitedBy: state.myName || null, ts: Date.now() };
   state.data.votes[eventId][displayName] = entry;
   await saveVoteRow(eventId, displayName, entry);
-  pushNotification(`${state.myName || '회원'}님이 게스트 "${rawName}"님을 ${shortEventLabel(ev)}에 참석 추가했습니다.`);
+  if(isStaffAdder){
+    pushNotification(`${state.myName || '회원'}님이 게스트 "${rawName}"님을 ${shortEventLabel(ev)}에 참석 추가했습니다.`, {eventId, actor: state.myName});
+  } else {
+    pushNotification(`👤 ${state.myName || '회원'}님이 게스트 "${rawName}"님 참석을 요청했습니다. (${shortEventLabel(ev)}) — 운영진 승인 필요`, {eventId, actor: state.myName, category:'announcement'});
+    alert(`게스트 "${rawName}"님 참석 요청이 등록되었어요.\n\n운영진이 승인하면 참석 명단에 올라가요.`);
+  }
   nameInput.value = ''; careerInput.value = '';
   renderEventList();
   renderNotifBell();
@@ -4382,6 +4423,29 @@ async function toggleInviteClose(eventId){
   const ev = getInstances().find(e => e.id === eventId);
   const label = ev ? shortEventLabel(ev) : '';
   pushNotification(`${state.myName}(관리자)님이 ${label} 초청코트를 ${nowClosed ? '단독 마감' : '마감 해제'}했습니다.`, {eventId, actor: state.myName, category:'court_status'});
+  await saveData();
+  renderEventList();
+  renderNotifBell();
+}
+
+// v195: 게스트 참석요청 승인/거절 (운영진)
+async function decideGuestRequest(eventId, name, approve){
+  const votes = state.data.votes[eventId];
+  if(!votes || !votes[name] || votes[name].type !== 'guest_pending') return;
+  const v = votes[name];
+  const ev = getInstances().find(e => e.id === eventId);
+  const label = ev ? shortEventLabel(ev) : '';
+  const guestLabel = name.replace(/\(게스트.*\)$/, '');
+  if(approve){
+    votes[name] = { status:'attend', gender: v.gender, district: v.district || '관외', hidden:false, isGuest:true, invitedBy: v.invitedBy || null, ts: v.ts || Date.now() };
+    await saveVoteRow(eventId, name, votes[name]);
+    pushNotification(`✅ ${state.myName}님이 게스트 "${guestLabel}"님 참석을 승인했습니다. (${label}${v.invitedBy ? ', ' + v.invitedBy + '님 요청' : ''})`, {eventId, actor: v.invitedBy || state.myName, category:'announcement'});
+  } else {
+    if(!confirm(`게스트 "${guestLabel}"님 참석 요청을 거절할까요?`)) return;
+    delete votes[name];
+    await saveVoteRow(eventId, name, null);
+    pushNotification(`게스트 "${guestLabel}"님 참석 요청이 거절되었습니다. (${label}${v.invitedBy ? ', ' + v.invitedBy + '님 요청' : ''})`, {eventId, actor: v.invitedBy || state.myName, category:'announcement'});
+  }
   await saveData();
   renderEventList();
   renderNotifBell();
@@ -4988,7 +5052,7 @@ async function promoteWaitingForCapacity(ev){
     const waitingEntries = Object.entries(votes)
       .filter(([,v]) => {
         if(v.status !== 'waiting') return false;
-        if(['gwae_review','late_request','gwae_wait'].includes(v.type)) return false;
+        if(['gwae_review','late_request','gwae_wait','guest_pending'].includes(v.type)) return false;
         if(state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender]) return false; // 관리자가 이 성별을 수동마감했으면, 이미 대기중인 사람도 자동승급 절대 금지(관리자가 이동▾으로 개별 추가하는 것만 예외)
         if(v.type === 'late_consecutive') return false; // 늦참+연참 동시는 계절 무관 항상 제외 — 시작1시간전 전용경로(checkConsecutiveWaitingLatePromotion)로만 승급
         if(isPeakSeason() && v.type === 'consecutive') return false; // 순수 연참은 성수기에만 제외 — 시작 1시간전에 별도 승급 기회를 줌
@@ -5165,7 +5229,7 @@ async function forcePromoteWaitingNow(ev){
     const waitingEntries = Object.entries(votes)
       .filter(([,v]) => {
         if(v.status !== 'waiting') return false;
-        if(['gwae_review','late_request','gwae_wait'].includes(v.type)) return false;
+        if(['gwae_review','late_request','gwae_wait','guest_pending'].includes(v.type)) return false;
         if(state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender]) return false; // 관리자가 이 성별을 수동마감했으면, 이미 대기중인 사람도 자동승급 절대 금지(관리자가 이동▾으로 개별 추가하는 것만 예외)
           if(v.type === 'late_consecutive') return false; // 늦참+연참 동시는 계절 무관 항상 제외 — 시작1시간전 전용경로(checkConsecutiveWaitingLatePromotion)로만 승급 (관리자 수동실행도 이 규칙은 동일 적용해 다른 자동경로와 일관성 유지)
         if(isPeakSeason() && v.type === 'consecutive') return false; // 순수 연참은 성수기에만 제외
@@ -6288,7 +6352,7 @@ async function checkCourt3LikelyConfirm(){
     const waitingEntries = Object.entries(votes)
       .filter(([,v]) => {
         if(v.status !== 'waiting') return false;
-        if(['gwae_review','late_request','gwae_wait'].includes(v.type)) return false;
+        if(['gwae_review','late_request','gwae_wait','guest_pending'].includes(v.type)) return false;
         return true;
       })
       .sort((a,b) => waitingSortKey(a[1]) - waitingSortKey(b[1]));
