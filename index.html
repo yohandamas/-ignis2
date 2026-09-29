@@ -617,7 +617,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.200</span>
+      <span id="buildVersionTop" class="build-version-top">v.201</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -1848,6 +1848,7 @@ function renderMeBox(){
       startHeartbeatPresence();
       try{ checkFingerprintReminderForLocal(); }catch(e){ console.error('관내 지문 리마인더 오류', e); }
       try{ checkMonthlyRankingAnnouncement(); }catch(e){ console.error('월간랭킹발표 오류', e); }
+      try{ checkPendingUrgentOnLogin(); }catch(e){ console.error('로그인시 긴급요청 확인 오류', e); } // v201: 관리자 로그인시 밀린 긴급 승인요청 모아서 안내
     };
   }
 }
@@ -3840,8 +3841,7 @@ function renderEventCard(ev){
         <div class="guest-info-approval">
           <b>✅ 운영진이 승낙해야 게스트 참석이 가능해요</b>
           <span>게스트를 추가하면 "승인 대기"로 등록되고, 운영진이 승인한 뒤에 참석 명단에 올라가요.</span>
-          <span class="urgent-rule">⏱ 코트 시작 <b>1시간 전까지 운영진 응답이 없으면</b>, 1시간 전부터 <b>10분 후 자동으로 참석</b>돼요. 시작 1시간 이내에 요청하면 요청 10분 후 자동 참석돼요. (정원이 남아 있고 4인 미달일 때)</span>
-          <span class="urgent-rule">📅 <b>미리 게스트 요청 가능 시간</b> (회칙)<br>· 16시 이전 일정: 전날 18시 이후<br>· 18~20시 일정: 당일 08시 이후<br>· 20~22시 일정: 당일 14시 이후</span>
+          <span class="urgent-rule">⏱ 코트 시작 <b>1시간 전부터 10분간</b> 운영진 응답이 없으면 <b>자동 참석</b>돼요. (정원 남아있고 4인 미달일 때)</span>
         </div>
         <div class="guest-info-warning">
           <b>⚠️ 운영진과 협의되지 않은 게스트는 참석이 제한될 수 있습니다</b>
@@ -4525,6 +4525,26 @@ async function checkGuestAutoApprove(){
     }
   }
   return changed;
+}
+
+// v201: 관리자/운영진 로그인시, 그 사이 쌓인 긴급요청(1시간이내 늦참·급구게스트 승인대기)을 모아서 한번에 팝업
+function checkPendingUrgentOnLogin(){
+  if(!(hasAdminPower() || state.myIsStaff)) return;
+  const oneHour = 3600000;
+  const items = [];
+  for(const ev of getInstances()){
+    const votes = state.data.votes[ev.id];
+    if(!votes) continue;
+    for(const [name, v] of Object.entries(votes)){
+      if(v.status !== 'waiting') continue;
+      if(v.type === 'guest_pending' && isUrgentGuestRequest(ev, v)){
+        items.push(`👤 게스트 "${name.replace(/\(게스트.*\)$/, '')}"${v.invitedBy ? ` (${v.invitedBy}님 요청)` : ''} — ${shortEventLabel(ev)}`);
+      } else if(v.type === 'late_request' && (getEventDateTime(ev).getTime() - (v.ts || 0)) <= oneHour){
+        items.push(`⏰ ${name} 긴급 늦참 승인요청 — ${shortEventLabel(ev)}`);
+      }
+    }
+  }
+  if(items.length) alert(`⚠️ 로그인 전 쌓인 긴급 승인요청이 있어요 (${items.length}건)\n\n${items.join('\n')}\n\n해당 일정 카드에서 승인해 주세요.`);
 }
 
 // v195: 게스트 참석요청 승인/거절 (운영진)
