@@ -373,6 +373,8 @@
   .gp-chip .gp-actions{display:inline-flex;gap:4px;margin-left:auto;}
   .gp-chip .gp-actions button{white-space:nowrap;}
   .guest-timer.off{color:var(--ink-soft);font-weight:700;white-space:normal;}
+  .gender-flex-pending{display:flex;align-items:center;flex-wrap:wrap;gap:6px;}
+  .gender-flex-pending button{border:none;background:var(--brand);color:var(--bg);border-radius:8px;padding:4px 9px;font-size:calc(11px * var(--font-scale, 1));font-weight:800;cursor:pointer;white-space:nowrap;}
   .guest-timer{font-size:calc(10px * var(--font-scale, 1));font-weight:800;color:#e0891b;white-space:nowrap;}
   .guest-info-approval .urgent-rule{margin-top:8px;padding-top:8px;border-top:1px dashed rgba(79,140,255,0.5);color:var(--ink);}
   .guest-info-approval .urgent-rule b{display:inline;font-size:inherit;color:#e0891b;font-weight:800;}
@@ -617,7 +619,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.201</span>
+      <span id="buildVersionTop" class="build-version-top">v.202</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -2417,9 +2419,13 @@ async function checkConsecutiveWaitingLatePromotion(){
             const flex = state.data.genderFlex && state.data.genderFlex[ev.id];
             const myGenderCount = v.gender === '여' ? counts.female : counts.male;
             const oppositeGenderCount = v.gender === '여' ? counts.male : counts.female;
-            const flexFavorsThisGender = oppositeGenderCount <= 3 && !ev.genderCaps; // 복식(4명) 기준: 반대성별이 4명 미만(=3명 이하)이면 자기들끼리 복식조차 못 이루니 상한초과 허용. 4명 이상 되는 순간 예외 사라짐(영구고정 genderFlex 대신 매번 실시간 재판정)
+            // v202: 긴급수정(힘찬님 제보, 10/1 목 저녁) — "반대성별 소수시 내 성별상한 초과허용" 예외가 연참·낮12시·
+            // 3번코트확보·관리자수동 등 모든 자동승급 경로에 있었음. 이미 내 성별이 상한(6)에 도달했는데도 반대성별이
+            // 아직 안 올라간 시점이면 대기자가 상한초과로 계속 승급되어 불균형이 더 커짐(실사례: 10/1 저녁 여5·남7,
+            // 총12 — 연참 일괄승급 중 이 예외로 남자가 상한6을 넘어 7까지 승급됨). 자동승급은 성별상한을 절대 넘지
+            // 않도록 예외 제거 — "반대성별 소수" 확대는 checkGenderFlexPromotions(운영진 승인 필요)로만 처리
             const genderCap = genderCapFor(ev, v.gender);
-            if(myGenderCount >= genderCap && !flexFavorsThisGender) return false;
+            if(myGenderCount >= genderCap) return false;
           }
           return true;
         })
@@ -2441,8 +2447,8 @@ async function checkConsecutiveWaitingLatePromotion(){
         const myLiveCount = v.gender === '여' ? liveTotal.female : liveTotal.male;
         const genderCap = genderCapFor(ev, v.gender);
         const oppositeLiveCount = v.gender === '여' ? liveTotal.male : liveTotal.female;
-        const flexFavorsThisGender = oppositeLiveCount <= 3 && !ev.genderCaps; // 복식(4명) 기준 — 반대성별 3명이하일때만 예외(실시간 판정, 영구고정 genderFlex 대신)
-        if((myLiveCount >= genderCap || (state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender])) && !flexFavorsThisGender) break;
+        // v202: 위와 동일 이유로 실시간 재확인에서도 예외 제거 — 자동승급은 성별상한을 절대 넘지 않음
+        if(myLiveCount >= genderCap || (state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender])) break;
       }
       votes[name] = { status:'attend', gender: v.gender, district: v.district, hidden:false, promotedFrom: v.type, lateArrival: v.lateArrival || false, lateMinutes: v.lateMinutes || null, lessonTime: v.lessonTime || null, ts: Date.now() };
       await saveVoteRow(ev.id, name, votes[name], '자동승급(연속참석·레슨자 전용, 시작1시간전 시스템)');
@@ -2521,32 +2527,57 @@ async function checkGenderFlexPromotions(){
     // 알림을 새로 쌓고 genderFlex를 다시 저장하고 있었음 → 7일간 동일 알림 1,300건+(누적 7,772건) 발생, 알림함 150개 한도를
     // 이 스팸이 다 차지해 진짜 알림이 밀려나고, 매 주기 ignis_state 쓰기로 egress도 낭비. "상태가 바뀌는 순간"에만
     // 알림·저장하도록 수정(승급 시도는 대기자가 새로 생길 수 있으니 매번 유지). category도 부여해 시스템 탭으로 분류
+    // v202: 운영진 승인 필요로 변경 — 기존엔 소수조건 감지시 바로 확대+자동승급까지 됐으나, 요청에 따라
+    // "감지 → 운영진에게 승인요청 알림 → 운영진이 카드에서 승인해야 확대 및 승급 진행"으로 변경.
+    // 운영진이 아직 승인 안 한 소수상태는 genderFlex에 '남_대기'/'여_대기'로 표시(카드에 승인버튼), 승인하면 '남'/'여'로 전환되어 그때부터 promoteGenderFlexWaiting 실행
     const prevFlex = state.data.genderFlex[ev.id];
+    const approved = state.data.genderFlexApproved && state.data.genderFlexApproved[ev.id];
     if(counts.female <= 3 && counts.male > 3){
-      if(prevFlex !== '남'){
-        state.data.genderFlex[ev.id] = '남';
+      if(approved === '남'){
+        if(await promoteGenderFlexWaiting(ev, '남')) changed = true;
+      } else if(prevFlex !== '남_대기'){
+        state.data.genderFlex[ev.id] = '남_대기';
         markDirty('genderFlex', ev.id);
-        pushNotification(`📢 ${shortEventLabel(ev)} : 여자 참석이 ${counts.female}명으로 소수라 남자 참석 인원이 최대 ${ev.quota}명까지 확대되었습니다.`, {eventId: ev.id, category:'court_status'});
+        pushNotification(`📢 ${shortEventLabel(ev)} : 여자 참석이 ${counts.female}명으로 소수예요. 남자 참석 인원을 최대 ${ev.quota}명까지 확대할지 운영진 승인이 필요해요. (카드에서 승인)`, {eventId: ev.id, category:'court_status'});
         changed = true;
       }
-      if(await promoteGenderFlexWaiting(ev, '남')) changed = true;
     } else if(counts.male <= 3 && counts.female > 3){
-      if(prevFlex !== '여'){
-        state.data.genderFlex[ev.id] = '여';
+      if(approved === '여'){
+        if(await promoteGenderFlexWaiting(ev, '여')) changed = true;
+      } else if(prevFlex !== '여_대기'){
+        state.data.genderFlex[ev.id] = '여_대기';
         markDirty('genderFlex', ev.id);
-        pushNotification(`📢 ${shortEventLabel(ev)} : 남자 참석이 ${counts.male}명으로 소수라 여자 참석 인원이 최대 ${ev.quota}명까지 확대되었습니다.`, {eventId: ev.id, category:'court_status'});
+        pushNotification(`📢 ${shortEventLabel(ev)} : 남자 참석이 ${counts.male}명으로 소수예요. 여자 참석 인원을 최대 ${ev.quota}명까지 확대할지 운영진 승인이 필요해요. (카드에서 승인)`, {eventId: ev.id, category:'court_status'});
         changed = true;
       }
-      if(await promoteGenderFlexWaiting(ev, '여')) changed = true;
     } else {
       if(state.data.genderFlex[ev.id] !== '균형'){
         state.data.genderFlex[ev.id] = '균형';
         markDirty('genderFlex', ev.id);
+        if(state.data.genderFlexApproved && state.data.genderFlexApproved[ev.id]){ state.data.genderFlexApproved[ev.id] = null; markDirty('genderFlexApproved', ev.id); } // 균형 회복되면 승인상태 초기화 — 다음에 또 소수상황 오면 다시 승인요청
         changed = true;
       }
     }
   }
   return changed;
+}
+
+async function approveGenderFlex(eventId){
+  const ev = getInstances().find(e => e.id === eventId);
+  if(!ev) return;
+  const flex = state.data.genderFlex[eventId];
+  const gender = flex === '남_대기' ? '남' : (flex === '여_대기' ? '여' : null);
+  if(!gender) return;
+  if(!state.data.genderFlexApproved) state.data.genderFlexApproved = {};
+  state.data.genderFlexApproved[eventId] = gender;
+  markDirty('genderFlexApproved', eventId);
+  state.data.genderFlex[eventId] = gender;
+  markDirty('genderFlex', eventId);
+  pushNotification(`✅ ${state.myName}님이 ${shortEventLabel(ev)} ${gender} 참석 확대를 승인했습니다. (최대 ${ev.quota}명)`, {eventId, actor: state.myName, category:'court_status'});
+  if(await promoteGenderFlexWaiting(ev, gender)) { /* no-op, saveData는 호출측에서 */ }
+  await saveData();
+  renderEventList();
+  renderNotifBell();
 }
 
 async function promoteGenderFlexWaiting(ev, flexGender){
@@ -2623,9 +2654,13 @@ async function tryAutoPromote(ev){
           // 성별당 상한은 코트수에 비례(quota의 절반) — 3번코트 확보시엔 상한 자체를 없애는 게 아니라 늘어난 정원만큼만 비례 확대
           const myGenderCount = v.gender === '여' ? counts.female : counts.male;
           const oppositeGenderCount = v.gender === '여' ? counts.male : counts.female;
-          const flexFavorsThisGender = oppositeGenderCount <= 3 && !ev.genderCaps; // 복식(4명) 기준: 반대성별이 4명 미만(=3명 이하)이면 자기들끼리 복식조차 못 이루니 상한초과 허용. 4명 이상 되는 순간 예외 사라짐(영구고정 genderFlex 대신 매번 실시간 재판정)
+          // v202: 긴급수정(힘찬님 제보, 10/1 목 저녁) — "반대성별 소수시 내 성별상한 초과허용" 예외가 연참·낮12시·
+            // 3번코트확보·관리자수동 등 모든 자동승급 경로에 있었음. 이미 내 성별이 상한(6)에 도달했는데도 반대성별이
+            // 아직 안 올라간 시점이면 대기자가 상한초과로 계속 승급되어 불균형이 더 커짐(실사례: 10/1 저녁 여5·남7,
+            // 총12 — 연참 일괄승급 중 이 예외로 남자가 상한6을 넘어 7까지 승급됨). 자동승급은 성별상한을 절대 넘지
+            // 않도록 예외 제거 — "반대성별 소수" 확대는 checkGenderFlexPromotions(운영진 승인 필요)로만 처리
           const genderCap = genderCapFor(ev, v.gender); // 신규등록(setVote)과 동일 공식 — 확보상태 반영한 현재 정원 기준으로 통일(quota 고정값 쓰면 미확보 구간에서 신규등록과 충돌)
-          if(myGenderCount >= genderCap && !flexFavorsThisGender) return false;
+          if(myGenderCount >= genderCap) return false;
         }
         return true;
       })
@@ -2649,8 +2684,8 @@ async function tryAutoPromote(ev){
         const myLiveCount = v.gender === '여' ? liveGenderCounts.female : liveGenderCounts.male;
         const genderCap = genderCapFor(ev, v.gender);
         const oppositeLiveCount = v.gender === '여' ? liveGenderCounts.male : liveGenderCounts.female;
-        const flexFavorsThisGender = oppositeLiveCount <= 3 && !ev.genderCaps; // 복식(4명) 기준 — 반대성별 3명이하일때만 예외(실시간 판정, 영구고정 genderFlex 대신)
-        if((myLiveCount >= genderCap || (state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender])) && !flexFavorsThisGender) continue; // 이미 상한 도달 또는 관리자 수동마감 — 이 사람은 건너뛰고 다음 후보로
+        // v202: 위와 동일 이유로 실시간 재확인에서도 예외 제거 — 자동승급은 성별상한을 절대 넘지 않음
+        if(myLiveCount >= genderCap || (state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender])) continue; // 이미 상한 도달 또는 관리자 수동마감 — 이 사람은 건너뛰고 다음 후보로
       }
       const promotedFrom = v.type === 'consecutive' ? 'consecutive' : 'wait';
       votes[name] = { status:'attend', gender: v.gender, district: v.district, hidden:false, promotedFrom, lateArrival: v.lateArrival || false, lateMinutes: v.lateMinutes || null, lessonTime: v.lessonTime || null, ts: Date.now() };
@@ -3677,8 +3712,12 @@ function renderEventCard(ev){
         ) : ''}
         ${(() => {
           const flex = state.data.genderFlex && state.data.genderFlex[ev.id];
+          const isAdmin = hasAdminPower() || state.myIsStaff;
           if(flex === '남') return `<div class="court3-note confirmed">🚹 여자 소수(3명 이하, 복식 미만) → 남자 참석 최대 ${ev.quota}명 확대 적용중</div>`;
           if(flex === '여') return `<div class="court3-note confirmed">🚺 남자 소수(3명 이하, 복식 미만) → 여자 참석 최대 ${ev.quota}명 확대 적용중</div>`;
+          // v202: 운영진 승인 전 상태 — 일반회원에겐 소수상황만 안내, 운영진에겐 승인 버튼 표시
+          if(flex === '남_대기') return `<div class="court3-note gender-flex-pending">🚹 여자 소수(3명 이하)로 남자 참석 확대 가능 — 운영진 승인 대기${isAdmin ? `<button data-approve-genderflex="${ev.id}">최대 ${ev.quota}명까지 확대 승인</button>` : ''}</div>`;
+          if(flex === '여_대기') return `<div class="court3-note gender-flex-pending">🚺 남자 소수(3명 이하)로 여자 참석 확대 가능 — 운영진 승인 대기${isAdmin ? `<button data-approve-genderflex="${ev.id}">최대 ${ev.quota}명까지 확대 승인</button>` : ''}</div>`;
           return '';
         })()}
       </div>
@@ -4092,6 +4131,8 @@ function renderEventCard(ev){
     btn.onclick = () => approveGwaeReview(ev.id, btn.getAttribute('data-approve'));
   });
   card.querySelectorAll('[data-approve-guest]').forEach(btn => { btn.onclick = () => decideGuestRequest(ev.id, btn.getAttribute('data-approve-guest'), true); });
+  const genderFlexBtn = card.querySelector('[data-approve-genderflex]');
+  if(genderFlexBtn) genderFlexBtn.onclick = () => approveGenderFlex(ev.id);
   card.querySelectorAll('[data-reject-guest]').forEach(btn => { btn.onclick = () => decideGuestRequest(ev.id, btn.getAttribute('data-reject-guest'), false); });
   card.querySelectorAll('[data-approve-late]').forEach(btn => {
     btn.onclick = () => approveLateRequest(ev.id, btn.getAttribute('data-approve-late'));
@@ -5179,9 +5220,13 @@ async function promoteWaitingForCapacity(ev){
           // 성별당 상한은 코트수에 비례(quota의 절반) — 3번코트 확보시엔 상한 자체를 없애는 게 아니라 늘어난 정원만큼만 비례 확대
           const myGenderCount = v.gender === '여' ? counts.female : counts.male;
           const oppositeGenderCount = v.gender === '여' ? counts.male : counts.female;
-          const flexFavorsThisGender = oppositeGenderCount <= 3 && !ev.genderCaps; // 복식(4명) 기준: 반대성별이 4명 미만(=3명 이하)이면 자기들끼리 복식조차 못 이루니 상한초과 허용. 4명 이상 되는 순간 예외 사라짐(영구고정 genderFlex 대신 매번 실시간 재판정)
+          // v202: 긴급수정(힘찬님 제보, 10/1 목 저녁) — "반대성별 소수시 내 성별상한 초과허용" 예외가 연참·낮12시·
+            // 3번코트확보·관리자수동 등 모든 자동승급 경로에 있었음. 이미 내 성별이 상한(6)에 도달했는데도 반대성별이
+            // 아직 안 올라간 시점이면 대기자가 상한초과로 계속 승급되어 불균형이 더 커짐(실사례: 10/1 저녁 여5·남7,
+            // 총12 — 연참 일괄승급 중 이 예외로 남자가 상한6을 넘어 7까지 승급됨). 자동승급은 성별상한을 절대 넘지
+            // 않도록 예외 제거 — "반대성별 소수" 확대는 checkGenderFlexPromotions(운영진 승인 필요)로만 처리
           const genderCap = genderCapFor(ev, v.gender); // 신규등록(setVote)과 동일 공식 — 확보상태 반영한 현재 정원 기준으로 통일(quota 고정값 쓰면 미확보 구간에서 신규등록과 충돌)
-          if(myGenderCount >= genderCap && !flexFavorsThisGender) return false;
+          if(myGenderCount >= genderCap) return false;
         }
         return true;
       })
@@ -5213,8 +5258,8 @@ async function promoteWaitingForCapacity(ev){
         const myLiveCount = v.gender === '여' ? liveTotal2.female : liveTotal2.male;
         const genderCap = genderCapFor(ev, v.gender);
         const oppositeLiveCount = v.gender === '여' ? liveTotal2.male : liveTotal2.female;
-        const flexFavorsThisGender = oppositeLiveCount <= 3 && !ev.genderCaps; // 복식(4명) 기준 — 반대성별 3명이하일때만 예외(실시간 판정, 영구고정 genderFlex 대신)
-        if((myLiveCount >= genderCap || (state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender])) && !flexFavorsThisGender) continue; // 이 사람만 건너뛰고 다음 후보로 (전체 중단 금지)
+        // v202: 위와 동일 이유로 실시간 재확인에서도 예외 제거 — 자동승급은 성별상한을 절대 넘지 않음
+        if(myLiveCount >= genderCap || (state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender])) continue; // 이 사람만 건너뛰고 다음 후보로 (전체 중단 금지)
       }
       votes[name] = { status:'attend', gender: v.gender, district: v.district, hidden:false, promotedFrom, lateArrival: v.lateArrival || false, lateMinutes: v.lateMinutes || null, lessonTime: v.lessonTime || null, ts: v.ts };
       await saveVoteRow(ev.id, name, votes[name], '자동승급(정원확대 시스템)');
@@ -5356,9 +5401,13 @@ async function forcePromoteWaitingNow(ev){
           // 성별당 상한은 코트수에 비례(quota의 절반) — 3번코트 확보시엔 상한 자체를 없애는 게 아니라 늘어난 정원만큼만 비례 확대
           const myGenderCount = v.gender === '여' ? counts.female : counts.male;
           const oppositeGenderCount = v.gender === '여' ? counts.male : counts.female;
-          const flexFavorsThisGender = oppositeGenderCount <= 3 && !ev.genderCaps; // 복식(4명) 기준: 반대성별이 4명 미만(=3명 이하)이면 자기들끼리 복식조차 못 이루니 상한초과 허용. 4명 이상 되는 순간 예외 사라짐(영구고정 genderFlex 대신 매번 실시간 재판정)
+          // v202: 긴급수정(힘찬님 제보, 10/1 목 저녁) — "반대성별 소수시 내 성별상한 초과허용" 예외가 연참·낮12시·
+            // 3번코트확보·관리자수동 등 모든 자동승급 경로에 있었음. 이미 내 성별이 상한(6)에 도달했는데도 반대성별이
+            // 아직 안 올라간 시점이면 대기자가 상한초과로 계속 승급되어 불균형이 더 커짐(실사례: 10/1 저녁 여5·남7,
+            // 총12 — 연참 일괄승급 중 이 예외로 남자가 상한6을 넘어 7까지 승급됨). 자동승급은 성별상한을 절대 넘지
+            // 않도록 예외 제거 — "반대성별 소수" 확대는 checkGenderFlexPromotions(운영진 승인 필요)로만 처리
           const genderCap = genderCapFor(ev, v.gender); // 신규등록(setVote)과 동일 공식 — 확보상태 반영한 현재 정원 기준으로 통일(quota 고정값 쓰면 미확보 구간에서 신규등록과 충돌)
-          if(myGenderCount >= genderCap && !flexFavorsThisGender) return false;
+          if(myGenderCount >= genderCap) return false;
         }
         return true;
       })
@@ -5380,8 +5429,8 @@ async function forcePromoteWaitingNow(ev){
         const myLiveCount = v.gender === '여' ? liveGenderCounts.female : liveGenderCounts.male;
         const genderCap = genderCapFor(ev, v.gender);
         const oppositeLiveCount = v.gender === '여' ? liveGenderCounts.male : liveGenderCounts.female;
-        const flexFavorsThisGender = oppositeLiveCount <= 3 && !ev.genderCaps; // 복식(4명) 기준 — 반대성별 3명이하일때만 예외(실시간 판정, 영구고정 genderFlex 대신)
-        if((myLiveCount >= genderCap || (state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender])) && !flexFavorsThisGender) continue;
+        // v202: 위와 동일 이유로 실시간 재확인에서도 예외 제거 — 자동승급은 성별상한을 절대 넘지 않음
+        if(myLiveCount >= genderCap || (state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender])) continue;
       }
       const promotedFrom = v.type === 'consecutive' ? 'consecutive' : 'wait';
       votes[name] = { status:'attend', gender: v.gender, district: v.district, hidden:false, promotedFrom, lateArrival: v.lateArrival || false, lateMinutes: v.lateMinutes || null, lessonTime: v.lessonTime || null, ts: Date.now() };
