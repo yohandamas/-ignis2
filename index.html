@@ -373,6 +373,9 @@
   .gp-chip .gp-actions{display:inline-flex;gap:4px;margin-left:auto;}
   .gp-chip .gp-actions button{white-space:nowrap;}
   .guest-timer.off{color:var(--ink-soft);font-weight:700;white-space:normal;}
+  .review-row.admin-demoted-pending{border-color:#a98bd6;background:rgba(169,139,214,0.1);}
+  .review-row.admin-demoted-pending .review-chip{border-color:#a98bd6;color:#8a63c4;}
+  .review-row.admin-demoted-pending .review-chip button{background:#a98bd6;}
   .gender-flex-pending{display:flex;align-items:center;flex-wrap:wrap;gap:6px;}
   .gender-flex-pending button{border:none;background:var(--brand);color:var(--bg);border-radius:8px;padding:4px 9px;font-size:calc(11px * var(--font-scale, 1));font-weight:800;cursor:pointer;white-space:nowrap;}
   .guest-timer{font-size:calc(10px * var(--font-scale, 1));font-weight:800;color:#e0891b;white-space:nowrap;}
@@ -619,7 +622,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.202</span>
+      <span id="buildVersionTop" class="build-version-top">v.204</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -1253,7 +1256,7 @@ async function loadVotesTable(sinceDay){
         status: row.status, gender: row.gender, district: row.district,
         hidden: !!row.hidden, type: row.vote_type || undefined,
         ts: row.ts ? Number(row.ts) : Date.now(),
-        isInvite: !!row.is_invite, promotedFrom: row.promoted_from || null, invitedBy: row.invited_by || null,
+        isInvite: !!row.is_invite, promotedFrom: row.promoted_from || null, invitedBy: row.invited_by || null, adminDemoted: !!row.admin_demoted,
         displayName: row.display_name || null,
         lateArrival: !!row.late_arrival, lateMinutes: row.late_minutes || null,
         lessonTime: row.lesson_time || null,
@@ -1277,7 +1280,7 @@ async function saveVoteRow(eventId, name, voteObj, actorOverride){
         event_id: eventId, member_name: name,
         status: voteObj.status, gender: voteObj.gender || null, district: voteObj.district || null,
         hidden: !!voteObj.hidden, vote_type: voteObj.type || null, ts: voteObj.ts || Date.now(),
-        is_invite: !!voteObj.isInvite, promoted_from: voteObj.promotedFrom || null, invited_by: voteObj.invitedBy || null,
+        is_invite: !!voteObj.isInvite, promoted_from: voteObj.promotedFrom || null, invited_by: voteObj.invitedBy || null, admin_demoted: !!voteObj.adminDemoted,
         display_name: voteObj.displayName || null,
         late_arrival: !!voteObj.lateArrival, late_minutes: voteObj.lateMinutes || null,
         lesson_time: voteObj.lessonTime || null,
@@ -2130,7 +2133,7 @@ function computedCounts(ev){
   const femaleNames = [], maleNames = [], absentNames = [];
   const waitRegularNames = [], waitConsecutiveNames = [], waitGwaeReviewNames = [], waitLateRequestNames = [], waitGwaeWaitNames = [], waitGenderWaitNames = [], waitPrecloseNames = [], waitLateNames = [], waitLessonNames = [];
   Object.entries(votes).forEach(([name, v]) => {
-    const entry = { name, ts: v.ts || 0, district: v.district || '' };
+    const entry = { name, ts: v.ts || 0, district: v.district || '', adminDemoted: !!v.adminDemoted }; // v204: 운영진이 참석자를 대기로 내렸는지 표시
     if(v.status==='attend' && v.isInvite){
       inviteNames.push(Object.assign({}, entry, { gender: v.gender || '', displayName: v.displayName || null, invitedBy: v.invitedBy || null }));
       return;
@@ -2562,6 +2565,23 @@ async function checkGenderFlexPromotions(){
   return changed;
 }
 
+// v204: 운영진이 임의로 대기로 내린 회원을 운영진이 다시 승인 — adminDemoted 플래그만 해제(바로 참석시키진 않고,
+// 다음 자동승급 사이클에서 정상적인 선착순+우선순위 경쟁에 참여하도록 함 — 이미 참석이 다 찼으면 여전히 대기)
+async function approveAdminDemoted(eventId, name){
+  const ev = getInstances().find(e => e.id === eventId);
+  const votes = state.data.votes[eventId];
+  if(!ev || !votes || !votes[name] || !votes[name].adminDemoted) return;
+  votes[name] = Object.assign({}, votes[name], { adminDemoted: false });
+  await saveVoteRow(eventId, name, votes[name]);
+  pushNotification(`${state.myName}님이 ${name}님의 대기 재승급을 승인했습니다. (${shortEventLabel(ev)}) - 자동승급 조건이 되면 다시 승급 가능`, {eventId, actor: name, category:'court_status'});
+  let changed = false;
+  if(await tryAutoPromote(ev)) changed = true;
+  if(await promoteWaitingForCapacity(ev)) changed = true;
+  await saveData();
+  renderEventList();
+  renderNotifBell();
+}
+
 async function approveGenderFlex(eventId){
   const ev = getInstances().find(e => e.id === eventId);
   if(!ev) return;
@@ -2647,6 +2667,7 @@ async function tryAutoPromote(ev){
       .filter(([,v]) => {
         if(v.status !== 'waiting') return false;
         if(['gwae_review','late_request','gwae_wait','guest_pending'].includes(v.type)) return false;
+        if(v.adminDemoted) return false; // v204: 운영진이 임의로 대기로 내린 회원은 자동승급 대상에서 제외 — 운영진 승인후에만 승급
         if(state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender]) return false; // 관리자가 이 성별을 수동마감했으면, 이미 대기중인 사람도 자동승급 절대 금지(관리자가 이동▾으로 개별 추가하는 것만 예외)
           if(v.type === 'late_consecutive') return false; // 늦참+연참 동시는 계절 무관 항상 제외 — 시작1시간전 전용경로(checkConsecutiveWaitingLatePromotion)로만 승급
           if(isPeakSeason() && v.type === 'consecutive') return false; // 순수 연참은 성수기에만 제외 — 시작 1시간전에 별도 승급 기회를 줌
@@ -3294,7 +3315,7 @@ function subscribeRealtime(){
             status: payload.new.status, gender: payload.new.gender, district: payload.new.district,
             hidden: !!payload.new.hidden, type: payload.new.vote_type || undefined,
             ts: payload.new.ts ? Number(payload.new.ts) : Date.now(),
-            isInvite: !!payload.new.is_invite, promotedFrom: payload.new.promoted_from || null, invitedBy: payload.new.invited_by || null,
+            isInvite: !!payload.new.is_invite, promotedFrom: payload.new.promoted_from || null, invitedBy: payload.new.invited_by || null, adminDemoted: !!payload.new.admin_demoted,
             displayName: payload.new.display_name || null,
             lateArrival: !!payload.new.late_arrival, lateMinutes: payload.new.late_minutes || null,
             autoApprovedPopupPending: !!payload.new.auto_approved_popup_pending
@@ -3594,9 +3615,16 @@ function getCombinedWaitingEntries(counts){
     { arr: counts.waitConsecutiveNames, suffix: ' (연속)', priority: 2 },
   ];
   let combined = [];
-  groups.forEach(g => { g.arr.forEach(e => combined.push(Object.assign({}, e, { _suffix: g.suffix, _priority: g.priority }))); });
+  groups.forEach(g => { g.arr.forEach(e => { if(!e.adminDemoted) combined.push(Object.assign({}, e, { _suffix: g.suffix, _priority: g.priority })); }); }); // v204: 운영진이 내린 회원은 일반 대기순번에서 제외(별도 승인 섹션에 표시)
   combined.sort((a, b) => (a._priority - b._priority) || ((a.ts||0) - (b.ts||0))); // 우선순위 먼저, 같은 우선순위 안에서는 선착순(ts)
   return combined;
+}
+function getAdminDemotedEntries(counts){
+  // v204: 운영진이 참석에서 임의로 대기로 내린 회원 목록 — 자동승급 대상에서 빠져있으니 별도 승인 섹션에 표시
+  const groups = [counts.waitRegularNames, counts.waitGenderWaitNames, counts.waitLateNames, counts.waitLessonNames, counts.waitConsecutiveNames];
+  const out = [];
+  groups.forEach(arr => (arr || []).forEach(e => { if(e.adminDemoted) out.push(e); }));
+  return out;
 }
 function renderCombinedWaitingList(counts, eventId, skip){
   const combined = getCombinedWaitingEntries(counts).slice(skip || 0);
@@ -3632,6 +3660,15 @@ function renderEventCard(ev){
   }
 
   // v195: 게스트 운영진 승인 대기
+  // v204: 운영진이 참석자를 임의로 대기로 내린 경우 - 자동승급되지 않고 운영진 승인이 필요
+  let adminDemotedHtml = "";
+  const demotedEntries = getAdminDemotedEntries(counts);
+  if(demotedEntries.length){
+    const canApprove = hasAdminPower() || state.myIsStaff;
+    adminDemotedHtml = `<div class="review-row admin-demoted-pending">⏸<span class="review-label">운영진이 대기로 내린 회원 - 승인 필요</span>` +
+      demotedEntries.map(e => `<span class="review-chip">${escapeHtml(e.name)}${canApprove ? `<span class="gp-actions"><button data-approve-demoted="${escapeHtml(e.name)}">승인</button></span>` : ''}</span>`).join('') +
+      `</div>`;
+  }
   let guestPendingHtml = "";
   const canApproveGuest = hasAdminPower() || state.myIsStaff;
   if(counts.guestPendingNames.length){
@@ -3839,6 +3876,7 @@ function renderEventCard(ev){
     ${reviewHtml}
     ${lateRequestHtml}
     ${guestPendingHtml}
+    ${adminDemotedHtml}
     <div class="ev-actions">
       <div class="ev-actions-main">
         <button class="vote-btn attend-main ${isPendingF || isPendingM || isPendingW ? 'pending-sel' : (myStatus==='attend' ? (myHidden ? 'sel-attend-hidden' : (myVote.gender==='여' ? 'sel-attend-f' : 'sel-attend-m')) : (myStatus==='waiting' ? 'sel-waiting' : ''))}" data-attend-sheet="${ev.id}">${attendLabel}</button>
@@ -4131,6 +4169,7 @@ function renderEventCard(ev){
     btn.onclick = () => approveGwaeReview(ev.id, btn.getAttribute('data-approve'));
   });
   card.querySelectorAll('[data-approve-guest]').forEach(btn => { btn.onclick = () => decideGuestRequest(ev.id, btn.getAttribute('data-approve-guest'), true); });
+  card.querySelectorAll('[data-approve-demoted]').forEach(btn => { btn.onclick = () => approveAdminDemoted(ev.id, btn.getAttribute('data-approve-demoted')); });
   const genderFlexBtn = card.querySelector('[data-approve-genderflex]');
   if(genderFlexBtn) genderFlexBtn.onclick = () => approveGenderFlex(ev.id);
   card.querySelectorAll('[data-reject-guest]').forEach(btn => { btn.onclick = () => decideGuestRequest(ev.id, btn.getAttribute('data-reject-guest'), false); });
@@ -4264,16 +4303,21 @@ async function adminMoveMember(eventId, name, action){
     const waitType = action.split('-').slice(1).join('-'); // regular/gwae_wait/gender_wait/consecutive/late
     const g = (m && m.gender) || (existing && existing.gender) || '남';
     const waitTypeLabel = { regular:'일반', gwae_wait:'관외대기', gender_wait:'성별대기', consecutive:'연속참석', late:'늦참' }[waitType] || waitType;
-    votes[name] = { status:'waiting', type:waitType, gender:g, district, ts: Date.now(),
+    // v204: 운영진이 "참석 중이던" 회원을 임의로 대기로 내린 경우, 자동승급 시간이 와도 바로 다시 올라가지 않도록
+    // adminDemoted 표시 — 운영진이 직접 "승인"해야만 승급 가능(요청에 따라 신설). 원래부터 대기였던 사람의
+    // 대기유형만 바꾸는 경우는 "강등"이 아니므로 표시하지 않음
+    const wasAttending = existing && existing.status === 'attend';
+    votes[name] = { status:'waiting', type:waitType, gender:g, district, ts: Date.now(), adminDemoted: wasAttending,
       lateArrival: waitType === 'late' ? ((existing && existing.lateArrival) || true) : false,
       lateMinutes: waitType === 'late' ? ((existing && existing.lateMinutes) || null) : null };
     await saveVoteRow(eventId, name, votes[name]);
-    pushNotification(`${state.myName}(관리자)님이 ${name}님을 ${label} 대기(${waitTypeLabel})로 이동했습니다.`, {eventId, actor: name});
+    pushNotification(`${state.myName}(관리자)님이 ${name}님을 ${label} 대기(${waitTypeLabel})로 이동했습니다.${wasAttending ? ' 자동승급되지 않으며, 운영진이 직접 승인해야 다시 참석됩니다.' : ''}`, {eventId, actor: name});
   } else if(action === 'waiting'){
     const g = (m && m.gender) || (existing && existing.gender) || '남';
-    votes[name] = { status:'waiting', type:'regular', gender:g, district, ts: Date.now() };
+    const wasAttending = existing && existing.status === 'attend';
+    votes[name] = { status:'waiting', type:'regular', gender:g, district, ts: Date.now(), adminDemoted: wasAttending };
     await saveVoteRow(eventId, name, votes[name]);
-    pushNotification(`${state.myName}(관리자)님이 ${name}님을 ${label} 대기로 이동했습니다.`, {eventId, actor: name});
+    pushNotification(`${state.myName}(관리자)님이 ${name}님을 ${label} 대기로 이동했습니다.${wasAttending ? ' 자동승급되지 않으며, 운영진이 직접 승인해야 다시 참석됩니다.' : ''}`, {eventId, actor: name});
   } else if(action === 'edit-late'){
     // 일반참석 버튼을 누르고 댓글로만 "늦참"이라고 알리는 회원들을, 관리자가 실제 늦참분을 직접 입력해 바로잡기 위한 기능
     if(!existing || existing.status !== 'attend'){
@@ -5146,9 +5190,10 @@ async function setVote(eventId, status, gender){
       } else {
         votes[state.myName] = { status, gender: state.myGender, district: state.myDistrict, ts: Date.now() };
         pushNotification(`${state.myName}님 ${label} 불참 체크`, {eventId, actor: state.myName});
-        // ⚠️ 요청에 따라 범위 확장: 기존엔 "참석→불참 전환"만 카운트했는데, 처음부터 바로 불참을 누르거나
-        // 대기하다가 불참으로 바꾸는 경우도 전부 포함되도록 여기(불참으로 실제 저장되는 지점)로 이동
-        recordAttendCancel(eventId, 'to_absent');
+        // v203: "본인이 참석(또는 처음부터 바로)을 취소"와 "정원이 꽉차서 대기 중이었다가 불참으로 바꾼 것"을 구분 —
+        // 후자는 애초에 참석이 확보된 적 없이 대기만 하다 그만두는 것뿐이라 "참석취소"로 볼 수 없음. existing.status가
+        // 'waiting'일 때만 카운트에서 제외(참석→불참, 직접 불참은 기존대로 그대로 카운트)
+        if(!(existing && existing.status === 'waiting')) recordAttendCancel(eventId, 'to_absent');
       }
     }
   }
@@ -5213,6 +5258,7 @@ async function promoteWaitingForCapacity(ev){
       .filter(([,v]) => {
         if(v.status !== 'waiting') return false;
         if(['gwae_review','late_request','gwae_wait','guest_pending'].includes(v.type)) return false;
+        if(v.adminDemoted) return false; // v204: 운영진이 임의로 대기로 내린 회원은 자동승급 대상에서 제외 — 운영진 승인후에만 승급
         if(state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender]) return false; // 관리자가 이 성별을 수동마감했으면, 이미 대기중인 사람도 자동승급 절대 금지(관리자가 이동▾으로 개별 추가하는 것만 예외)
         if(v.type === 'late_consecutive') return false; // 늦참+연참 동시는 계절 무관 항상 제외 — 시작1시간전 전용경로(checkConsecutiveWaitingLatePromotion)로만 승급
         if(isPeakSeason() && v.type === 'consecutive') return false; // 순수 연참은 성수기에만 제외 — 시작 1시간전에 별도 승급 기회를 줌
@@ -5394,6 +5440,7 @@ async function forcePromoteWaitingNow(ev){
       .filter(([,v]) => {
         if(v.status !== 'waiting') return false;
         if(['gwae_review','late_request','gwae_wait','guest_pending'].includes(v.type)) return false;
+        if(v.adminDemoted) return false; // v204: 운영진이 임의로 대기로 내린 회원은 자동승급 대상에서 제외 — 운영진 승인후에만 승급
         if(state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender]) return false; // 관리자가 이 성별을 수동마감했으면, 이미 대기중인 사람도 자동승급 절대 금지(관리자가 이동▾으로 개별 추가하는 것만 예외)
           if(v.type === 'late_consecutive') return false; // 늦참+연참 동시는 계절 무관 항상 제외 — 시작1시간전 전용경로(checkConsecutiveWaitingLatePromotion)로만 승급 (관리자 수동실행도 이 규칙은 동일 적용해 다른 자동경로와 일관성 유지)
         if(isPeakSeason() && v.type === 'consecutive') return false; // 순수 연참은 성수기에만 제외
@@ -6521,6 +6568,7 @@ async function checkCourt3LikelyConfirm(){
       .filter(([,v]) => {
         if(v.status !== 'waiting') return false;
         if(['gwae_review','late_request','gwae_wait','guest_pending'].includes(v.type)) return false;
+        if(v.adminDemoted) return false; // v204: 운영진이 임의로 대기로 내린 회원은 자동승급 대상에서 제외 — 운영진 승인후에만 승급
         return true;
       })
       .sort((a,b) => waitingSortKey(a[1]) - waitingSortKey(b[1]));
