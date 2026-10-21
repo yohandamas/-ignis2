@@ -606,6 +606,25 @@
     .ev-top{flex-direction:column;}
   }
 
+  /* v205: 번개코트(일회성 일정) 빠른 추가 — 관리자 전용 플로팅 버튼 + 하단 시트 */
+  .qc-fab{position:fixed;right:16px;bottom:calc(20px + env(safe-area-inset-bottom,0px));z-index:900;background:var(--brand);color:#fff;border:0;border-radius:28px;padding:13px 18px;font-size:15px;font-weight:800;box-shadow:0 6px 16px rgba(0,0,0,.25);cursor:pointer}
+  [data-theme="courtnight"] .qc-fab{color:#111}
+  .qc-dim{position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.4);display:flex;align-items:flex-end;justify-content:center}
+  .qc-sheet{width:100%;max-width:480px;max-height:90vh;overflow-y:auto;background:var(--panel);color:var(--ink);border-radius:20px 20px 0 0;padding:10px 16px calc(18px + env(safe-area-inset-bottom,0px))}
+  .qc-grab{width:40px;height:4px;background:var(--line);border-radius:2px;margin:0 auto 10px}
+  .qc-sheet h3{margin:0 0 4px;font-size:17px}
+  .qc-lbl{font-size:12px;color:var(--ink-soft);margin:12px 0 6px;font-weight:700}
+  .qc-chips{display:flex;flex-wrap:wrap;gap:6px}
+  .qc-chip{border:1px solid var(--line);border-radius:18px;padding:8px 13px;font-size:14px;background:var(--panel);color:var(--ink);cursor:pointer}
+  .qc-chip.on{border-color:var(--brand);background:var(--brand-soft);color:var(--brand-dark);font-weight:800}
+  .qc-inline{display:none;gap:6px;align-items:center;margin-top:6px}
+  .qc-inline.show{display:flex}
+  .qc-inline input{padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink)}
+  .qc-sum{margin-top:14px;padding:10px 12px;background:var(--bg);border-radius:10px;font-size:13px;line-height:1.6}
+  .qc-go{margin-top:12px;width:100%;border:0;background:var(--brand);color:#fff;border-radius:12px;padding:14px;font-size:16px;font-weight:800;cursor:pointer}
+  [data-theme="courtnight"] .qc-go{color:#111}
+  .qc-go:disabled{opacity:.45}
+  .qc-cancel{display:block;width:100%;margin-top:8px;border:0;background:none;color:var(--ink-soft);font-size:13px;padding:6px;cursor:pointer}
 </style>
 </head>
 
@@ -622,7 +641,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.204</span>
+      <span id="buildVersionTop" class="build-version-top">v.205</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -872,9 +891,31 @@
     </div>
     <div class="field">또는 특정 날짜 1회만 (갑자기 생긴 이벤트성 일정용)<input id="newSpecificDate" type="date"></div>
     <div class="field">정원 직접 지정(선택, 월례대회 등 대규모 이벤트용 — 비우면 코트수×6명 자동계산)<input id="newCustomCapacity" type="number" min="1" placeholder="예: 40"></div>
-    <button id="addEventBtn">반복 일정 추가</button>
+    <button id="addEventBtn">일정 추가</button>
     <div class="hint">코트당 정원 6명 기준으로 자동 계산됩니다(유니온 3번코트 포함 복수코트는 확보 전까지 임시 축소, 확보 후 정상 정원). 반복 일정은 올해 12월 31일까지 생성됩니다. 특정 날짜를 입력하면 그 날 하루만 생성돼요. 월례대회처럼 여러 코트를 묶어 큰 규모로 진행할 땐 "코트" 칸에 콤마로 여러 코트를 입력하고(예: 1,2,3), "정원 직접 지정"에 실제 참석 규모(예: 40)를 넣어주세요.</div>
   </div></details>
+  <!-- v205: 번개코트(일회성) 빠른 추가 -->
+  <button id="quickCourtFab" class="qc-fab" style="display:none;">⚡ 번개코트</button>
+  <div id="quickCourtSheet" class="qc-dim" style="display:none;">
+    <div class="qc-sheet" role="dialog" aria-label="번개코트 추가">
+      <div class="qc-grab"></div>
+      <h3>⚡ 번개코트 추가 <span style="font-size:12px;color:var(--ink-faint);font-weight:500;">(이 날 1회만)</span></h3>
+      <div class="qc-lbl">날짜</div>
+      <div class="qc-chips" id="qcDateChips"></div>
+      <div class="qc-inline" id="qcDateCustomRow"><input type="date" id="qcDateInput"></div>
+      <div class="qc-lbl">장소</div>
+      <div class="qc-chips" id="qcLocChips"></div>
+      <div class="qc-lbl">코트 (여러 개 선택)</div>
+      <div class="qc-chips" id="qcCourtChips"></div>
+      <div class="qc-lbl">시간</div>
+      <div class="qc-chips" id="qcTimeChips"></div>
+      <div class="qc-inline" id="qcTimeCustomRow"><input type="time" id="qcStartInput" value="19:00"> ~ <input type="time" id="qcEndInput" value="21:00"></div>
+      <div class="qc-sum" id="qcSummary"></div>
+      <div class="qc-inline" id="qcCapRow">정원 <input type="number" id="qcCapInput" min="2" style="width:70px;"> 명</div>
+      <button class="qc-go" id="qcSubmit">등록하기</button>
+      <button class="qc-cancel" id="qcCancel">닫기 · 제목 등 세부 설정은 "➕ 일정 추가"에서</button>
+    </div>
+  </div>
 
   <div class="calendar" id="calendar"></div>
   <div class="cal-legend">
@@ -2025,9 +2066,21 @@ function renderCalendar(){
     <div class="cal-grid">${cells}</div>`;
   document.getElementById('prevMonth').onclick = () => { state.calMonth--; if(state.calMonth<0){state.calMonth=11;state.calYear--;} renderCalendar(); };
   document.getElementById('nextMonth').onclick = () => { state.calMonth++; if(state.calMonth>11){state.calMonth=0;state.calYear++;} renderCalendar(); };
+  // v205: 관리자모드에서 달력 날짜를 길게 누르면 그 날짜로 번개코트 추가 시트 열기
+  if(hasAdminPower()){
+    cal.querySelectorAll('.cal-day[data-date]:not([data-date=""]):not(.past)').forEach(el => { // 지난 날짜·다른 달 칸 제외
+      let timer = null;
+      const iso = el.getAttribute('data-date');
+      const clear = () => { if(timer){ clearTimeout(timer); timer = null; } };
+      el.addEventListener('pointerdown', () => { clear(); timer = setTimeout(() => { timer = null; el.dataset.lp = '1'; openQuickCourt(iso); }, 600); });
+      ['pointerup','pointerleave','pointercancel'].forEach(t => el.addEventListener(t, clear));
+      el.addEventListener('contextmenu', e => e.preventDefault());
+    });
+  }
   cal.querySelectorAll('.cal-day.has-event').forEach(el => {
     const iso = el.getAttribute('data-date');
     el.onclick = () => {
+      if(el.dataset.lp){ delete el.dataset.lp; return; } // 길게 누르기 직후의 클릭은 무시
       state.selectedDate = (state.selectedDate === iso) ? null : iso;
       renderCalendar();
       renderEventList();
@@ -2213,6 +2266,34 @@ async function getLiveGenderCounts(eventId){
   }
 }
 
+// v205: 자동승급·자동승인 공통 "성별 안전장치" — 긴급참석 7분 자동승인 등 일부 경로가 전체정원만 보고 성별상한·성별마감·
+// 서버 실시간 인원을 확인하지 않아, 10/8(목) 유니온 저녁에 남자만 9명(상한 6)까지 올라간 사례가 있었음. 모든 자동경로가 이 두 함수를 거치게 통일
+function genderGateLocal(ev, counts, gender){
+  if(state.data.genderClosed && state.data.genderClosed[ev.id+'|'+gender]) return false; // 운영진이 이 성별을 마감
+  if(!hasGenderCaps(ev)) return true;
+  const my = gender === '여' ? counts.female : counts.male;
+  return my < genderCapFor(ev, gender);
+}
+async function liveSeatOk(ev, gender){
+  const live = await getLiveGenderCounts(ev.id);
+  if(!live) return false; // 조회 실패시 안전하게 보류
+  if((live.male + live.female) >= ev.max_players) return false;
+  if(hasGenderCaps(ev)){
+    const my = gender === '여' ? live.female : live.male;
+    if(my >= genderCapFor(ev, gender)) return false;
+  }
+  return true;
+}
+// v205: 일정 종료시각(ms) — 자정을 넘기는 일정도 처리
+function eventEndMs(ev){
+  const startMs = getEventDateTime(ev).getTime();
+  const [sh, sm] = String(ev.start_time || '00:00').split(':').map(Number);
+  const [eh, em] = String(ev.end_time || ev.start_time || '00:00').split(':').map(Number);
+  let dur = (eh*60 + em) - (sh*60 + sm);
+  if(dur <= 0) dur += 1440;
+  return startMs + dur * 60000;
+}
+
 function isConsecutiveCase(ev){
   const sameDay = getInstances().filter(o => o.event_date === ev.event_date && o.id !== ev.id);
   return sameDay.some(other => {
@@ -2239,7 +2320,7 @@ async function tryPromoteGwaeWaiting(ev){
   for(let i=0;i<20;i++){ // 최대 20회 반복 (안전장치), 매 승급마다 재계산
     const votes = state.data.votes[ev.id] || {};
     const gwaeWaitEntries = Object.entries(votes)
-      .filter(([,v]) => v.status === 'waiting' && v.type === 'gwae_wait')
+      .filter(([,v]) => v.status === 'waiting' && v.type === 'gwae_wait' && !v.adminDemoted) // v205: 운영진이 내린 회원 제외(v204 규칙 누락분)
       .sort((a,b) => (a[1].ts||0) - (b[1].ts||0));
     if(gwaeWaitEntries.length === 0) break;
     const counts = computedCounts(ev);
@@ -2248,7 +2329,10 @@ async function tryPromoteGwaeWaiting(ev){
     const prospectiveTotal = counts.regularTotal + 1;
     const limit = gwaeLimit(prospectiveTotal, ev.court_count);
     if(counts.gwaeAttend >= limit) break; // 아직 관내 비율 미충족, 더 기다려야 함
-    const [name, v] = gwaeWaitEntries[0];
+    const pick = gwaeWaitEntries.find(([,w]) => genderGateLocal(ev, counts, w.gender)); // v205: 성별상한·성별마감 확인
+    if(!pick) break;
+    const [name, v] = pick;
+    if(!(await liveSeatOk(ev, v.gender))) break; // v205: 서버 실시간 인원 재확인
     votes[name] = { status:'attend', gender:v.gender, district:'관외', hidden:false, promotedFrom:'wait', lateArrival: v.lateArrival || false, lateMinutes: v.lateMinutes || null, ts: v.ts };
     await saveVoteRow(ev.id, name, votes[name], '자동승급(관외비율 시스템)');
     pushNotification(`${name}님이 관외 대기에서 자동 승급되어 ${shortEventLabel(ev)} 참석으로 전환되었습니다.`, {eventId: ev.id, actor: name, category:'promotion'});
@@ -2347,39 +2431,60 @@ async function checkCourtArrangementSuggestion(){
 }
 
 async function checkWaitlistToAbsentConversion(){
+  // v205 변경(10/7 수 종합운동장 저녁, 늦참 60분 대기자가 시작 10분 전에 불참 처리된 사례):
+  //  1) 마감 시점을 회원별로 계산 — 일반 대기는 "시작 10분 전", 늦참 대기는 "시작 + 늦참분 − 10분"(60분 늦참 → 시작 50분 후)
+  //  2) 1회 실행 플래그를 일정 단위 → 회원 단위로 변경(같은 일정에서 두 번 전환되던 현상 방지, 다시 대기 올린 회원 재전환 방지)
+  //  3) 종료된 일정에 남아 있는 대기는 조용히 불참으로 정리(알림·댓글 없음, 참석취소 카운트와 무관 — 카운트는 본인 불참체크에서만 기록됨)
   let changed = false;
   const t = todayIso();
+  const now = Date.now();
+  const cleanupFrom = localIso(new Date(now - 14 * 86400000));
   for(const ev of getInstances()){
-    if(ev.event_date !== t) continue;
-    const now = new Date();
-    const startDt = getEventDateTime(ev);
-    const minutesUntil = (startDt - now) / (60*1000);
-    if(minutesUntil > 10 || minutesUntil < 0) continue; // 시작 10분 전, 딱 1회만
-    const counts = computedCounts(ev);
-    if(counts.regularTotal < ev.max_players) continue; // 정원이 안 찼으면 대상 아님
     const votes = state.data.votes[ev.id] || {};
     const waitingEntries = Object.entries(votes).filter(([,v]) => v.status === 'waiting');
     if(waitingEntries.length === 0) continue; // 대기자 없으면 스킵
+
+    // (3) 종료된 일정의 남은 대기 정리
+    if(ev.event_date < t || (ev.event_date === t && now > eventEndMs(ev))){
+      if(ev.event_date < cleanupFrom) continue; // 최근 2주만(오래된 기록은 건드리지 않음)
+      for(const [name, v] of waitingEntries){
+        votes[name] = { status:'absent', gender: v.gender, district: v.district, ts: now };
+        await saveVoteRow(ev.id, name, votes[name], '자동정리(종료된 일정의 남은 대기)');
+      }
+      changed = true;
+      continue;
+    }
+    if(ev.event_date !== t) continue;
+
+    const startMs = getEventDateTime(ev).getTime();
+    if(now < startMs - 10 * 60000) continue; // 가장 이른 마감(시작 10분 전) 이전이면 볼 필요 없음
+    const counts = computedCounts(ev);
+    if(counts.regularTotal < ev.max_players) continue; // 정원이 안 찼으면 대상 아님(승급 경로가 처리)
 
     const dow = new Date(ev.event_date + 'T00:00:00').getDay();
     const isCourt3HopeCase = ev.location === '유니온' && ev.court_count === 2 && (dow === 2 || dow === 5)
       && !(state.data.court3Confirmed && state.data.court3Confirmed[ev.id]);
     if(isCourt3HopeCase) continue; // 3번코트 확대 기대할 수 있으면 그대로 대기 유지 (전환 안 함)
 
-    const flagKey = `waitlist_to_absent_${ev.id}`;
-    if(state.data.notifiedFlags[flagKey]) continue;
-    state.data.notifiedFlags[flagKey] = true;
-    markDirty('notifiedFlags', flagKey);
-
     const movedNames = [];
     for(const [name, v] of waitingEntries){
+      const lateMin = (v.type === 'late' || v.type === 'late_consecutive' || v.lateArrival) ? (Number(v.lateMinutes) || 0) : 0;
+      if(now < startMs + lateMin * 60000 - 10 * 60000) continue; // 이 회원의 마감 전 — 계속 대기(자리 나면 승급)
+      const flagKey = `waitlist_to_absent_${ev.id}|${name}`;
+      if(state.data.notifiedFlags[flagKey]) continue; // 이미 한 번 전환한 회원(이후 본인이 다시 대기 올린 경우 등)은 재전환 안 함
+      state.data.notifiedFlags[flagKey] = true;
+      markDirty('notifiedFlags', flagKey);
       votes[name] = { status:'absent', gender: v.gender, district: v.district, ts: Date.now() };
       await saveVoteRow(ev.id, name, votes[name], '자동전환(대기마감 시스템)');
-      movedNames.push(name);
-      pushNotification(`😥 정원이 가득 차서 오늘은 참석이 어려워 불참으로 전환되었습니다. 다음에 뵈어요!`, {eventId: ev.id, actor: name});
+      movedNames.push(lateMin > 0 ? `${name}(늦참 ${lateMin}분)` : name);
+      pushNotification(lateMin > 0
+        ? `😥 늦참 ${lateMin}분 도착 전까지 자리가 나지 않아 불참으로 전환되었습니다. 다음에 뵈어요!`
+        : `😥 정원이 가득 차서 오늘은 참석이 어려워 불참으로 전환되었습니다. 다음에 뵈어요!`, {eventId: ev.id, actor: name});
     }
-    await postAiAdminComment(ev.id, `🚫 정원이 차서 참석이 어려워, 대기 중이셨던 ${movedNames.join(', ')}님을 불참으로 전환했습니다.`);
-    changed = true;
+    if(movedNames.length){
+      await postAiAdminComment(ev.id, `🚫 정원이 차서 대기 중이던 ${movedNames.join(', ')}님을 불참으로 전환했습니다.`);
+      changed = true;
+    }
   }
   return changed;
 }
@@ -2402,7 +2507,8 @@ async function checkConsecutiveWaitingLatePromotion(){
     const now = new Date();
     const startDt = getEventDateTime(ev);
     const minutesUntil = (startDt - now) / (60*1000);
-    if(minutesUntil > 60 || minutesUntil < 0) continue; // 시작 1시간 전부터 시작 전까지, 매 주기마다 계속 재확인
+    // v205: 시작 후에도 "늦참 대기자"는 (늦참분 − 10분)까지 승급 기회 유지 — 60분 늦참이면 시작 50분 후까지
+    if(minutesUntil > 60 || minutesUntil < -180) continue; // 시작 1시간 전부터 재확인(시작 후 구간은 늦참 대기자만)
 
     for(let i=0;i<20;i++){
       const votes = state.data.votes[ev.id] || {};
@@ -2412,9 +2518,15 @@ async function checkConsecutiveWaitingLatePromotion(){
       const waiting = Object.entries(votes)
         .filter(([,v]) => {
           if(v.status !== 'waiting') return false;
+          if(v.adminDemoted) return false; // v205: 운영진이 내린 회원은 승인 전 자동승급 제외(v204 규칙이 이 경로에 누락돼 있었음)
           const isLessonWaiting = v.type === 'late' && v.lessonTime; // 레슨자 대기(4인미만으로 밀린 케이스)
           const isConsecutiveWaiting = v.type === 'late_consecutive' || (v.type === 'consecutive' && isPeakSeason());
-          if(!isLessonWaiting && !isConsecutiveWaiting) return false;
+          const lateMin = Number(v.lateMinutes) || 0;
+          const isLateArrivalWaiting = lateMin > 0 && (v.type === 'late' || v.type === 'late_consecutive');
+          if(minutesUntil < 0){
+            // 시작 이후: 늦참 대기자만, 도착 10분 전까지
+            if(!isLateArrivalWaiting || (-minutesUntil) >= lateMin - 10) return false;
+          } else if(!isLessonWaiting && !isConsecutiveWaiting) return false;
           if(state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender]) return false; // 관리자가 이 성별을 수동마감했으면 연참 전용경로도 예외 없이 금지
           if(hasGenderCaps(ev)){
             // 연참·늦참연참·레슨자 전용경로도 다른 승급함수(tryAutoPromote 등)와 동일하게 성별상한을 적용해야 함
@@ -2455,9 +2567,9 @@ async function checkConsecutiveWaitingLatePromotion(){
       }
       votes[name] = { status:'attend', gender: v.gender, district: v.district, hidden:false, promotedFrom: v.type, lateArrival: v.lateArrival || false, lateMinutes: v.lateMinutes || null, lessonTime: v.lessonTime || null, ts: Date.now() };
       await saveVoteRow(ev.id, name, votes[name], '자동승급(연속참석·레슨자 전용, 시작1시간전 시스템)');
-      const reasonLabel = v.type === 'late_consecutive' ? '늦참+연속참석' : (v.type === 'late' && v.lessonTime ? '레슨자(인원부족해도 시작1시간전 승급)' : '연속참석');
-      pushNotification(`${name}님이 대기에서 자동 승급되어 ${shortEventLabel(ev)} 참석으로 전환되었습니다. (${reasonLabel}, 시작 1시간전 정원 확인)`, {eventId: ev.id, actor: name, category:'promotion'});
-      await postAiAdminComment(ev.id, `🔁 ${name}님이 ${reasonLabel} 대기에서 참석으로 승급되었습니다. (시작 1시간전, 자리가 남아 승급)`);
+      const reasonLabel = minutesUntil < 0 ? `늦참 ${v.lateMinutes}분 대기(시작 후 자리 발생)` : (v.type === 'late_consecutive' ? '늦참+연속참석' : (v.type === 'late' && v.lessonTime ? '레슨자(인원부족해도 시작1시간전 승급)' : '연속참석'));
+      pushNotification(`${name}님이 대기에서 자동 승급되어 ${shortEventLabel(ev)} 참석으로 전환되었습니다. (${reasonLabel}${minutesUntil < 0 ? '' : ', 시작 1시간전 정원 확인'})`, {eventId: ev.id, actor: name, category:'promotion'});
+      await postAiAdminComment(ev.id, `🔁 ${name}님이 ${reasonLabel} 대기에서 참석으로 승급되었습니다. (${minutesUntil < 0 ? '시작 후' : '시작 1시간전'}, 자리가 남아 승급)`);
       changed = true;
     }
   }
@@ -2475,13 +2587,14 @@ async function checkEmergencyRequestTimeout(){
       const flagKey = `late_req_timeout_${ev.id}_${name}`;
       if(state.data.notifiedFlags[flagKey]) continue; // 이미 처리됨
       const counts = computedCounts(ev);
-      if(counts.regularTotal < ev.max_players){
+      // v205: 전체정원만 보던 것을 성별상한·성별마감·서버 실시간 인원까지 확인하도록 보강(10/8 유니온 저녁 남9명 사례)
+      if(counts.regularTotal < ev.max_players && genderGateLocal(ev, counts, v.gender) && await liveSeatOk(ev, v.gender)){
         // 정원 미달: 관리자 부재시 긴급 프로토콜로 자동승급 (회원에게는 관리자 승인처럼 안내)
         votes[name] = { status:'attend', gender:v.gender, district:v.district, hidden:false, promotedFrom:'wait', autoApprovedPopupPending:true, lateArrival: v.lateArrival || false, lateMinutes: v.lateMinutes || null, ts: Date.now() };
         await saveVoteRow(ev.id, name, votes[name], '자동승인(긴급참석 7분 시스템)');
         pushNotification(`운영진(관리자)님이 ${name}님의 긴급 참석 요청(${shortEventLabel(ev)})을 승인했습니다.`, {eventId: ev.id, actor: name});
       }
-      // 정원이 꽉 찬 경우는 거절 처리(그대로 대기, 별도 알림 없음)
+      // 정원(또는 성별상한)이 꽉 찬 경우는 그대로 대기 — 운영진이 직접 승인(별도 알림 없음)
       state.data.notifiedFlags[flagKey] = true;
       markDirty('notifiedFlags', flagKey);
       changed = true;
@@ -4598,8 +4711,8 @@ async function checkGuestAutoApprove(){
       if(Date.now() >= getEventDateTime(ev).getTime() + 2 * 3600000) continue; // 이미 끝난 일정은 처리 안 함
       if(computedCounts(ev).regularTotal >= ev.max_players) continue; // 정원 다 찼으면 운영진 판단 대기
       if(!guestRecruitAllowed(ev, v.gender).ok) continue; // 회칙: 4인 미달일 때만 게스트 모집 — 이미 4명 이상이면 자동승인 안 하고 운영진 판단 대기
-      const live = await getLiveGenderCounts(ev.id);
-      if(live && (live.male + live.female) >= ev.max_players) continue;
+      if(!genderGateLocal(ev, computedCounts(ev), v.gender)) continue; // v205: 성별상한·성별마감 확인
+      if(!(await liveSeatOk(ev, v.gender))) continue; // v205: 실시간 인원(전체+성별) 확인, 조회 실패시 보류
       const cur = state.data.votes[ev.id] && state.data.votes[ev.id][name];
       if(!cur || cur.type !== 'guest_pending') continue; // 그 사이 운영진이 처리했으면 건너뜀
       votes[name] = { status:'attend', gender: v.gender, district: v.district || '관외', hidden:false, isGuest:true, invitedBy: v.invitedBy || null, ts: v.ts };
@@ -5908,6 +6021,7 @@ function syncAdminUI(){
   t.classList.toggle('on', on);
   t.textContent = on ? '🔓 관리자 모드 (켜짐)' : '🔒 관리자 모드';
   document.getElementById('addEventForm').style.display = on ? 'block' : 'none';
+  document.getElementById('quickCourtFab').style.display = on ? 'block' : 'none'; // v205: 번개코트 버튼은 관리자모드에서만
   document.getElementById('templateList').style.display = on ? 'block' : 'none';
   document.getElementById('memberMgmtPanel').style.display = on ? 'block' : 'none';
   document.getElementById('dashboardPanel').style.display = on ? 'block' : 'none';
@@ -6409,7 +6523,7 @@ document.getElementById('addEventBtn').onclick = async () => {
     markDirty('templates', state.editingTemplateId);
     newTemplateId = state.editingTemplateId;
     state.editingTemplateId = null;
-    document.getElementById('addEventBtn').textContent = '반복 일정 추가';
+    document.getElementById('addEventBtn').textContent = '일정 추가';
   } else {
     const id = 'tpl' + Date.now();
     state.data.templates.push(Object.assign({ id }, templateFields));
@@ -6427,6 +6541,114 @@ document.getElementById('addEventBtn').onclick = async () => {
   document.getElementById('newSpecificDate').value = "";
   document.getElementById('newCustomCapacity').value = "";
   document.querySelectorAll('.dow-check input').forEach(i => i.checked = false);
+  await saveData();
+  renderTemplateList();
+  renderAll();
+};
+
+// ===== v205: 번개코트(일회성 일정) 빠른 추가 =====
+// 반복일정 폼(➕ 일정 추가)의 "특정 날짜 1회" 기능과 같은 구조(specificDate 템플릿)로 저장 → 참석·대기·승급 규칙이 그대로 적용됨
+const QC_TIMES = [['06:00','08:00'],['10:00','12:00'],['18:00','20:00'],['20:00','22:00']];
+const QC_COURTS = ['1','2','3','4','5'];
+const qc = { date:null, loc:'유니온', courts:new Set(), start:'20:00', end:'22:00', customTime:false, customDate:false };
+function qcFmtDate(iso){ const d = new Date(iso + 'T00:00:00'); return `${d.getMonth()+1}/${d.getDate()}(${WEEKDAY_KR[d.getDay()]})`; }
+function qcHm(t){ const [h,m] = t.split(':'); return m === '00' ? h : `${h}:${m}`; }
+function qcLast(){ try{ return JSON.parse(localStorage.getItem('ignis_qc_last') || 'null'); }catch(e){ return null; } }
+function qcSaveLast(){ try{ localStorage.setItem('ignis_qc_last', JSON.stringify({ loc: qc.loc, start: qc.start, end: qc.end })); }catch(e){} }
+function qcCapacity(){
+  const n = qc.courts.size;
+  const manual = parseInt(document.getElementById('qcCapInput').value, 10);
+  if(manual > 0) return manual;
+  if(n === 0) return 0;
+  // 실제 일정 생성과 같은 정원 공식 사용(유니온 3번코트 포함시 확보 전 임시정원 등 그대로 반영)
+  const cap = computeCapacity({ startTime: qc.start, endTime: qc.end, location: qc.loc, courts: [...qc.courts].map(c => c + '번') }, '__qc_preview__', { capacityOverrides:{}, court3Confirmed:{}, inviteCourts:{}, tournamentMarks:{} });
+  return cap.max_players;
+}
+function openQuickCourt(iso){
+  if(!hasAdminPower()) return;
+  const last = qcLast();
+  const tomorrow = localIso(new Date(Date.now() + 86400000));
+  qc.date = iso || tomorrow;
+  qc.customDate = !!iso && ![todayIso(), tomorrow, localIso(new Date(Date.now() + 2*86400000))].includes(iso);
+  qc.loc = (last && last.loc) || '유니온';
+  qc.start = (last && last.start) || '20:00';
+  qc.end = (last && last.end) || '22:00';
+  qc.customTime = !QC_TIMES.some(([s,e]) => s === qc.start && e === qc.end);
+  qc.courts = new Set();
+  document.getElementById('qcCapInput').value = '';
+  document.getElementById('qcCapRow').classList.remove('show');
+  renderQuickCourt();
+  document.getElementById('quickCourtSheet').style.display = 'flex';
+}
+function closeQuickCourt(){ document.getElementById('quickCourtSheet').style.display = 'none'; }
+function renderQuickCourt(){
+  const today = todayIso();
+  const dates = [[today,'오늘'],[localIso(new Date(Date.now() + 86400000)),'내일'],[localIso(new Date(Date.now() + 2*86400000)),'모레']];
+  const chip = (on, label, attr) => `<span class="qc-chip${on ? ' on' : ''}" ${attr}>${label}</span>`;
+  document.getElementById('qcDateChips').innerHTML =
+    dates.map(([d,l]) => chip(!qc.customDate && qc.date === d, `${l} ${qcFmtDate(d)}`, `data-qc-date="${d}"`)).join('') +
+    chip(qc.customDate, '📅 직접', 'data-qc-date="custom"');
+  document.getElementById('qcDateCustomRow').classList.toggle('show', qc.customDate);
+  if(qc.customDate) document.getElementById('qcDateInput').value = qc.date || '';
+  document.getElementById('qcLocChips').innerHTML = ['유니온','종합운동장'].map(l => chip(qc.loc === l, l, `data-qc-loc="${l}"`)).join('');
+  document.getElementById('qcCourtChips').innerHTML = QC_COURTS.map(c => chip(qc.courts.has(c), c + '번', `data-qc-court="${c}"`)).join('');
+  document.getElementById('qcTimeChips').innerHTML =
+    QC_TIMES.map(([s,e]) => chip(!qc.customTime && qc.start === s && qc.end === e, `${qcHm(s)}–${qcHm(e)}`, `data-qc-time="${s}-${e}"`)).join('') +
+    chip(qc.customTime, '⏰ 직접', 'data-qc-time="custom"');
+  document.getElementById('qcTimeCustomRow').classList.toggle('show', qc.customTime);
+  if(qc.customTime){ document.getElementById('qcStartInput').value = qc.start; document.getElementById('qcEndInput').value = qc.end; }
+  const courtsTxt = [...qc.courts].sort().map(c => c + '번').join(',');
+  const ready = qc.date && qc.courts.size > 0 && qc.start && qc.end;
+  document.getElementById('qcSummary').innerHTML = ready
+    ? `📍 ${qcFmtDate(qc.date)} ${qcHm(qc.start)}–${qcHm(qc.end)} ${qc.loc} ${courtsTxt}코트<br>정원 ${qcCapacity()}명${document.getElementById('qcCapInput').value ? ' (직접 지정)' : ' (코트 기준 자동)'} · <u id="qcCapToggle" style="cursor:pointer;">정원 변경</u><br>🔔 등록 즉시 회원 알림 발송`
+    : '날짜·장소·코트·시간을 선택해 주세요.';
+  document.getElementById('qcSubmit').disabled = !ready;
+  const capToggle = document.getElementById('qcCapToggle');
+  if(capToggle) capToggle.onclick = () => { document.getElementById('qcCapRow').classList.add('show'); document.getElementById('qcCapInput').focus(); };
+}
+document.getElementById('quickCourtFab').onclick = () => openQuickCourt(null);
+document.getElementById('qcCancel').onclick = closeQuickCourt;
+document.getElementById('quickCourtSheet').addEventListener('click', e => { if(e.target.id === 'quickCourtSheet') closeQuickCourt(); });
+document.querySelector('#quickCourtSheet .qc-sheet').addEventListener('click', e => {
+  const el = e.target.closest('.qc-chip');
+  if(!el) return;
+  if(el.dataset.qcDate){
+    if(el.dataset.qcDate === 'custom'){ qc.customDate = true; }
+    else { qc.customDate = false; qc.date = el.dataset.qcDate; }
+  } else if(el.dataset.qcLoc){ qc.loc = el.dataset.qcLoc; }
+  else if(el.dataset.qcCourt){ const c = el.dataset.qcCourt; qc.courts.has(c) ? qc.courts.delete(c) : qc.courts.add(c); }
+  else if(el.dataset.qcTime){
+    if(el.dataset.qcTime === 'custom'){ qc.customTime = true; }
+    else { qc.customTime = false; [qc.start, qc.end] = el.dataset.qcTime.split('-'); }
+  }
+  renderQuickCourt();
+});
+document.getElementById('qcDateInput').onchange = e => { qc.date = e.target.value || null; renderQuickCourt(); };
+document.getElementById('qcStartInput').onchange = e => { qc.start = e.target.value; renderQuickCourt(); };
+document.getElementById('qcEndInput').onchange = e => { qc.end = e.target.value; renderQuickCourt(); };
+document.getElementById('qcCapInput').oninput = () => renderQuickCourt();
+document.getElementById('qcSubmit').onclick = async () => {
+  if(!hasAdminPower()) return;
+  if(!qc.date || qc.courts.size === 0 || !qc.start || !qc.end) return;
+  if(qc.date < todayIso()){ alert('지난 날짜에는 추가할 수 없어요.'); return; }
+  const courtNums = [...qc.courts].sort();
+  const courts = courtNums.map(c => c + '번');
+  const title = `${qc.loc} 번개(${courtNums.join(',')}번)`;
+  // 같은 날·같은 장소·같은 시간에 이미 일정이 있으면 확인(중복 등록 방지)
+  const dup = getInstances().find(ev => ev.event_date === qc.date && ev.location === qc.loc && ev.start_time === qc.start);
+  if(dup && !confirm(`${qcFmtDate(qc.date)} ${qcHm(qc.start)} ${qc.loc}에 이미 "${dup.title}" 일정이 있어요. 그래도 추가할까요?`)) return;
+  const id = 'tpl' + Date.now();
+  state.data.templates.push({ id, title, daysOfWeek: [], specificDate: qc.date, startTime: qc.start, endTime: qc.end, location: qc.loc, courts, quick: true });
+  markDirty('templates', id);
+  const manual = parseInt(document.getElementById('qcCapInput').value, 10);
+  if(manual > 0){
+    const eventId = id + '_' + qc.date;
+    state.data.capacityOverrides[eventId] = manual;
+    markDirty('capacityOverrides', eventId);
+  }
+  qcSaveLast();
+  pushNotification(`⚡ 번개코트 등록: ${qcFmtDate(qc.date)} ${qcHm(qc.start)}–${qcHm(qc.end)} ${qc.loc} ${courts.join(',')}코트 (정원 ${qcCapacity()}명) — 참석 체크해 주세요!`, {category:'announcement'});
+  closeQuickCourt();
   await saveData();
   renderTemplateList();
   renderAll();
