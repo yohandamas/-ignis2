@@ -356,6 +356,14 @@
   .guest-info-warning.invite strong{color:var(--ink);}
   .tm-label{font-size:calc(12px * var(--font-scale, 1));font-weight:800;color:var(--ink);margin:4px 0 2px;}
   .tm-chips{display:flex;flex-wrap:wrap;gap:6px;}
+  .tm-chip.on{border-color:var(--brand);background:var(--brand-soft);color:var(--brand-dark);}
+  /* v206: 특수이벤트 종류별 배너 색 (대회준비=기존 적색 유지) */
+  .tournament-banner.tb-monthly{background:linear-gradient(135deg,#7a5a00,#3f2f00);}
+  .tournament-banner.tb-monthly .tb-kicker{color:#ffe08a;}
+  .tournament-banner.tb-exchange{background:linear-gradient(135deg,#1f4a7a,#0f2540);}
+  .tournament-banner.tb-exchange .tb-kicker{color:#a9d1ff;}
+  .tournament-banner.tb-custom{background:linear-gradient(135deg,#4b2a72,#24133a);}
+  .tournament-banner.tb-custom .tb-kicker{color:#d9bfff;}
   .tm-chip{padding:7px 11px;border-radius:16px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font-size:calc(12px * var(--font-scale, 1));font-weight:700;cursor:pointer;}
   .tm-mode{flex:1;height:40px;border:1.5px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font-size:calc(12.5px * var(--font-scale, 1));font-weight:700;cursor:pointer;}
   .tm-mode.on{background:var(--brand);border-color:var(--brand);color:var(--bg);}
@@ -606,7 +614,7 @@
     .ev-top{flex-direction:column;}
   }
 
-  /* v205: 번개코트(일회성 일정) 빠른 추가 — 관리자 전용 플로팅 버튼 + 하단 시트 */
+  /* v205→v206: 일정 빠른 추가(1회성) — 관리자 전용 플로팅 버튼 + 하단 시트 */
   .qc-fab{position:fixed;right:16px;bottom:calc(20px + env(safe-area-inset-bottom,0px));z-index:900;background:var(--brand);color:#fff;border:0;border-radius:28px;padding:13px 18px;font-size:15px;font-weight:800;box-shadow:0 6px 16px rgba(0,0,0,.25);cursor:pointer}
   [data-theme="courtnight"] .qc-fab{color:#111}
   .qc-dim{position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.4);display:flex;align-items:flex-end;justify-content:center}
@@ -641,7 +649,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.205</span>
+      <span id="buildVersionTop" class="build-version-top">v.206</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -894,12 +902,12 @@
     <button id="addEventBtn">일정 추가</button>
     <div class="hint">코트당 정원 6명 기준으로 자동 계산됩니다(유니온 3번코트 포함 복수코트는 확보 전까지 임시 축소, 확보 후 정상 정원). 반복 일정은 올해 12월 31일까지 생성됩니다. 특정 날짜를 입력하면 그 날 하루만 생성돼요. 월례대회처럼 여러 코트를 묶어 큰 규모로 진행할 땐 "코트" 칸에 콤마로 여러 코트를 입력하고(예: 1,2,3), "정원 직접 지정"에 실제 참석 규모(예: 40)를 넣어주세요.</div>
   </div></details>
-  <!-- v205: 번개코트(일회성) 빠른 추가 -->
-  <button id="quickCourtFab" class="qc-fab" style="display:none;">⚡ 번개코트</button>
+  <!-- v205→v206: 일정 빠른 추가(1회성) — 일반 일정과 똑같이 올라가고, 특수이벤트는 카드의 "✨ 특수이벤트"로 따로 지정 -->
+  <button id="quickCourtFab" class="qc-fab" style="display:none;">➕ 일정</button>
   <div id="quickCourtSheet" class="qc-dim" style="display:none;">
-    <div class="qc-sheet" role="dialog" aria-label="번개코트 추가">
+    <div class="qc-sheet" role="dialog" aria-label="일정 추가">
       <div class="qc-grab"></div>
-      <h3>⚡ 번개코트 추가 <span style="font-size:12px;color:var(--ink-faint);font-weight:500;">(이 날 1회만)</span></h3>
+      <h3>➕ 일정 추가 <span style="font-size:12px;color:var(--ink-faint);font-weight:500;">(이 날 1회)</span></h3>
       <div class="qc-lbl">날짜</div>
       <div class="qc-chips" id="qcDateChips"></div>
       <div class="qc-inline" id="qcDateCustomRow"><input type="date" id="qcDateInput"></div>
@@ -907,13 +915,16 @@
       <div class="qc-chips" id="qcLocChips"></div>
       <div class="qc-lbl">코트 (여러 개 선택)</div>
       <div class="qc-chips" id="qcCourtChips"></div>
+      <div class="qc-inline" id="qcCourtCustomRow"><input type="text" id="qcCourtInput" placeholder="예: 6 또는 4,5" style="width:140px;"> 번 <span style="font-size:11px;color:var(--ink-faint);">콤마로 여러 개</span></div>
       <div class="qc-lbl">시간</div>
       <div class="qc-chips" id="qcTimeChips"></div>
       <div class="qc-inline" id="qcTimeCustomRow"><input type="time" id="qcStartInput" value="19:00"> ~ <input type="time" id="qcEndInput" value="21:00"></div>
+      <div class="qc-lbl">인원(정원)</div>
+      <div class="qc-chips" id="qcCapChips"></div>
+      <div class="qc-inline" id="qcCapRow"><input type="number" id="qcCapInput" min="1" style="width:80px;"> 명</div>
       <div class="qc-sum" id="qcSummary"></div>
-      <div class="qc-inline" id="qcCapRow">정원 <input type="number" id="qcCapInput" min="2" style="width:70px;"> 명</div>
       <button class="qc-go" id="qcSubmit">등록하기</button>
-      <button class="qc-cancel" id="qcCancel">닫기 · 제목 등 세부 설정은 "➕ 일정 추가"에서</button>
+      <button class="qc-cancel" id="qcCancel">닫기 · 대회준비·월례대회·교류전은 등록 후 카드의 "✨ 특수이벤트"로 지정</button>
     </div>
   </div>
 
@@ -1612,7 +1623,7 @@ function computeCapacity(t, id, opts){
     quota: dispQ,
     max_players: maxP,
     genderCaps,
-    tournament: tm ? { title: tm.title || '대회준비' } : null,
+    tournament: tm ? { title: tm.title || '대회준비', kind: tm.kind || 'tournament', kindLabel: tm.kindLabel || '' } : null, // v206: kind = tournament|monthly|exchange|custom (예전 기록은 tournament)
     includesCourt3,
     court3Confirmed: isConfirmed,
     inviteCourts: inviteN,
@@ -1657,7 +1668,7 @@ function generateInstances(templates, startDate, days, skippedDates, capacityOve
         inviteMax: cap.inviteMax,
         genderCaps: cap.genderCaps,
         tournament: cap.tournament,
-        isSpecialEvent: !!t.specificDate, // 1회성 이벤트(월례대회 등) 여부 - 화면에 특별 표시용
+        isSpecialEvent: !!t.specificDate && !t.quick, // v206: 새로 올리는 1회성 일정(quick)은 일반 일정과 똑같이 표시 — 특수이벤트는 카드의 "✨ 특수이벤트" 버튼으로 따로 지정
         attend:0, absent:0, waiting:0, manager:'서힘찬'
       });
     });
@@ -2066,7 +2077,7 @@ function renderCalendar(){
     <div class="cal-grid">${cells}</div>`;
   document.getElementById('prevMonth').onclick = () => { state.calMonth--; if(state.calMonth<0){state.calMonth=11;state.calYear--;} renderCalendar(); };
   document.getElementById('nextMonth').onclick = () => { state.calMonth++; if(state.calMonth>11){state.calMonth=0;state.calYear++;} renderCalendar(); };
-  // v205: 관리자모드에서 달력 날짜를 길게 누르면 그 날짜로 번개코트 추가 시트 열기
+  // v205: 관리자모드에서 달력 날짜를 길게 누르면 그 날짜로 일정 추가 시트 열기
   if(hasAdminPower()){
     cal.querySelectorAll('.cal-day[data-date]:not([data-date=""]):not(.past)').forEach(el => { // 지난 날짜·다른 달 칸 제외
       let timer = null;
@@ -3838,8 +3849,8 @@ function renderEventCard(ev){
   const locColor = isLocked ? 'var(--ink-faint)' : (ev.location === '종합운동장' ? 'var(--vivid-green)' : 'var(--vivid-orange)');
 
   card.innerHTML = `
-    ${ev.tournament ? `<div class="tournament-banner">
-      <div class="tb-kicker">🏆 대회준비 코트</div>
+    ${ev.tournament ? `<div class="tournament-banner tb-${specialKindInfo(ev.tournament).kind}">
+      <div class="tb-kicker">${specialKindInfo(ev.tournament).icon} ${escapeHtml(specialKindInfo(ev.tournament).kicker)}</div>
       <div class="tb-title">${escapeHtml(ev.tournament.title)}</div>
       <div class="tb-sub">${ev.genderCaps ? `남자 ${ev.genderCaps['남']}명 · 여자 ${ev.genderCaps['여']}명 (총 ${ev.max_players}명)` : `정원 ${ev.max_players}명`}</div>
     </div>` : ''}
@@ -3872,7 +3883,7 @@ function renderEventCard(ev){
         })()}
       </div>
       ${hasAdminPower() ? `<div style="display:flex;gap:4px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;">
-        <button class="ev-edit-btn" data-tournament-sheet="${ev.id}" style="border:1px solid var(--danger);background:var(--panel);color:var(--danger);border-radius:8px;padding:4px 8px;font-size:calc(10px * var(--font-scale, 1));cursor:pointer;white-space:nowrap;font-weight:800;">🏆 대회준비</button>
+        <button class="ev-edit-btn" data-tournament-sheet="${ev.id}" style="border:1px solid #8a5cc7;background:var(--panel);color:#8a5cc7;border-radius:8px;padding:4px 8px;font-size:calc(10px * var(--font-scale, 1));cursor:pointer;white-space:nowrap;font-weight:800;">${ev.tournament ? '✨ 이벤트 수정' : '✨ 특수이벤트'}</button>
         <button class="ev-edit-btn" data-edit-occurrence="${ev.id}" style="border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:8px;padding:4px 8px;font-size:calc(10px * var(--font-scale, 1));cursor:pointer;white-space:nowrap;">✏️ 수정</button>
         <button class="ev-edit-btn" data-delete-occurrence="${ev.id}" style="border:1px solid var(--danger);background:var(--danger-soft);color:var(--danger);border-radius:8px;padding:4px 8px;font-size:calc(10px * var(--font-scale, 1));cursor:pointer;white-space:nowrap;">🗑️ 삭제</button>
       </div>` : ''}
@@ -3923,9 +3934,14 @@ function renderEventCard(ev){
     </div>` : ''}
     ${hasAdminPower() ? `<div class="attend-sheet-backdrop" id="tournamentBackdrop-${ev.id}" style="display:none;">
       <div class="attend-sheet">
-        <div class="attend-sheet-title">🏆 대회준비 코트로 지정</div>
-        <div class="tm-label">종류 (눌러서 선택)</div>
-        <div class="tm-chips">${['단체전 준비','구대회 준비','시대회 준비','전국대회 준비'].map(t => `<button class="tm-chip" data-tm-preset="${t}" data-ev="${ev.id}">${t}</button>`).join('')}</div>
+        <div class="attend-sheet-title">✨ 특수 이벤트로 지정</div>
+        <div class="tm-label">종류</div>
+        <div class="tm-chips">${['tournament','monthly','exchange','custom'].map(k => `<button class="tm-chip ${specialKindInfo(ev.tournament || {kind:'tournament'}).kind === k ? 'on' : ''}" data-tm-kind="${k}">${k === 'custom' ? '✏️ 직접입력' : SPECIAL_KINDS[k].icon + ' ' + SPECIAL_KINDS[k].label}</button>`).join('')}</div>
+        <div id="tmKindLabelWrap-${ev.id}" style="display:${ev.tournament && ev.tournament.kind === 'custom' ? 'block' : 'none'};">
+          <div class="tm-label">종류 이름 직접입력 (배너 위 작은 글씨)</div>
+          <input class="ui-dialog-input" id="tmKindLabel-${ev.id}" placeholder="예: 송년회, 신입환영 게임" value="${ev.tournament && ev.tournament.kindLabel ? escapeHtml(ev.tournament.kindLabel) : ''}">
+        </div>
+        <div id="tmPresetWrap-${ev.id}" class="tm-chips" style="margin-top:6px;display:${!ev.tournament || ev.tournament.kind === 'tournament' ? 'flex' : 'none'};">${['단체전 준비','구대회 준비','시대회 준비','전국대회 준비'].map(t => `<button class="tm-chip" data-tm-preset="${t}" data-ev="${ev.id}">${t}</button>`).join('')}</div>
         <div class="tm-label">제목 (크게 표시됨 · 직접 수정 가능)</div>
         <input class="ui-dialog-input" id="tmTitle-${ev.id}" value="${ev.tournament ? escapeHtml(ev.tournament.title) : '단체전 준비'}">
         <div class="tm-label">정원 방식</div>
@@ -3942,7 +3958,7 @@ function renderEventCard(ev){
           <div style="flex:1;"><div class="tm-label" style="color:var(--female-ink, #c0567a);">여자 정원</div><input class="ui-dialog-input" id="tmFemale-${ev.id}" type="number" min="0" value="${ev.genderCaps ? ev.genderCaps['여'] : ''}"></div>
         </div>
         <div class="ui-dialog-row" style="margin-top:6px;">
-          <button class="attend-sheet-cancel" data-tm-clear="${ev.id}" style="flex:1;margin-top:0;color:var(--danger);border-color:var(--danger);">${ev.tournament ? '지정 해제' : '닫기'}</button>
+          <button class="attend-sheet-cancel" data-tm-clear="${ev.id}" style="flex:1;margin-top:0;color:var(--danger);border-color:var(--danger);">${ev.tournament ? '일반 일정으로 되돌리기' : '닫기'}</button>
           <button class="ui-dialog-btn primary" data-tm-save="${ev.id}" style="flex:1;">저장</button>
         </div>
       </div>
@@ -4211,7 +4227,18 @@ function renderEventCard(ev){
   if(tmOpenBtn && tmBd) tmOpenBtn.onclick = () => { tmBd.style.display = 'flex'; };
   if(tmBd){
     let tmMode = ev.genderCaps ? 'gender' : 'total';
+    let tmKind = specialKindInfo(ev.tournament || {kind:'tournament'}).kind; // v206
     tmBd.querySelectorAll('[data-tm-preset]').forEach(b => b.onclick = () => { card.querySelector(`#tmTitle-${ev.id}`).value = b.getAttribute('data-tm-preset'); });
+    tmBd.querySelectorAll('[data-tm-kind]').forEach(b => b.onclick = () => {
+      tmKind = b.getAttribute('data-tm-kind');
+      tmBd.querySelectorAll('[data-tm-kind]').forEach(x => x.classList.toggle('on', x === b));
+      card.querySelector(`#tmKindLabelWrap-${ev.id}`).style.display = tmKind === 'custom' ? 'block' : 'none';
+      card.querySelector(`#tmPresetWrap-${ev.id}`).style.display = tmKind === 'tournament' ? 'flex' : 'none';
+      const titleEl = card.querySelector(`#tmTitle-${ev.id}`);
+      const presetTitles = ['단체전 준비','구대회 준비','시대회 준비','전국대회 준비','월례대회','교류전',''];
+      if(presetTitles.includes(titleEl.value.trim())) titleEl.value = tmKind === 'monthly' ? '월례대회' : (tmKind === 'exchange' ? '교류전' : (tmKind === 'tournament' ? '단체전 준비' : ''));
+      if(tmKind === 'custom') card.querySelector(`#tmKindLabel-${ev.id}`).focus();
+    });
     tmBd.querySelectorAll('[data-tm-mode]').forEach(b => b.onclick = () => {
       tmMode = b.getAttribute('data-tm-mode');
       tmBd.querySelectorAll('[data-tm-mode]').forEach(x => x.classList.toggle('on', x === b));
@@ -4219,18 +4246,21 @@ function renderEventCard(ev){
       card.querySelector(`#tmGenderWrap-${ev.id}`).style.display = tmMode === 'gender' ? 'flex' : 'none';
     });
     tmBd.querySelector('[data-tm-save]').onclick = async () => {
-      const title = card.querySelector(`#tmTitle-${ev.id}`).value.trim() || '대회준비';
+      const kindLabel = tmKind === 'custom' ? card.querySelector(`#tmKindLabel-${ev.id}`).value.trim() : '';
+      if(tmKind === 'custom' && !kindLabel){ alert('종류 이름을 입력해 주세요. (예: 송년회)'); return; }
+      const title = card.querySelector(`#tmTitle-${ev.id}`).value.trim() || (tmKind === 'custom' ? kindLabel : SPECIAL_KINDS[tmKind].label);
+      const kindFields = { kind: tmKind, kindLabel: kindLabel || null };
       if(tmMode === 'gender'){
         const m = parseInt(card.querySelector(`#tmMale-${ev.id}`).value, 10), f = parseInt(card.querySelector(`#tmFemale-${ev.id}`).value, 10);
         if(!(m >= 0) || !(f >= 0) || (m + f) < 1){ alert('남자·여자 정원을 숫자로 입력해 주세요.'); return; }
         tmBd.style.display = 'none';
-        await saveTournamentMark(ev.id, { title, maleCap: m, femaleCap: f });
+        await saveTournamentMark(ev.id, Object.assign({ title, maleCap: m, femaleCap: f }, kindFields));
       } else {
         const raw = card.querySelector(`#tmCap-${ev.id}`).value.trim();
         const n = raw === '' ? null : parseInt(raw, 10);
         if(raw !== '' && !(n >= 1)){ alert('정원은 1 이상의 숫자로 입력해 주세요.'); return; }
         tmBd.style.display = 'none';
-        await saveTournamentMark(ev.id, { title, cap: n });
+        await saveTournamentMark(ev.id, Object.assign({ title, cap: n }, kindFields));
       }
     };
     tmBd.querySelector('[data-tm-clear]').onclick = async () => {
@@ -5482,6 +5512,19 @@ async function demoteExcessAfterCourt3Revert(ev){
   return changed;
 }
 
+// v206: 특수이벤트 종류 — 대회준비/월례대회/교류전 + 직접입력(종류 이름 자유)
+const SPECIAL_KINDS = {
+  tournament: { icon:'🏆', label:'대회준비', kicker:'대회준비 코트' },
+  monthly:    { icon:'🥇', label:'월례대회', kicker:'월례대회' },
+  exchange:   { icon:'🤝', label:'교류전',   kicker:'교류전' },
+  custom:     { icon:'✨', label:'직접입력', kicker:'특수 이벤트' }
+};
+function specialKindInfo(t){
+  const k = (t && SPECIAL_KINDS[t.kind]) ? t.kind : 'tournament';
+  const base = SPECIAL_KINDS[k];
+  const label = (k === 'custom' && t && t.kindLabel) ? t.kindLabel : base.label;
+  return { kind: k, icon: base.icon, label, kicker: (k === 'custom' && t && t.kindLabel) ? t.kindLabel : base.kicker };
+}
 // v192: 대회준비 코트 지정/해제 — 제목은 크게 배너로, 정원은 전체(capacityOverrides) 또는 남녀따로(genderCaps) 적용
 async function saveTournamentMark(eventId, mark){
   if(!state.data.tournamentMarks) state.data.tournamentMarks = {};
@@ -5493,7 +5536,8 @@ async function saveTournamentMark(eventId, mark){
   else if(prev && prev.cap != null){ state.data.capacityOverrides[eventId] = null; markDirty('capacityOverrides', eventId); }
   const ev = getInstances().find(e => e.id === eventId);
   const capText = mark.maleCap != null ? `남자 ${mark.maleCap}명·여자 ${mark.femaleCap}명` : (mark.cap != null ? `정원 ${mark.cap}명` : '정원 유지');
-  pushNotification(`🏆 ${ev ? shortEventLabel(ev) : ''} 코트가 "${mark.title}" 대회준비 코트로 지정되었습니다. (${capText})`, {eventId, actor: state.myName, category:'court_status'});
+  const ki = specialKindInfo(mark);
+  pushNotification(`${ki.icon} ${ev ? shortEventLabel(ev) : ''} 일정이 "${mark.title}" ${ki.label} 이벤트로 지정되었습니다. (${capText})`, {eventId, actor: state.myName, category:'court_status'});
   await saveData();
   if(ev){ try{ if(await promoteWaitingForCapacity(ev)) await saveData(); }catch(e){ console.error('대회준비 정원확대 승급 오류', e); } }
   renderEventList(); renderNotifBell();
@@ -5505,7 +5549,7 @@ async function clearTournamentMark(eventId){
   markDirty('tournamentMarks', eventId);
   if(prev && prev.cap != null && state.data.capacityOverrides){ state.data.capacityOverrides[eventId] = null; markDirty('capacityOverrides', eventId); }
   const ev = getInstances().find(e => e.id === eventId);
-  pushNotification(`${ev ? shortEventLabel(ev) : ''} 대회준비 코트 지정이 해제되었습니다.`, {eventId, actor: state.myName, category:'court_status'});
+  pushNotification(`${ev ? shortEventLabel(ev) : ''} 특수이벤트(${specialKindInfo(prev).label}) 지정이 해제되었습니다.`, {eventId, actor: state.myName, category:'court_status'});
   await saveData();
   renderEventList(); renderNotifBell();
 }
@@ -6021,7 +6065,7 @@ function syncAdminUI(){
   t.classList.toggle('on', on);
   t.textContent = on ? '🔓 관리자 모드 (켜짐)' : '🔒 관리자 모드';
   document.getElementById('addEventForm').style.display = on ? 'block' : 'none';
-  document.getElementById('quickCourtFab').style.display = on ? 'block' : 'none'; // v205: 번개코트 버튼은 관리자모드에서만
+  document.getElementById('quickCourtFab').style.display = on ? 'block' : 'none'; // v205: 일정 빠른추가 버튼은 관리자모드에서만
   document.getElementById('templateList').style.display = on ? 'block' : 'none';
   document.getElementById('memberMgmtPanel').style.display = on ? 'block' : 'none';
   document.getElementById('dashboardPanel').style.display = on ? 'block' : 'none';
@@ -6462,7 +6506,7 @@ function renderTemplateList(){
   if(!hasAdminPower()){ box.innerHTML = ""; return; }
   box.innerHTML =
     state.data.templates.map(t => {
-      const days = t.daysOfWeek.map(d => WEEKDAY_KR[d]).join(',');
+      const days = t.specificDate ? `📅 ${t.specificDate.slice(5).replace('-','/')} 1회` : t.daysOfWeek.map(d => WEEKDAY_KR[d]).join(','); // v206: 1회성 일정은 날짜 표시
       return `<div class="template-row">
         <span>${escapeHtml(t.title)} · ${escapeHtml(t.location)} · ${days} · ${t.startTime}-${t.endTime} · ${t.courts.join(',')}</span>
         <span>
@@ -6526,7 +6570,7 @@ document.getElementById('addEventBtn').onclick = async () => {
     document.getElementById('addEventBtn').textContent = '일정 추가';
   } else {
     const id = 'tpl' + Date.now();
-    state.data.templates.push(Object.assign({ id }, templateFields));
+    state.data.templates.push(Object.assign({ id }, templateFields, specificDate ? { quick: true } : {})); // v206: 1회성도 일반 일정처럼 표시(특수이벤트는 카드에서 따로 지정)
     markDirty('templates', id);
     newTemplateId = id;
   }
@@ -6546,24 +6590,36 @@ document.getElementById('addEventBtn').onclick = async () => {
   renderAll();
 };
 
-// ===== v205: 번개코트(일회성 일정) 빠른 추가 =====
-// 반복일정 폼(➕ 일정 추가)의 "특정 날짜 1회" 기능과 같은 구조(specificDate 템플릿)로 저장 → 참석·대기·승급 규칙이 그대로 적용됨
+// ===== v205→v206: 일정 빠른 추가(1회성) =====
+// 반복일정 폼의 "특정 날짜 1회"와 같은 구조(specificDate 템플릿, quick:true)로 저장 → 일반 일정과 똑같이 표시되고 참석·대기·승급 규칙도 동일.
+// 대회준비·월례대회·교류전 등은 등록 후 카드의 "✨ 특수이벤트" 버튼으로 따로 지정. 코트·시간·인원은 기본 선택 + 직접입력.
 const QC_TIMES = [['06:00','08:00'],['10:00','12:00'],['18:00','20:00'],['20:00','22:00']];
 const QC_COURTS = ['1','2','3','4','5'];
-const qc = { date:null, loc:'유니온', courts:new Set(), start:'20:00', end:'22:00', customTime:false, customDate:false };
+const QC_CAPS = [4, 6, 8, 12];
+const qc = { date:null, loc:'유니온', courts:new Set(), customCourts:false, start:'20:00', end:'22:00', customTime:false, customDate:false, capMode:'auto' };
 function qcFmtDate(iso){ const d = new Date(iso + 'T00:00:00'); return `${d.getMonth()+1}/${d.getDate()}(${WEEKDAY_KR[d.getDay()]})`; }
-function qcHm(t){ const [h,m] = t.split(':'); return m === '00' ? h : `${h}:${m}`; }
+function qcHm(t){ const [h,m] = t.split(':'); return m === '00' ? String(parseInt(h,10)) : `${parseInt(h,10)}:${m}`; }
 function qcLast(){ try{ return JSON.parse(localStorage.getItem('ignis_qc_last') || 'null'); }catch(e){ return null; } }
 function qcSaveLast(){ try{ localStorage.setItem('ignis_qc_last', JSON.stringify({ loc: qc.loc, start: qc.start, end: qc.end })); }catch(e){} }
-function qcCapacity(){
-  const n = qc.courts.size;
-  const manual = parseInt(document.getElementById('qcCapInput').value, 10);
-  if(manual > 0) return manual;
-  if(n === 0) return 0;
-  // 실제 일정 생성과 같은 정원 공식 사용(유니온 3번코트 포함시 확보 전 임시정원 등 그대로 반영)
-  const cap = computeCapacity({ startTime: qc.start, endTime: qc.end, location: qc.loc, courts: [...qc.courts].map(c => c + '번') }, '__qc_preview__', { capacityOverrides:{}, court3Confirmed:{}, inviteCourts:{}, tournamentMarks:{} });
-  return cap.max_players;
+function qcCourtList(){
+  if(qc.customCourts){
+    const raw = (document.getElementById('qcCourtInput').value || '').split(/[,\s]+/).map(x => x.trim().replace(/번$/,'')).filter(Boolean);
+    return [...new Set(raw)];
+  }
+  return [...qc.courts].sort();
 }
+function qcAutoCapacity(){
+  const list = qcCourtList();
+  if(list.length === 0) return 0;
+  // 실제 일정 생성과 같은 정원 공식(유니온 3번코트 포함시 확보 전 임시정원 등 그대로 반영)
+  return computeCapacity({ startTime: qc.start, endTime: qc.end, location: qc.loc, courts: list.map(c => c + '번') }, '__qc_preview__', { capacityOverrides:{}, court3Confirmed:{}, inviteCourts:{}, tournamentMarks:{} }).max_players;
+}
+function qcManualCapacity(){
+  if(qc.capMode === 'auto') return null;
+  if(qc.capMode === 'custom'){ const n = parseInt(document.getElementById('qcCapInput').value, 10); return n > 0 ? n : null; }
+  return parseInt(qc.capMode, 10);
+}
+function qcSlotName(start){ const h = parseInt(start, 10); return h < 9 ? '새벽' : (h < 12 ? '오전' : (h < 17 ? '낮' : (h < 20 ? '저녁' : '밤'))); }
 function openQuickCourt(iso){
   if(!hasAdminPower()) return;
   const last = qcLast();
@@ -6574,9 +6630,9 @@ function openQuickCourt(iso){
   qc.start = (last && last.start) || '20:00';
   qc.end = (last && last.end) || '22:00';
   qc.customTime = !QC_TIMES.some(([s,e]) => s === qc.start && e === qc.end);
-  qc.courts = new Set();
+  qc.courts = new Set(); qc.customCourts = false; qc.capMode = 'auto';
+  document.getElementById('qcCourtInput').value = '';
   document.getElementById('qcCapInput').value = '';
-  document.getElementById('qcCapRow').classList.remove('show');
   renderQuickCourt();
   document.getElementById('quickCourtSheet').style.display = 'flex';
 }
@@ -6591,20 +6647,27 @@ function renderQuickCourt(){
   document.getElementById('qcDateCustomRow').classList.toggle('show', qc.customDate);
   if(qc.customDate) document.getElementById('qcDateInput').value = qc.date || '';
   document.getElementById('qcLocChips').innerHTML = ['유니온','종합운동장'].map(l => chip(qc.loc === l, l, `data-qc-loc="${l}"`)).join('');
-  document.getElementById('qcCourtChips').innerHTML = QC_COURTS.map(c => chip(qc.courts.has(c), c + '번', `data-qc-court="${c}"`)).join('');
+  document.getElementById('qcCourtChips').innerHTML = QC_COURTS.map(c => chip(!qc.customCourts && qc.courts.has(c), c + '번', `data-qc-court="${c}"`)).join('') +
+    chip(qc.customCourts, '✏️ 직접', 'data-qc-court="custom"');
+  document.getElementById('qcCourtCustomRow').classList.toggle('show', qc.customCourts);
   document.getElementById('qcTimeChips').innerHTML =
     QC_TIMES.map(([s,e]) => chip(!qc.customTime && qc.start === s && qc.end === e, `${qcHm(s)}–${qcHm(e)}`, `data-qc-time="${s}-${e}"`)).join('') +
     chip(qc.customTime, '⏰ 직접', 'data-qc-time="custom"');
   document.getElementById('qcTimeCustomRow').classList.toggle('show', qc.customTime);
   if(qc.customTime){ document.getElementById('qcStartInput').value = qc.start; document.getElementById('qcEndInput').value = qc.end; }
-  const courtsTxt = [...qc.courts].sort().map(c => c + '번').join(',');
-  const ready = qc.date && qc.courts.size > 0 && qc.start && qc.end;
+  const auto = qcAutoCapacity();
+  document.getElementById('qcCapChips').innerHTML = chip(qc.capMode === 'auto', `자동${auto ? ' ' + auto + '명' : ''}`, 'data-qc-cap="auto"') +
+    QC_CAPS.map(n => chip(qc.capMode === String(n), n + '명', `data-qc-cap="${n}"`)).join('') +
+    chip(qc.capMode === 'custom', '✏️ 직접', 'data-qc-cap="custom"');
+  document.getElementById('qcCapRow').classList.toggle('show', qc.capMode === 'custom');
+  const list = qcCourtList();
+  const manual = qcManualCapacity();
+  const cap = manual || auto;
+  const ready = qc.date && list.length > 0 && qc.start && qc.end && (qc.capMode !== 'custom' || manual);
   document.getElementById('qcSummary').innerHTML = ready
-    ? `📍 ${qcFmtDate(qc.date)} ${qcHm(qc.start)}–${qcHm(qc.end)} ${qc.loc} ${courtsTxt}코트<br>정원 ${qcCapacity()}명${document.getElementById('qcCapInput').value ? ' (직접 지정)' : ' (코트 기준 자동)'} · <u id="qcCapToggle" style="cursor:pointer;">정원 변경</u><br>🔔 등록 즉시 회원 알림 발송`
+    ? `📍 ${qcFmtDate(qc.date)} ${qcHm(qc.start)}–${qcHm(qc.end)} ${escapeHtml(qc.loc)} ${escapeHtml(list.map(c => c + '번').join(','))}코트<br>정원 ${cap}명${manual ? ' (직접 지정)' : ' (코트 기준 자동)'}<br>🔔 등록 즉시 회원 알림 발송`
     : '날짜·장소·코트·시간을 선택해 주세요.';
   document.getElementById('qcSubmit').disabled = !ready;
-  const capToggle = document.getElementById('qcCapToggle');
-  if(capToggle) capToggle.onclick = () => { document.getElementById('qcCapRow').classList.add('show'); document.getElementById('qcCapInput').focus(); };
 }
 document.getElementById('quickCourtFab').onclick = () => openQuickCourt(null);
 document.getElementById('qcCancel').onclick = closeQuickCourt;
@@ -6616,38 +6679,45 @@ document.querySelector('#quickCourtSheet .qc-sheet').addEventListener('click', e
     if(el.dataset.qcDate === 'custom'){ qc.customDate = true; }
     else { qc.customDate = false; qc.date = el.dataset.qcDate; }
   } else if(el.dataset.qcLoc){ qc.loc = el.dataset.qcLoc; }
-  else if(el.dataset.qcCourt){ const c = el.dataset.qcCourt; qc.courts.has(c) ? qc.courts.delete(c) : qc.courts.add(c); }
+  else if(el.dataset.qcCourt){
+    const c = el.dataset.qcCourt;
+    if(c === 'custom'){ qc.customCourts = !qc.customCourts; if(qc.customCourts) setTimeout(() => document.getElementById('qcCourtInput').focus(), 0); }
+    else { qc.customCourts = false; qc.courts.has(c) ? qc.courts.delete(c) : qc.courts.add(c); }
+  }
   else if(el.dataset.qcTime){
     if(el.dataset.qcTime === 'custom'){ qc.customTime = true; }
     else { qc.customTime = false; [qc.start, qc.end] = el.dataset.qcTime.split('-'); }
   }
+  else if(el.dataset.qcCap){ qc.capMode = el.dataset.qcCap; if(qc.capMode === 'custom') setTimeout(() => document.getElementById('qcCapInput').focus(), 0); }
   renderQuickCourt();
 });
 document.getElementById('qcDateInput').onchange = e => { qc.date = e.target.value || null; renderQuickCourt(); };
 document.getElementById('qcStartInput').onchange = e => { qc.start = e.target.value; renderQuickCourt(); };
 document.getElementById('qcEndInput').onchange = e => { qc.end = e.target.value; renderQuickCourt(); };
+document.getElementById('qcCourtInput').oninput = () => renderQuickCourt();
 document.getElementById('qcCapInput').oninput = () => renderQuickCourt();
 document.getElementById('qcSubmit').onclick = async () => {
   if(!hasAdminPower()) return;
-  if(!qc.date || qc.courts.size === 0 || !qc.start || !qc.end) return;
+  const list = qcCourtList();
+  if(!qc.date || list.length === 0 || !qc.start || !qc.end) return;
   if(qc.date < todayIso()){ alert('지난 날짜에는 추가할 수 없어요.'); return; }
-  const courtNums = [...qc.courts].sort();
-  const courts = courtNums.map(c => c + '번');
-  const title = `${qc.loc} 번개(${courtNums.join(',')}번)`;
-  // 같은 날·같은 장소·같은 시간에 이미 일정이 있으면 확인(중복 등록 방지)
+  if(qc.start === qc.end){ alert('시작·종료 시간이 같아요. 다시 확인해 주세요.'); return; }
+  const courts = list.map(c => c + '번');
+  const title = `${qc.loc} ${qcSlotName(qc.start)}`; // 기존 일정과 같은 이름 형식(예: 유니온 밤)
+  // 같은 날·같은 장소·같은 시작시간에 이미 일정이 있으면 확인(중복 등록 방지)
   const dup = getInstances().find(ev => ev.event_date === qc.date && ev.location === qc.loc && ev.start_time === qc.start);
-  if(dup && !confirm(`${qcFmtDate(qc.date)} ${qcHm(qc.start)} ${qc.loc}에 이미 "${dup.title}" 일정이 있어요. 그래도 추가할까요?`)) return;
+  if(dup && !confirm(`${qcFmtDate(qc.date)} ${qcHm(qc.start)} ${qc.loc}에 이미 ${dup.court} 일정이 있어요. 그래도 추가할까요?`)) return;
   const id = 'tpl' + Date.now();
   state.data.templates.push({ id, title, daysOfWeek: [], specificDate: qc.date, startTime: qc.start, endTime: qc.end, location: qc.loc, courts, quick: true });
   markDirty('templates', id);
-  const manual = parseInt(document.getElementById('qcCapInput').value, 10);
-  if(manual > 0){
+  const manual = qcManualCapacity();
+  if(manual){
     const eventId = id + '_' + qc.date;
     state.data.capacityOverrides[eventId] = manual;
     markDirty('capacityOverrides', eventId);
   }
   qcSaveLast();
-  pushNotification(`⚡ 번개코트 등록: ${qcFmtDate(qc.date)} ${qcHm(qc.start)}–${qcHm(qc.end)} ${qc.loc} ${courts.join(',')}코트 (정원 ${qcCapacity()}명) — 참석 체크해 주세요!`, {category:'announcement'});
+  pushNotification(`📅 일정 추가: ${qcFmtDate(qc.date)} ${qcHm(qc.start)}–${qcHm(qc.end)} ${qc.loc} ${courts.join(',')}코트 (정원 ${manual || qcAutoCapacity()}명) — 참석 체크해 주세요!`, {category:'announcement'});
   closeQuickCourt();
   await saveData();
   renderTemplateList();
