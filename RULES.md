@@ -2414,3 +2414,12 @@ v182에서 "처음불참/대기→불참" 전부 포함하도록 넓혔는데, "
 | 직접입력 | 코트(콤마 여러 개), 시간(시작·종료), 인원(자동/4/6/8/12/직접) |
 | 반복일정 목록 | 1회성은 "📅 MM/DD 1회"로 표시 |
 - 마지막 보고 시점: v206까지 보고 완료 (2026-10-22). 다음 보고서는 v207부터
+
+## v207. 시즌 테마(크리스마스·연말) + 모임·행사 일정 + 다크테마 칩 보정
+| 항목 | 내용 |
+|---|---|
+| 시즌 테마 | 🎄 크리스마스(data-theme="xmas", 눈 내림 캔버스) / 🥂 연말("yearend", 금빛 반짝임). CSS 변수만 교체, 상단 시즌 배너. 캔버스는 pointer-events:none, 탭 숨김시 정지, prefers-reduced-motion 시 정지화면 |
+| 모임·행사 | "➕ 일정" 시트에서 🍻 모임·행사 모드. state.data.socialEvents[sid]={title,date,start,end,place,memo,vkey}, 응답은 ignis_votes(event_id=social_<sid>_<date>) status attend/maybe/absent + lateArrival. getInstances와 분리 → 정원·대기·승급·경고·랭킹·참석취소 집계 무관. computeRanking/getLifetimeAttendCount는 social_ 제외. 달력 보라 점, 네이버지도 링크 |
+| 다크/시즌 테마 | 잉크배경+흰글자 칩(관리자모드 켜짐 등)이 안 보이던 문제 → 브랜드색으로 보정 |
+| 회원명 변경 | 김태현 → 김태헌 (DB 데이터는 2026-10-28 즉시 이전, 코드 기본명단도 변경) |
+- 마지막 보고 시점: v207까지 보고 완료 (2026-10-28). 다음 보고서는 v208부터
