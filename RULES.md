@@ -2432,3 +2432,14 @@ v182에서 "처음불참/대기→불참" 전부 포함하도록 넓혔는데, "
 | 모임·행사 | 관리자 메뉴 "🍻 모임·행사 추가"(새 등록 버튼 + 예정 목록 수정/삭제), 우하단 🍻 모임 버튼. 안내 항목 fields[{k,v}] 프리셋+직접추가, 응답 항목 rsvp(attend/late/maybe/absent 선택) |
 | 버튼 위치 | 🍻 모임/➕ 일정 플로팅 버튼을 하단 메뉴바 위로 |
 - 마지막 보고 시점: v208까지 보고 완료 (2026-10-28). 다음 보고서는 v209부터
+
+## v209. 칸수 다이어트(배포 줄수 ~95% 감소) + 스킨 운영진 전용 + 현황·랭킹 통합 + 참취왕 삭제
+| 항목 | 내용 |
+|---|---|
+| 빌드 | tools/build.py + tools/strip2.js. 원본에서 최상위 function 경계로 스크립트를 먼저 2분할(문장 중간 절단 방지) → terser 압축(compress/mangle 없음, 공백·주석만 제거, 1000자 줄바꿈, quote_style:3, 엔티티 \x26) → CSS/HTML 공백 압축 + 1000자 줄바꿈. header 68줄 / body 176줄 / footer 184줄 (v208: 658/4454/4930) |
+| 배포칸 오류 원인(추정) | dothome 코드칸이 4,500줄 전후에서 오류 — 줄 수 다이어트로 해소 |
+| 사이트 스킨 | state.data.siteSettings.skin(auto/courtnight/xmas/yearend), MERGE_MAP_FIELDS에 siteSettings 추가. 운영진 "🎨 스킨" 시트에서만 변경(심플 화면도 여기). 회원은 🎾 기본/☀️ 라이트/🌙 다크만(localStorage ignis-theme=site/light/dark, 예전 courtnight 등은 기본 취급). 첫 화면 깜빡임 방지용 ignis-site-skin-cache |
+| 현황·랭킹 | 하단 메뉴 참석랭킹+오늘현황 → "📊 현황·랭킹" 하나(rankModal 안 탭 전환). todayPanel 요소·자동닫힘 타이머 제거 |
+| 참취왕 | 참석취소 랭킹 UI 삭제(ignis_attend_cancels 기록은 유지) |
+| 달력 길게누르기 | 이벤트 위임(달력 컨테이너 1회 바인딩)으로 재렌더 후에도 동작 |
+- 마지막 보고 시점: v209까지 보고 완료 (2026-10-28). 다음 보고서는 v210부터
