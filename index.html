@@ -680,6 +680,10 @@
   .social-title{font-size:calc(19px * var(--font-scale, 1));font-weight:900;color:var(--ink);margin:6px 0 4px;word-break:keep-all;}
   .social-meta{font-size:calc(13px * var(--font-scale, 1));color:var(--ink-soft);margin:2px 0;}
   .social-meta a{color:var(--vivid-blue);text-decoration:none;margin-left:6px;font-size:calc(12px * var(--font-scale, 1));}
+  .social-fields{margin-top:8px;display:flex;flex-direction:column;gap:3px;font-size:calc(13px * var(--font-scale, 1));}
+  .social-fields div{display:flex;gap:8px;}
+  .social-fields b{min-width:64px;color:var(--ink-soft);font-weight:700;}
+  .social-fields span{color:var(--ink);word-break:break-all;}
   .social-memo{font-size:calc(12.5px * var(--font-scale, 1));color:var(--ink);background:var(--bg);border-radius:10px;padding:8px 10px;margin-top:8px;white-space:pre-wrap;}
   .social-btns{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:12px;}
   .social-btns button{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:10px;padding:10px 4px;font-size:calc(13px * var(--font-scale, 1));font-weight:800;cursor:pointer;}
@@ -951,12 +955,18 @@
   <details class="admin-collapse" id="dashboardPanel"><summary class="admin-collapse-head">📊 운영 대시보드</summary><div class="admin-collapse-body" id="dashboardBody"></div></details>
   <details class="admin-collapse" id="memberMgmtPanel"><summary class="admin-collapse-head">👥 회원 관리</summary><div class="admin-collapse-body" id="memberMgmtBody"></div></details>
   <details class="admin-collapse" id="templateList"><summary class="admin-collapse-head">📋 반복일정 목록</summary><div class="admin-collapse-body" id="templateListBody"></div></details>
+  <details class="admin-collapse" id="addSocialForm" style="display:none;"><summary class="admin-collapse-head">🍻 모임·행사 추가</summary><div class="admin-collapse-body">
+    <button type="button" id="socialNewBtn" style="width:100%;border:0;background:#8A5CC7;color:#fff;border-radius:12px;padding:12px;font-size:15px;font-weight:800;cursor:pointer;">🍻 새 모임·행사 등록</button>
+    <div class="hint" style="margin:8px 0 6px;">송년회·회식·워크숍 등 테니스 외 일정 — 제목·장소·시간·안내 항목을 자유롭게 입력할 수 있어요.</div>
+    <div id="socialAdminList"></div>
+  </div></details>
   <details class="admin-collapse" id="addEventForm"><summary class="admin-collapse-head">➕ 일정 추가</summary><div class="admin-collapse-body">
     <div class="qc-quick-row"><button type="button" id="formQuickCourtBtn">🎾 1회 코트 일정 빠른추가</button><button type="button" id="formQuickSocialBtn" class="social">🍻 모임·행사 추가</button></div>
     <div class="hint" style="margin:0 0 8px;">아래는 매주 반복되는 정기 코트 일정 등록용이에요.</div>
     <div class="field">제목<input id="newTitle" placeholder="예: 유니온 저녁" style="min-width:120px"></div>
     <div class="field">지역
-      <select id="newLoc"><option value="유니온">유니온</option><option value="종합운동장">종합운동장</option></select>
+      <select id="newLoc"><option value="유니온">유니온</option><option value="종합운동장">종합운동장</option><option value="__custom">✏️ 직접입력</option></select>
+      <input id="newLocCustom" placeholder="장소 이름 (예: 미사 테니스장)" style="display:none;margin-top:4px;">
     </div>
     <div class="field">코트(콤마구분)<input id="newCourts" placeholder="예: 1,2"></div>
     <div class="field">시작<input id="newStart" type="time" value="19:00"></div>
@@ -1000,6 +1010,7 @@
       <div id="qcCourtOnlyA">
       <div class="qc-lbl">장소</div>
       <div class="qc-chips" id="qcLocChips"></div>
+      <div class="qc-inline" id="qcLocCustomRow"><input type="text" id="qcLocInput" placeholder="예: 미사 테니스장, 덕풍 실내코트" style="width:220px;"></div>
       <div class="qc-lbl">코트 (여러 개 선택)</div>
       <div class="qc-chips" id="qcCourtChips"></div>
       <div class="qc-inline" id="qcCourtCustomRow"><input type="text" id="qcCourtInput" placeholder="예: 6 또는 4,5" style="width:140px;"> 번 <span style="font-size:11px;color:var(--ink-faint);">콤마로 여러 개</span></div>
@@ -1013,8 +1024,14 @@
       <div class="qc-inline" id="qcCapRow"><input type="number" id="qcCapInput" min="1" style="width:80px;"> 명</div>
       </div>
       <div id="qcSocialMemoWrap" style="display:none;">
+        <div class="qc-lbl">안내 항목 (선택 · 자유롭게 추가)</div>
+        <div class="qc-chips" id="qcFieldPresetChips"></div>
+        <div id="qcFieldRows" style="display:flex;flex-direction:column;gap:6px;margin-top:6px;"></div>
+        <button type="button" id="qcFieldAdd" style="margin-top:6px;border:1px dashed var(--line);background:none;color:var(--ink-soft);border-radius:10px;padding:8px;width:100%;cursor:pointer;">➕ 항목 직접 추가</button>
         <div class="qc-lbl">안내 메모 (선택)</div>
-        <textarea class="qc-text" id="qcSocialMemo" rows="2" placeholder="예: 회비 2만원 · 2차 있음"></textarea>
+        <textarea class="qc-text" id="qcSocialMemo" rows="2" placeholder="자유롭게 적어주세요 (예: 늦으시는 분은 2차로 바로 오세요)"></textarea>
+        <div class="qc-lbl">응답 받을 항목</div>
+        <div class="qc-chips" id="qcRsvpChips"></div>
       </div>
       <div class="qc-sum" id="qcSummary"></div>
       <button class="qc-go" id="qcSubmit">등록하기</button>
@@ -6165,6 +6182,8 @@ function syncAdminUI(){
   document.getElementById('addEventForm').style.display = on ? 'block' : 'none';
   document.getElementById('quickCourtFab').style.display = on ? 'block' : 'none'; // v205: 일정 빠른추가 버튼은 관리자모드에서만
   document.getElementById('quickSocialFab').style.display = on ? 'block' : 'none'; // v208: 모임·행사 바로가기
+  document.getElementById('addSocialForm').style.display = on ? 'block' : 'none';
+  if(on) renderSocialAdminList();
   document.getElementById('templateList').style.display = on ? 'block' : 'none';
   document.getElementById('memberMgmtPanel').style.display = on ? 'block' : 'none';
   document.getElementById('dashboardPanel').style.display = on ? 'block' : 'none';
@@ -6632,7 +6651,10 @@ function renderTemplateList(){
       if(!t) return;
       state.editingTemplateId = t.id;
       document.getElementById('newTitle').value = t.title;
-      document.getElementById('newLoc').value = t.location;
+      { const known = ['유니온','종합운동장'].includes(t.location);
+        document.getElementById('newLoc').value = known ? t.location : '__custom';
+        document.getElementById('newLocCustom').value = known ? '' : t.location;
+        document.getElementById('newLocCustom').style.display = known ? 'none' : 'block'; }
       document.getElementById('newCourts').value = t.courts.map(c => c.replace('번','')).join(',');
       document.getElementById('newStart').value = t.startTime;
       document.getElementById('newEnd').value = t.endTime;
@@ -6643,9 +6665,12 @@ function renderTemplateList(){
   });
 }
 
+document.getElementById('newLoc').onchange = e => { const c = e.target.value === '__custom'; const inp = document.getElementById('newLocCustom'); inp.style.display = c ? 'block' : 'none'; if(c) inp.focus(); };
 document.getElementById('addEventBtn').onclick = async () => {
   const title = document.getElementById('newTitle').value.trim();
-  const location = document.getElementById('newLoc').value;
+  const locSel = document.getElementById('newLoc').value;
+  const location = locSel === '__custom' ? document.getElementById('newLocCustom').value.trim() : locSel; // v208: 다른 장소 직접입력
+  if(!location){ alert('장소 이름을 입력해 주세요.'); return; }
   const courtsRaw = document.getElementById('newCourts').value.trim();
   const start = document.getElementById('newStart').value;
   const end = document.getElementById('newEnd').value;
@@ -6695,7 +6720,7 @@ document.getElementById('addEventBtn').onclick = async () => {
 const QC_TIMES = [['06:00','08:00'],['10:00','12:00'],['18:00','20:00'],['20:00','22:00']];
 const QC_COURTS = ['1','2','3','4','5'];
 const QC_CAPS = [4, 6, 8, 12];
-const qc = { mode:'court', editSid:null, date:null, loc:'유니온', courts:new Set(), customCourts:false, start:'20:00', end:'22:00', customTime:false, customDate:false, capMode:'auto' };
+const qc = { mode:'court', editSid:null, customLoc:false, date:null, loc:'유니온', courts:new Set(), customCourts:false, start:'20:00', end:'22:00', customTime:false, customDate:false, capMode:'auto' };
 const QC_SOCIAL_TIMES = [['18:00','21:00'],['19:00','21:00'],['19:00','22:00'],['12:00','14:00']];
 const QC_SOCIAL_TITLES = ['송년회','신년회','정기모임','회식','워크숍'];
 function qcFmtDate(iso){ const d = new Date(iso + 'T00:00:00'); return `${d.getMonth()+1}/${d.getDate()}(${WEEKDAY_KR[d.getDay()]})`; }
@@ -6721,6 +6746,23 @@ function qcManualCapacity(){
   return parseInt(qc.capMode, 10);
 }
 function qcSlotName(start){ const h = parseInt(start, 10); return h < 9 ? '새벽' : (h < 12 ? '오전' : (h < 17 ? '낮' : (h < 20 ? '저녁' : '밤'))); }
+// v208: 모임 안내 항목(회비·2차·준비물 등) — 항목명·내용 모두 직접 입력, 원하는 만큼 추가/삭제
+const QC_FIELD_PRESETS = ['회비','2차','준비물','드레스코드','주차','연락처','계좌'];
+const QC_RSVP_ALL = [['attend','✅ 참석'],['late','⏰ 늦참'],['maybe','🤔 미정'],['absent','❌ 불참']];
+let qcFields = [];
+let qcRsvp = ['attend','late','maybe','absent'];
+function renderQcFields(){
+  const box = document.getElementById('qcFieldRows');
+  box.innerHTML = qcFields.map((f, i) => `<div style="display:flex;gap:6px;align-items:center;">
+      <input class="qc-text" data-fk="${i}" value="${escapeHtml(f.k)}" placeholder="항목명" style="flex:0 0 32%;">
+      <input class="qc-text" data-fv="${i}" value="${escapeHtml(f.v)}" placeholder="내용" style="flex:1;">
+      <button type="button" data-fdel="${i}" style="border:0;background:none;color:var(--danger);font-size:16px;cursor:pointer;">✕</button></div>`).join('');
+  box.querySelectorAll('[data-fk]').forEach(el => el.oninput = () => { qcFields[+el.dataset.fk].k = el.value; });
+  box.querySelectorAll('[data-fv]').forEach(el => el.oninput = () => { qcFields[+el.dataset.fv].v = el.value; });
+  box.querySelectorAll('[data-fdel]').forEach(el => el.onclick = () => { qcFields.splice(+el.dataset.fdel, 1); renderQcFields(); });
+  document.getElementById('qcFieldPresetChips').innerHTML = QC_FIELD_PRESETS.filter(k => !qcFields.some(f => f.k === k)).map(k => `<span class="qc-chip" data-fpreset="${k}">+ ${k}</span>`).join('');
+  document.getElementById('qcRsvpChips').innerHTML = QC_RSVP_ALL.map(([k, l]) => `<span class="qc-chip${qcRsvp.includes(k) ? ' on' : ''}" data-rsvp="${k}">${l}</span>`).join('');
+}
 function setQcMode(mode){
   qc.mode = mode;
   const social = mode === 'social';
@@ -6737,11 +6779,14 @@ function openQuickCourt(iso, mode){
   qc.editSid = null;
   document.getElementById('qcSubmit').textContent = '등록하기';
   ['qcSocialTitle','qcSocialPlace','qcSocialMemo'].forEach(id => document.getElementById(id).value = '');
+  qcFields = []; qcRsvp = ['attend','late','maybe','absent']; renderQcFields();
   const last = qcLast();
   const tomorrow = localIso(new Date(Date.now() + 86400000));
   qc.date = iso || tomorrow;
   qc.customDate = !!iso && ![todayIso(), tomorrow, localIso(new Date(Date.now() + 2*86400000))].includes(iso);
   qc.loc = (last && last.loc) || '유니온';
+  qc.customLoc = !['유니온','종합운동장'].includes(qc.loc);
+  document.getElementById('qcLocInput').value = qc.customLoc ? qc.loc : '';
   qc.start = (last && last.start) || '20:00';
   qc.end = (last && last.end) || '22:00';
   qc.customTime = !QC_TIMES.some(([s,e]) => s === qc.start && e === qc.end);
@@ -6761,6 +6806,9 @@ function openSocialEdit(sid){
   document.getElementById('qcSocialTitle').value = se.title || '';
   document.getElementById('qcSocialPlace').value = se.place || '';
   document.getElementById('qcSocialMemo').value = se.memo || '';
+  qcFields = (se.fields || []).map(f => ({ k: f.k, v: f.v }));
+  qcRsvp = (se.rsvp && se.rsvp.length) ? se.rsvp.slice() : ['attend','late','maybe','absent'];
+  renderQcFields();
   document.getElementById('qcSubmit').textContent = '수정 저장';
   setQcMode('social');
 }
@@ -6774,7 +6822,9 @@ function renderQuickCourt(){
     chip(qc.customDate, '📅 직접', 'data-qc-date="custom"');
   document.getElementById('qcDateCustomRow').classList.toggle('show', qc.customDate);
   if(qc.customDate) document.getElementById('qcDateInput').value = qc.date || '';
-  document.getElementById('qcLocChips').innerHTML = ['유니온','종합운동장'].map(l => chip(qc.loc === l, l, `data-qc-loc="${l}"`)).join('');
+  document.getElementById('qcLocChips').innerHTML = ['유니온','종합운동장'].map(l => chip(!qc.customLoc && qc.loc === l, l, `data-qc-loc="${l}"`)).join('') +
+    chip(qc.customLoc, '✏️ 직접', 'data-qc-loc="custom"'); // v208: 다른 코트(장소) 직접입력
+  document.getElementById('qcLocCustomRow').classList.toggle('show', qc.customLoc);
   document.getElementById('qcCourtChips').innerHTML = QC_COURTS.map(c => chip(!qc.customCourts && qc.courts.has(c), c + '번', `data-qc-court="${c}"`)).join('') +
     chip(qc.customCourts, '✏️ 직접', 'data-qc-court="custom"');
   document.getElementById('qcCourtCustomRow').classList.toggle('show', qc.customCourts);
@@ -6803,10 +6853,10 @@ function renderQuickCourt(){
   const list = qcCourtList();
   const manual = qcManualCapacity();
   const cap = manual || auto;
-  const ready = qc.date && list.length > 0 && qc.start && qc.end && (qc.capMode !== 'custom' || manual);
+  const ready = qc.date && qc.loc && list.length > 0 && qc.start && qc.end && (qc.capMode !== 'custom' || manual);
   document.getElementById('qcSummary').innerHTML = ready
     ? `📍 ${qcFmtDate(qc.date)} ${qcHm(qc.start)}–${qcHm(qc.end)} ${escapeHtml(qc.loc)} ${escapeHtml(list.map(c => c + '번').join(','))}코트<br>정원 ${cap}명${manual ? ' (직접 지정)' : ' (코트 기준 자동)'}<br>🔔 등록 즉시 회원 알림 발송`
-    : '날짜·장소·코트·시간을 선택해 주세요.';
+    : (qc.customLoc && !qc.loc ? '장소 이름을 입력해 주세요.' : '날짜·장소·코트·시간을 선택해 주세요.');
   document.getElementById('qcSubmit').disabled = !ready;
 }
 document.getElementById('quickCourtFab').onclick = () => openQuickCourt(null);
@@ -6821,7 +6871,10 @@ document.querySelector('#quickCourtSheet .qc-sheet').addEventListener('click', e
   if(el.dataset.qcDate){
     if(el.dataset.qcDate === 'custom'){ qc.customDate = true; }
     else { qc.customDate = false; qc.date = el.dataset.qcDate; }
-  } else if(el.dataset.qcLoc){ qc.loc = el.dataset.qcLoc; }
+  } else if(el.dataset.qcLoc){
+    if(el.dataset.qcLoc === 'custom'){ qc.customLoc = true; qc.loc = document.getElementById('qcLocInput').value.trim(); setTimeout(() => document.getElementById('qcLocInput').focus(), 0); }
+    else { qc.customLoc = false; qc.loc = el.dataset.qcLoc; }
+  }
   else if(el.dataset.qcCourt){
     const c = el.dataset.qcCourt;
     if(c === 'custom'){ qc.customCourts = !qc.customCourts; if(qc.customCourts) setTimeout(() => document.getElementById('qcCourtInput').focus(), 0); }
@@ -6831,6 +6884,8 @@ document.querySelector('#quickCourtSheet .qc-sheet').addEventListener('click', e
     if(el.dataset.qcTime === 'custom'){ qc.customTime = true; }
     else { qc.customTime = false; [qc.start, qc.end] = el.dataset.qcTime.split('-'); }
   }
+  else if(el.dataset.fpreset){ qcFields.push({ k: el.dataset.fpreset, v: '' }); renderQcFields(); const ins = document.querySelectorAll('#qcFieldRows [data-fv]'); if(ins.length) ins[ins.length-1].focus(); return; }
+  else if(el.dataset.rsvp){ const k = el.dataset.rsvp; if(qcRsvp.includes(k)){ if(qcRsvp.length > 1) qcRsvp = qcRsvp.filter(x => x !== k); } else qcRsvp.push(k); renderQcFields(); return; }
   else if(el.dataset.qcStitle){ const inp = document.getElementById('qcSocialTitle'); inp.value = `${new Date((qc.date || todayIso()) + 'T00:00:00').getFullYear()} 이그니스 ${el.dataset.qcStitle}`; }
   else if(el.dataset.qcCap){ qc.capMode = el.dataset.qcCap; if(qc.capMode === 'custom') setTimeout(() => document.getElementById('qcCapInput').focus(), 0); }
   renderQuickCourt();
@@ -6839,8 +6894,11 @@ document.getElementById('qcDateInput').onchange = e => { qc.date = e.target.valu
 document.getElementById('qcStartInput').onchange = e => { qc.start = e.target.value; renderQuickCourt(); };
 document.getElementById('qcEndInput').onchange = e => { qc.end = e.target.value; renderQuickCourt(); };
 document.getElementById('qcCourtInput').oninput = () => renderQuickCourt();
+document.getElementById('qcLocInput').oninput = e => { qc.loc = e.target.value.trim(); renderQuickCourt(); };
 document.getElementById('qcCapInput').oninput = () => renderQuickCourt();
 document.getElementById('qcSocialTitle').oninput = () => renderQuickCourt();
+document.getElementById('qcFieldAdd').onclick = () => { qcFields.push({ k: '', v: '' }); renderQcFields(); const ins = document.querySelectorAll('#qcFieldRows [data-fk]'); if(ins.length) ins[ins.length-1].focus(); };
+document.getElementById('socialNewBtn').onclick = () => openQuickCourt(null, 'social');
 document.getElementById('qcSocialPlace').oninput = () => renderQuickCourt();
 document.getElementById('qcModeCourt').onclick = () => { if(!qc.editSid) setQcMode('court'); };
 document.getElementById('qcModeSocial').onclick = () => setQcMode('social');
@@ -6882,7 +6940,7 @@ function getSocialInstances(){
   const map = (state.data && state.data.socialEvents) || {};
   return Object.entries(map).filter(([,se]) => se && se.date).map(([sid, se]) => {
     const d = new Date(se.date + 'T00:00:00');
-    return { id: se.vkey || `social_${sid}_${se.date}`, sid, isSocial: true, title: se.title, event_date: se.date, start_time: se.start, end_time: se.end, place: se.place || '', memo: se.memo || '', weekday: WEEKDAY_KR[d.getDay()] + '요일' };
+    return { id: se.vkey || `social_${sid}_${se.date}`, sid, isSocial: true, title: se.title, event_date: se.date, start_time: se.start, end_time: se.end, place: se.place || '', memo: se.memo || '', fields: se.fields || [], rsvp: (se.rsvp && se.rsvp.length) ? se.rsvp : ['attend','late','maybe','absent'], weekday: WEEKDAY_KR[d.getDay()] + '요일' };
   });
 }
 function listSocialEvents(){
@@ -6901,16 +6959,18 @@ async function submitSocialEvent(){
   const title = document.getElementById('qcSocialTitle').value.trim();
   const place = document.getElementById('qcSocialPlace').value.trim();
   const memo = document.getElementById('qcSocialMemo').value.trim();
+  const fields = qcFields.map(f => ({ k: (f.k || '').trim(), v: (f.v || '').trim() })).filter(f => f.k || f.v);
+  const rsvp = QC_RSVP_ALL.map(([k]) => k).filter(k => qcRsvp.includes(k));
   if(!title || !qc.date || !qc.start || !qc.end) return;
   if(!qc.editSid && qc.date < todayIso()){ alert('지난 날짜에는 추가할 수 없어요.'); return; }
   if(!state.data.socialEvents) state.data.socialEvents = {};
   let sid = qc.editSid, isEdit = !!sid;
   if(isEdit){
     const prev = state.data.socialEvents[sid] || {};
-    state.data.socialEvents[sid] = Object.assign({}, prev, { title, date: qc.date, start: qc.start, end: qc.end, place, memo, editedBy: state.myName, editedAt: Date.now() });
+    state.data.socialEvents[sid] = Object.assign({}, prev, { title, date: qc.date, start: qc.start, end: qc.end, place, memo, fields, rsvp, editedBy: state.myName, editedAt: Date.now() });
   } else {
     sid = 's' + Date.now();
-    state.data.socialEvents[sid] = { title, date: qc.date, start: qc.start, end: qc.end, place, memo, vkey: `social_${sid}_${qc.date}`, createdBy: state.myName, ts: Date.now() };
+    state.data.socialEvents[sid] = { title, date: qc.date, start: qc.start, end: qc.end, place, memo, fields, rsvp, vkey: `social_${sid}_${qc.date}`, createdBy: state.myName, ts: Date.now() };
   }
   markDirty('socialEvents', sid);
   pushNotification(isEdit
@@ -6966,17 +7026,15 @@ function renderSocialCard(ev){
     <div class="social-title">${escapeHtml(ev.title)}</div>
     <div class="social-meta">📅 ${fmtDateHeading(ev.event_date)} ${ev.weekday} ${formatHour(ev.start_time)}-${formatHour(ev.end_time)}</div>
     ${ev.place ? `<div class="social-meta">📍 ${escapeHtml(ev.place)}<a href="${mapUrl}" target="_blank" rel="noopener">지도 ›</a></div>` : ''}
+    ${ev.fields.length ? `<div class="social-fields">${ev.fields.map(f => `<div><b>${escapeHtml(f.k)}</b><span>${escapeHtml(f.v)}</span></div>`).join('')}</div>` : ''}
     ${ev.memo ? `<div class="social-memo">${escapeHtml(ev.memo)}</div>` : ''}
     ${state.myName ? `
-    <div class="social-btns">
-      <button data-s="attend" class="${myKey==='attend'?'on':''}">✅ 참석</button>
-      <button data-s="late" class="${myKey==='late'?'on':''}">⏰ 늦참</button>
-      <button data-s="maybe" class="${myKey==='maybe'?'on':''}">🤔 미정</button>
-      <button data-s="absent" class="${myKey==='absent'?'on':''}">❌ 불참</button>
+    <div class="social-btns" style="grid-template-columns:repeat(${ev.rsvp.length},1fr);">
+      ${QC_RSVP_ALL.filter(([k]) => ev.rsvp.includes(k)).map(([k, l]) => `<button data-s="${k}" class="${myKey===k?'on':''}">${l}</button>`).join('')}
     </div>
     <div class="social-late-row">몇 분 늦나요? <button data-late="15">15분</button><button data-late="30">30분</button><button data-late="60">1시간</button><button data-late="90">1시간30분</button><button data-late="custom">직접</button></div>
     <div class="social-group"><div class="social-group-head">✅ 참석 ${g.attend.length}명${lateCount ? ` (늦참 ${lateCount})` : ''}</div><div class="social-names">${names(g.attend)}</div></div>
-    <div class="social-group"><div class="social-group-head">🤔 미정 ${g.maybe.length}명</div><div class="social-names">${names(g.maybe)}</div></div>
+    ${ev.rsvp.includes('maybe') || g.maybe.length ? `<div class="social-group"><div class="social-group-head">🤔 미정 ${g.maybe.length}명</div><div class="social-names">${names(g.maybe)}</div></div>` : ''}
     <div class="social-group"><div class="social-group-head">❌ 불참 ${g.absent.length}명</div><div class="social-names">${names(g.absent)}</div></div>
     ` : `<div class="login-gate-notice">🔒 참석 응답과 명단은 로그인 후 확인할 수 있습니다.</div>`}
     ${hasAdminPower() ? `<div class="social-admin"><button data-s-edit>✏️ 수정</button><button data-s-del style="color:var(--danger);border-color:var(--danger);">🗑️ 삭제</button></div>` : ''}`;
@@ -6997,6 +7055,20 @@ function renderSocialCard(ev){
   const eb = card.querySelector('[data-s-edit]'); if(eb) eb.onclick = () => openSocialEdit(ev.sid);
   const db = card.querySelector('[data-s-del]'); if(db) db.onclick = () => deleteSocialEvent(ev.sid);
   return card;
+}
+
+// v208: 관리자 "🍻 모임·행사 추가" 섹션 — 다가오는 모임 목록(수정·삭제 바로가기)
+function renderSocialAdminList(){
+  const box = document.getElementById('socialAdminList');
+  if(!box) return;
+  const list = getSocialInstances().filter(e => e.event_date >= todayIso()).sort((a,b) => (a.event_date + a.start_time).localeCompare(b.event_date + b.start_time));
+  box.innerHTML = list.length ? list.map(e => {
+    const n = Object.values(state.data.votes[e.id] || {}).filter(v => v.status === 'attend').length;
+    return `<div class="template-row"><span>${escapeHtml(qcFmtDate(e.event_date))} ${formatHour(e.start_time)} · ${escapeHtml(e.title)} · 참석 ${n}명</span>
+      <span><button class="del-btn" data-se-edit="${e.sid}" style="color:var(--brand-dark);">수정</button><button class="del-btn" data-se-del="${e.sid}">삭제</button></span></div>`;
+  }).join('') : '<div class="hint">예정된 모임이 없어요.</div>';
+  box.querySelectorAll('[data-se-edit]').forEach(b => b.onclick = () => openSocialEdit(b.dataset.seEdit));
+  box.querySelectorAll('[data-se-del]').forEach(b => b.onclick = () => deleteSocialEvent(b.dataset.seDel));
 }
 
 document.getElementById('weekModeBtn').onclick = () => {
@@ -8388,7 +8460,7 @@ document.getElementById('ballPanelToggle').onclick = () => {
 document.getElementById('ballPanelClose').onclick = () => closePanels();
 
 
-function renderAll(){ renderCalendar(); renderFpInline(); renderEventList(); }
+function renderAll(){ renderCalendar(); renderFpInline(); renderEventList(); if(hasAdminPower()) renderSocialAdminList(); }
 
 // v208: 시즌 기본 스킨 — 12/1~31 연말, 12/23~25 크리스마스. 자동 적용은 저장하지 않아(시즌이 끝나면 원래 테마로 복귀),
 // 그 기간에 회원이 테마 버튼을 직접 누르면 그 시즌 동안은 본인 선택을 유지
