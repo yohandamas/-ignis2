@@ -710,27 +710,23 @@
 <div class="wrap">
   <script>
     try{
-      let savedTheme = localStorage.getItem('ignis-theme') || 'courtnight';
-      // v208: 12/1~31 연말, 12/23~25 크리스마스가 기본 스킨 (그 기간에 본인이 직접 다른 테마를 고르면 그 선택 유지)
-      const _n = new Date(), _m = _n.getMonth() + 1, _d = _n.getDate();
-      const _season = (_m === 12 && _d >= 23 && _d <= 25) ? 'xmas' : (_m === 12 ? 'yearend' : null);
-      if(_season && localStorage.getItem('ignis-theme-season') !== _n.getFullYear() + '-' + _season) savedTheme = _season;
-      if(['dark','courtnight','xmas','yearend'].includes(savedTheme)) document.documentElement.setAttribute('data-theme', savedTheme);
+      // v209: 스킨은 운영진이 사이트 전체로 지정(siteSettings.skin). 회원은 라이트/다크만 개인 선택. 첫 화면 깜빡임 방지용으로 마지막 사이트 스킨 캐시 사용
+      const _p = localStorage.getItem('ignis-theme');
+      let _t = (_p === 'light' || _p === 'dark') ? _p : (localStorage.getItem('ignis-site-skin-cache') || 'courtnight');
+      if(['dark','courtnight','xmas','yearend'].includes(_t)) document.documentElement.setAttribute('data-theme', _t);
     }catch(e){}
   </script>
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.208</span>
+      <span id="buildVersionTop" class="build-version-top">v.209</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
+      <button id="themeSiteBtn" class="theme-btn">🎾 기본</button>
       <button id="themeLightBtn" class="theme-btn">☀️ 라이트</button>
       <button id="themeDarkBtn" class="theme-btn">🌙 다크</button>
-      <button id="themeCourtBtn" class="theme-btn">🎾 코트나이트</button>
-      <button id="themeXmasBtn" class="theme-btn">🎄 크리스마스</button>
-      <button id="themeYearendBtn" class="theme-btn">🥂 연말</button>
-      <button id="simpleSkinBtn" class="theme-btn">🎨 심플</button>
+      <button id="skinAdminBtn" class="theme-btn" style="display:none;">🎨 스킨</button>
     </div>
   </div>
   <canvas id="seasonFx" style="display:none;" aria-hidden="true"></canvas>
@@ -751,10 +747,20 @@
 
   <div class="rank-modal" id="rankModal">
     <div class="rank-modal-head">
-      <span>🏆 참석 랭킹</span>
+      <span>📊 현황 · 랭킹</span>
       <button id="rankModalClose">✕</button>
     </div>
     <div class="rank-body">
+      <div class="rank-tabs status-switch">
+        <button class="rank-tab on" data-status-pane="today">📋 오늘현황</button>
+        <button class="rank-tab" data-status-pane="rank">🏆 참석랭킹</button>
+      </div>
+      <div id="statusPaneToday">
+        <div id="todayPanelTitle" style="font-weight:800;margin:4px 0 8px;">오늘의 상황보고</div>
+        <div id="visitStatsBody"></div>
+        <div id="todaySummaryBody"></div>
+      </div>
+      <div id="statusPaneRank" style="display:none;">
       <div class="rank-tabs">
         <button class="rank-tab on" data-period="week">주간</button>
         <button class="rank-tab" data-period="month">월간</button>
@@ -769,16 +775,7 @@
       <div class="rank-period-label" id="rankPeriodLabel"></div>
       <div id="rankContent"></div>
       <div class="rank-note">같은 날 연속 세션(연참)에 참석하면 그 날은 2회로 계산됩니다.</div>
-      <div style="border-top:1px dashed var(--line);margin:14px 0;"></div>
-      <div style="font-weight:800;font-size:calc(14px * var(--font-scale, 1));color:var(--danger);margin-bottom:8px;">🚫 참석취소왕 (참취왕)</div>
-      <div class="rank-tabs">
-        <button class="rank-tab on" data-cancel-period="month">월간</button>
-        <button class="rank-tab" data-cancel-period="quarter">분기</button>
-        <button class="rank-tab" data-cancel-period="year">연간</button>
       </div>
-      <div class="rank-period-label" id="cancelRankPeriodLabel"></div>
-      <div id="cancelRankContent"></div>
-      <div class="rank-note">참석 등록 후 재클릭으로 취소하거나, 불참으로 바꾼 경우를 합산합니다.</div>
     </div>
   </div>
   <div class="guide-modal" id="guideModal">
@@ -913,21 +910,10 @@
   <nav class="bottom-nav" id="bottomNav" style="display:none;">
     <button id="guideToggle"><span class="bn-ic">📖</span><span class="bn-label">메뉴얼</span></button>
     <button id="fpPanelToggle"><span class="bn-ic">🔐</span><span class="bn-label">지문체크</span></button>
-    <button id="topRankBtn"><span class="bn-ic">🏆</span><span class="bn-label">참석랭킹</span></button>
-    <button id="topTodayBtn"><span class="bn-ic">📋</span><span class="bn-label">오늘현황</span></button>
+    <button id="topStatusBtn"><span class="bn-ic">📊</span><span class="bn-label">현황·랭킹</span></button>
     <button id="ballPanelToggle"><span class="bn-ic">🎾</span><span class="bn-label">공불출</span></button>
   </nav>
 
-  <div class="today-panel" id="todayPanel">
-    <div class="today-panel-head">
-      <span id="todayPanelTitle">오늘의 상황보고</span>
-      <button id="todayPanelClose">✕</button>
-    </div>
-    <div class="today-panel-body">
-      <div id="visitStatsBody"></div>
-      <div id="todaySummaryBody"></div>
-    </div>
-  </div>
   <div class="today-panel" id="fpPanel">
     <div class="today-panel-head">
       <span>지문체크 출석현황</span>
@@ -1039,6 +1025,17 @@
     </div>
   </div>
 
+  <!-- v209: 사이트 스킨(운영진 전용) -->
+  <div id="skinSheet" class="qc-dim" style="display:none;">
+    <div class="qc-sheet" role="dialog" aria-label="사이트 스킨">
+      <div class="qc-grab"></div>
+      <h3>🎨 사이트 스킨 <span style="font-size:12px;color:var(--ink-faint);font-weight:500;">(전체 회원에게 적용)</span></h3>
+      <div class="qc-chips" id="skinChips" style="margin-top:10px;"></div>
+      <div class="hint" style="margin-top:8px;">자동 = 12월 연말 · 12/23~25 크리스마스 · 그 외 코트나이트. 회원은 라이트/다크만 개인 선택할 수 있어요.</div>
+      <button class="qc-go" id="simpleSkinBtn" style="background:var(--panel);color:var(--ink);border:1px solid var(--line);">🎨 심플 화면 열기</button>
+      <button class="qc-cancel" id="skinSheetClose">닫기</button>
+    </div>
+  </div>
   <div class="calendar" id="calendar"></div>
   <div class="cal-legend">
     <span><i style="background:var(--vivid-green)"></i>종합운동장</span>
@@ -1363,7 +1360,7 @@ function buildTemplates(){
 }
 
 function defaultData(){
-  return { templates: buildTemplates(), votes: {}, skippedDates: {}, capacityOverrides: {}, eventOverrides: {}, memberPins: {}, comments: {}, notifications: [], notifiedFlags: {}, fingerprintChecks: {}, extraMembers: [], removedMembers: {}, fingerprintExtraTargets: [], vip3Members: {}, vip3WelcomePending: {}, court3Confirmed: {}, tournamentMarks: {}, cancelStats: {}, sameDayCancelStats: {}, genderFlex: {}, preClosed: {}, inviteCourts: {}, inviteClosed: {}, genderClosed: {}, penalties: {}, warnings: {}, monthlyChampions: {}, titleChoice: {}, pendingApproval: {}, removedTemplateIds: [], approvedAt: {}, districtOverrides: {}, staffOverrides: {}, wholeCancelled: {}, voteHistory: {}, ballStock: { '종합운동장': 0, '유니온': 0, '창고': 0 }, ballStockLastRefill: {}, ballRefillHistory: {}, socialEvents: {} };
+  return { templates: buildTemplates(), votes: {}, skippedDates: {}, capacityOverrides: {}, eventOverrides: {}, memberPins: {}, comments: {}, notifications: [], notifiedFlags: {}, fingerprintChecks: {}, extraMembers: [], removedMembers: {}, fingerprintExtraTargets: [], vip3Members: {}, vip3WelcomePending: {}, court3Confirmed: {}, tournamentMarks: {}, cancelStats: {}, sameDayCancelStats: {}, genderFlex: {}, preClosed: {}, inviteCourts: {}, inviteClosed: {}, genderClosed: {}, penalties: {}, warnings: {}, monthlyChampions: {}, titleChoice: {}, pendingApproval: {}, removedTemplateIds: [], approvedAt: {}, districtOverrides: {}, staffOverrides: {}, wholeCancelled: {}, voteHistory: {}, ballStock: { '종합운동장': 0, '유니온': 0, '창고': 0 }, ballStockLastRefill: {}, ballRefillHistory: {}, socialEvents: {}, siteSettings: {} };
 }
 
 function getFingerprintTargets(){
@@ -1632,7 +1629,7 @@ async function saveData(){
         //  아무 저장이나 하면 다른 사람이 방금 바꾼 값을 되돌려버리는 문제가 있었음)
         // null 값은 "명시적으로 삭제됨"을 의미하며, 병합 후 실제로 키를 제거한다.
         const MERGE_MAP_FIELDS = ['memberPins','fingerprintChecks','court3Confirmed','genderFlex','preClosed',
-          'inviteCourts','inviteClosed','genderClosed','capacityOverrides','tournamentMarks','eventOverrides','cancelStats','sameDayCancelStats','notifiedFlags','skippedDates','monthlyChampions','titleChoice','pendingApproval','approvedAt','districtOverrides','staffOverrides','wholeCancelled','voteHistory','ballStock','ballStockLastRefill','ballRefillHistory','removedMembers','vip3Members','vip3WelcomePending','socialEvents'];
+          'inviteCourts','inviteClosed','genderClosed','capacityOverrides','tournamentMarks','eventOverrides','cancelStats','sameDayCancelStats','notifiedFlags','skippedDates','monthlyChampions','titleChoice','pendingApproval','approvedAt','districtOverrides','staffOverrides','wholeCancelled','voteHistory','ballStock','ballStockLastRefill','ballRefillHistory','removedMembers','vip3Members','vip3WelcomePending','socialEvents','siteSettings'];
         const MERGE_ARRAY_FIELDS = ['fingerprintExtraTargets'];
         MERGE_ARRAY_FIELDS.forEach(field => {
           // 배열 필드는 합집합으로 병합 (둘 중 하나라도 추가했으면 유지)
@@ -2192,20 +2189,26 @@ function renderCalendar(){
   document.getElementById('prevMonth').onclick = () => { state.calMonth--; if(state.calMonth<0){state.calMonth=11;state.calYear--;} renderCalendar(); };
   document.getElementById('nextMonth').onclick = () => { state.calMonth++; if(state.calMonth>11){state.calMonth=0;state.calYear++;} renderCalendar(); };
   // v205: 관리자모드에서 달력 날짜를 길게 누르면 그 날짜로 일정 추가 시트 열기
-  if(hasAdminPower()){
-    cal.querySelectorAll('.cal-day[data-date]:not([data-date=""]):not(.past)').forEach(el => { // 지난 날짜·다른 달 칸 제외
-      let timer = null;
+  // v209: 길게 누르기를 달력 컨테이너 한 곳에서 처리(이벤트 위임) — 달력이 자동 새로고침으로 다시 그려져도 동작 유지
+  if(!cal._lpBound){
+    cal._lpBound = true;
+    let timer = null;
+    const clear = () => { if(timer){ clearTimeout(timer); timer = null; } };
+    cal.addEventListener('pointerdown', e => {
+      const el = e.target.closest('.cal-day[data-date]');
+      clear();
+      if(!el || !hasAdminPower()) return;
       const iso = el.getAttribute('data-date');
-      const clear = () => { if(timer){ clearTimeout(timer); timer = null; } };
-      el.addEventListener('pointerdown', () => { clear(); timer = setTimeout(() => { timer = null; el.dataset.lp = '1'; openQuickCourt(iso); }, 600); });
-      ['pointerup','pointerleave','pointercancel'].forEach(t => el.addEventListener(t, clear));
-      el.addEventListener('contextmenu', e => e.preventDefault());
+      if(!iso || el.classList.contains('past')) return; // 지난 날짜·다른 달 칸 제외
+      timer = setTimeout(() => { timer = null; cal._lpFired = Date.now(); openQuickCourt(iso); }, 600);
     });
+    ['pointerup','pointercancel','pointerleave'].forEach(t => cal.addEventListener(t, clear));
+    cal.addEventListener('contextmenu', e => { if(hasAdminPower() && e.target.closest('.cal-day[data-date]')) e.preventDefault(); });
   }
   cal.querySelectorAll('.cal-day.has-event').forEach(el => {
     const iso = el.getAttribute('data-date');
     el.onclick = () => {
-      if(el.dataset.lp){ delete el.dataset.lp; return; } // 길게 누르기 직후의 클릭은 무시
+      if(cal._lpFired && Date.now() - cal._lpFired < 800) return; // 길게 누르기 직후의 클릭은 무시
       state.selectedDate = (state.selectedDate === iso) ? null : iso;
       renderCalendar();
       renderEventList();
@@ -6183,6 +6186,7 @@ function syncAdminUI(){
   document.getElementById('quickCourtFab').style.display = on ? 'block' : 'none'; // v205: 일정 빠른추가 버튼은 관리자모드에서만
   document.getElementById('quickSocialFab').style.display = on ? 'block' : 'none'; // v208: 모임·행사 바로가기
   document.getElementById('addSocialForm').style.display = on ? 'block' : 'none';
+  document.getElementById('skinAdminBtn').style.display = on ? 'inline-block' : 'none'; // v209: 스킨은 운영진만
   if(on) renderSocialAdminList();
   document.getElementById('templateList').style.display = on ? 'block' : 'none';
   document.getElementById('memberMgmtPanel').style.display = on ? 'block' : 'none';
@@ -6197,8 +6201,19 @@ function syncAdminUI(){
 }
 
 document.getElementById('undoPanelBtn').onclick = () => undoLastAdminAction();
-document.getElementById('topTodayBtn').onclick = toggleTodayPanel;
-document.getElementById('topRankBtn').onclick = () => { openPanel('rankModal'); renderRankBody(); renderCancelRankBody(); };
+// v209: 오늘현황 + 참석랭킹 통합 패널
+function showStatusPane(which){
+  document.getElementById('statusPaneToday').style.display = which === 'today' ? 'block' : 'none';
+  document.getElementById('statusPaneRank').style.display = which === 'rank' ? 'block' : 'none';
+  document.querySelectorAll('[data-status-pane]').forEach(b => b.classList.toggle('on', b.dataset.statusPane === which));
+  if(which === 'today'){ renderTodayPanel(); renderVisitStats(); } else renderRankBody();
+}
+document.querySelectorAll('[data-status-pane]').forEach(b => b.onclick = () => showStatusPane(b.dataset.statusPane));
+document.getElementById('topStatusBtn').onclick = () => {
+  const m = document.getElementById('rankModal');
+  if(m.classList.contains('open')){ closePanels(); return; }
+  openPanel('rankModal'); showStatusPane('today');
+};
 document.getElementById('adminToggle').onclick = async () => {
   if(!state.adminMode){
     if(state.myIsStaff){
@@ -8147,57 +8162,7 @@ document.getElementById('guideToggle').onclick = () => {
 document.getElementById('guideModalClose').onclick = () => closePanels();
 
 let currentRankPeriod = 'week';
-let currentCancelRankPeriod = 'month';
-
-async function renderCancelRankBody(){
-  let startIso, endIso, label;
-  if(currentCancelRankPeriod === 'month'){
-    [startIso, endIso] = getMonthRange();
-    label = `${new Date().getMonth()+1}월`;
-  } else if(currentCancelRankPeriod === 'quarter'){
-    const [s, e, qn] = getQuarterRange();
-    startIso = s; endIso = e;
-    label = `${qn}분기`;
-  } else {
-    [startIso, endIso] = getYearRange();
-    label = `${new Date().getFullYear()}년`;
-  }
-  document.getElementById('cancelRankPeriodLabel').textContent = label;
-  const content = document.getElementById('cancelRankContent');
-  content.innerHTML = `<div class="rank-empty">불러오는 중...</div>`;
-
-  const startTs = new Date(startIso + 'T00:00:00').getTime();
-  const endTs = new Date(endIso + 'T23:59:59').getTime();
-  try{
-    const { data, error } = await sb.from('ignis_attend_cancels').select('member_name').gte('ts', startTs).lte('ts', endTs);
-    if(error) throw error;
-    const counts = {};
-    (data || []).forEach(row => { counts[row.member_name] = (counts[row.member_name] || 0) + 1; });
-    const ranking = Object.entries(counts).map(([name, count]) => ({name, count})).sort((a,b) => b.count - a.count).slice(0, 5);
-    if(ranking.length === 0){
-      content.innerHTML = `<div class="rank-empty">해당 기간 참석취소 기록이 없습니다.</div>`;
-      return;
-    }
-    content.innerHTML = ranking.map((r, i) => `
-      <div class="rank-row">
-        <span class="rank-num">${i===0 ? '👑' : (i+1)+'.'}</span>
-        <span class="rank-name">${escapeHtml(r.name)}${i===0 ? ' <b style="color:var(--danger);">(참취왕)</b>' : ''}</span>
-        <span class="rank-score">${r.count}회</span>
-      </div>
-    `).join('');
-  }catch(e){
-    console.error('참석취소랭킹 조회 실패', e);
-    content.innerHTML = `<div class="rank-empty">불러오기 실패 — 잠시 후 다시 시도해 주세요.</div>`;
-  }
-}
-document.querySelectorAll('.rank-tab[data-cancel-period]').forEach(tab => {
-  tab.onclick = () => {
-    document.querySelectorAll('.rank-tab[data-cancel-period]').forEach(t => t.classList.remove('on'));
-    tab.classList.add('on');
-    currentCancelRankPeriod = tab.getAttribute('data-cancel-period');
-    renderCancelRankBody();
-  };
-});
+// v209: 참석취소왕(참취왕) 랭킹 삭제 — 취소 기록(ignis_attend_cancels)은 경고 관리용으로 계속 저장
 
 let currentRankCategory = '전체';
 
@@ -8393,7 +8358,7 @@ document.querySelectorAll('.rank-tab[data-category]').forEach(tab => {
 
 // ⚠️ 대진표(bracket) 기능은 독립 페이지(https://ignisapp-zeta.vercel.app/bracket)로 완전히 분리 배포되어
 // 여기서는 제거됨 - 관련 버튼/패널/HTML/CSS/JS(IIFE)도 전부 함께 제거함
-const ALL_PANEL_IDS = ['todayPanel','fpPanel','ballPanel','guideModal','rankModal'];
+const ALL_PANEL_IDS = ['fpPanel','ballPanel','guideModal','rankModal'];
 function openPanel(id){
   ALL_PANEL_IDS.forEach(pid => { if(pid !== id){ const el = document.getElementById(pid); if(el) el.classList.remove('open'); } });
   document.getElementById(id).classList.add('open');
@@ -8410,33 +8375,7 @@ document.getElementById('panelBackdrop').addEventListener('touchend', (e) => {
   closePanels();
 }, {passive:false});
 
-let todayPanelAutoCloseTimer = null;
-function scheduleTodayPanelAutoClose(){
-  clearTimeout(todayPanelAutoCloseTimer);
-  todayPanelAutoCloseTimer = setTimeout(() => {
-    document.getElementById('todayPanel').classList.remove('open');
-    document.getElementById('panelBackdrop').classList.remove('show');
-  }, 5000);
-}
-function openTodayPanel(){
-  openPanel('todayPanel');
-  scheduleTodayPanelAutoClose();
-}
-
-function toggleTodayPanel(){
-  const panel = document.getElementById('todayPanel');
-  if(panel.classList.contains('open')){
-    closePanels();
-  } else {
-    renderTodayPanel();
-    renderVisitStats();
-    openTodayPanel();
-  }
-}
-document.getElementById('todayPanelClose').onclick = () => closePanels();
-document.getElementById('todayPanel').addEventListener('mouseenter', () => clearTimeout(todayPanelAutoCloseTimer));
-document.getElementById('todayPanel').addEventListener('mouseleave', () => scheduleTodayPanelAutoClose());
-document.getElementById('todayPanel').addEventListener('touchstart', () => clearTimeout(todayPanelAutoCloseTimer), {passive:true});
+let todayPanelAutoCloseTimer = null; // v209: 오늘현황 패널은 현황·랭킹 패널로 통합
 
 document.getElementById('fpPanelToggle').onclick = () => {
   const panel = document.getElementById('fpPanel');
@@ -8460,38 +8399,40 @@ document.getElementById('ballPanelToggle').onclick = () => {
 document.getElementById('ballPanelClose').onclick = () => closePanels();
 
 
-function renderAll(){ renderCalendar(); renderFpInline(); renderEventList(); if(hasAdminPower()) renderSocialAdminList(); }
+function renderAll(){ applyEffectiveTheme(); renderCalendar(); renderFpInline(); renderEventList(); if(hasAdminPower()) renderSocialAdminList(); }
 
-// v208: 시즌 기본 스킨 — 12/1~31 연말, 12/23~25 크리스마스. 자동 적용은 저장하지 않아(시즌이 끝나면 원래 테마로 복귀),
-// 그 기간에 회원이 테마 버튼을 직접 누르면 그 시즌 동안은 본인 선택을 유지
+// v209: 스킨 = 운영진이 정하는 사이트 전체 설정(state.data.siteSettings.skin: auto|courtnight|xmas|yearend).
+// 회원 개인 선택은 라이트/다크만(localStorage 'ignis-theme' = site|light|dark). 예전 저장값(courtnight 등)은 "기본"으로 간주
 function currentSeasonTheme(){
   const n = new Date(), m = n.getMonth() + 1, d = n.getDate();
   if(m === 12 && d >= 23 && d <= 25) return 'xmas';
   if(m === 12) return 'yearend';
   return null;
 }
-function seasonKey(){ const s = currentSeasonTheme(); return s ? new Date().getFullYear() + '-' + s : null; }
-function pickTheme(theme){
-  const k = seasonKey();
-  if(k){ try{ localStorage.setItem('ignis-theme-season', k); }catch(e){} }
-  applyTheme(theme);
+function siteSkin(){
+  const set = (state.data && state.data.siteSettings && state.data.siteSettings.skin) || 'auto';
+  if(set === 'auto') return currentSeasonTheme() || 'courtnight';
+  return set;
 }
+function personalTheme(){ let p = 'site'; try{ p = localStorage.getItem('ignis-theme') || 'site'; }catch(e){} return (p === 'light' || p === 'dark') ? p : 'site'; }
+let _appliedTheme = null;
+function applyEffectiveTheme(){
+  const sk = siteSkin();
+  try{ localStorage.setItem('ignis-site-skin-cache', sk); }catch(e){}
+  const pt = personalTheme();
+  const theme = pt === 'site' ? sk : pt;
+  ['themeSiteBtn','themeLightBtn','themeDarkBtn'].forEach(id => { const b = document.getElementById(id); if(b) b.classList.toggle('active', (id === 'themeSiteBtn' && pt === 'site') || (id === 'themeLightBtn' && pt === 'light') || (id === 'themeDarkBtn' && pt === 'dark')); });
+  if(theme === _appliedTheme) return;
+  _appliedTheme = theme;
+  applyTheme(theme, false);
+}
+function pickTheme(p){ try{ localStorage.setItem('ignis-theme', p); }catch(e){} applyEffectiveTheme(); }
 function applyTheme(theme, persist){
   if(['dark','courtnight','xmas','yearend'].includes(theme)){
     document.documentElement.setAttribute('data-theme', theme);
   } else {
     document.documentElement.removeAttribute('data-theme');
   }
-  if(persist !== false){ try{ localStorage.setItem('ignis-theme', theme); }catch(e){} }
-  const lightBtn = document.getElementById('themeLightBtn');
-  const darkBtn = document.getElementById('themeDarkBtn');
-  const courtBtn = document.getElementById('themeCourtBtn');
-  if(darkBtn) darkBtn.classList.toggle('active', theme === 'dark');
-  if(courtBtn) courtBtn.classList.toggle('active', theme === 'courtnight');
-  if(lightBtn) lightBtn.classList.toggle('active', !['dark','courtnight','xmas','yearend'].includes(theme));
-  const xb = document.getElementById('themeXmasBtn'), yb = document.getElementById('themeYearendBtn');
-  if(xb) xb.classList.toggle('active', theme === 'xmas');
-  if(yb) yb.classList.toggle('active', theme === 'yearend');
   startSeasonFx(theme === 'xmas' ? 'snow' : (theme === 'yearend' ? 'sparkle' : null)); // v207
 }
 
@@ -8549,19 +8490,27 @@ function startSeasonFx(mode){
   }
   seasonFx.raf = requestAnimationFrame(draw);
 }
+document.getElementById('themeSiteBtn').onclick = () => pickTheme('site');
 document.getElementById('themeLightBtn').onclick = () => pickTheme('light');
 document.getElementById('themeDarkBtn').onclick = () => pickTheme('dark');
-document.getElementById('themeCourtBtn').onclick = () => pickTheme('courtnight');
-document.getElementById('themeXmasBtn').onclick = () => pickTheme('xmas');
-document.getElementById('themeYearendBtn').onclick = () => pickTheme('yearend');
-(function initThemeButtons(){
-  let saved = 'courtnight';
-  let seasonOverride = null;
-  try{ saved = localStorage.getItem('ignis-theme') || 'courtnight'; seasonOverride = localStorage.getItem('ignis-theme-season'); }catch(e){}
-  const season = currentSeasonTheme();
-  if(season && seasonOverride !== seasonKey()) applyTheme(season, false); // 시즌 기본 스킨(저장 안 함)
-  else applyTheme(saved);
-})();
+// 운영진 스킨 시트
+const SKIN_OPTIONS = [['auto','🗓 자동'],['courtnight','🎾 코트나이트'],['xmas','🎄 크리스마스'],['yearend','🥂 연말']];
+function renderSkinSheet(){
+  const cur = (state.data && state.data.siteSettings && state.data.siteSettings.skin) || 'auto';
+  document.getElementById('skinChips').innerHTML = SKIN_OPTIONS.map(([k, l]) => `<span class="qc-chip${cur === k ? ' on' : ''}" data-skin="${k}">${l}</span>`).join('');
+  document.querySelectorAll('#skinChips [data-skin]').forEach(c => c.onclick = async () => {
+    if(!hasAdminPower()) return;
+    if(!state.data.siteSettings) state.data.siteSettings = {};
+    state.data.siteSettings.skin = c.dataset.skin;
+    markDirty('siteSettings', 'skin');
+    applyEffectiveTheme(); renderSkinSheet();
+    await saveData();
+  });
+}
+document.getElementById('skinAdminBtn').onclick = () => { renderSkinSheet(); document.getElementById('skinSheet').style.display = 'flex'; };
+document.getElementById('skinSheetClose').onclick = () => { document.getElementById('skinSheet').style.display = 'none'; };
+document.getElementById('skinSheet').addEventListener('click', e => { if(e.target.id === 'skinSheet') e.target.style.display = 'none'; });
+applyEffectiveTheme();
 
 // ⚠️ "심플" 스킨은 위 라이트/다크/코트나이트와 달리 완전히 다른 코드베이스(별도 파일, 다른 UI구조)로 만들어진
 // 심플 버전이라, CSS변수 전환만으로는 적용이 안 됨 — 전체화면 iframe으로 감싸서 "스킨처럼 전환"되는 것처럼 보이게 구현.
@@ -8571,6 +8520,7 @@ document.getElementById('themeYearendBtn').onclick = () => pickTheme('yearend');
 // 서로 다른 도메인이라 localStorage가 자동 공유되지 않으므로, 로그인된 이름을 URL 파라미터(?name=)로 직접 넘겨줌
 // (심플버전 쪽에서 이 파라미터를 받아 자동 로그인 처리하도록 이미 구현되어 있음)
 document.getElementById('simpleSkinBtn').onclick = () => {
+  document.getElementById('skinSheet').style.display = 'none';
   const overlay = document.getElementById('simpleSkinOverlay');
   const iframe = document.getElementById('simpleSkinIframe');
   const nameParam = state.myName ? ('?name=' + encodeURIComponent(state.myName)) : '';
