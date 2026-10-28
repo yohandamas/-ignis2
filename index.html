@@ -619,8 +619,12 @@
   }
 
   /* v205→v206: 일정 빠른 추가(1회성) — 관리자 전용 플로팅 버튼 + 하단 시트 */
-  .qc-fab{position:fixed;right:16px;bottom:calc(20px + env(safe-area-inset-bottom,0px));z-index:900;background:var(--brand);color:#fff;border:0;border-radius:28px;padding:13px 18px;font-size:15px;font-weight:800;box-shadow:0 6px 16px rgba(0,0,0,.25);cursor:pointer}
+  .qc-fab{position:fixed;right:16px;bottom:calc(76px + env(safe-area-inset-bottom,0px));z-index:900;background:var(--brand);color:#fff;border:0;border-radius:28px;padding:13px 18px;font-size:15px;font-weight:800;box-shadow:0 6px 16px rgba(0,0,0,.25);cursor:pointer}
   [data-theme="courtnight"] .qc-fab{color:#111}
+  .qc-fab.social{bottom:calc(132px + env(safe-area-inset-bottom,0px));background:#8A5CC7;color:#fff !important;}
+  .qc-quick-row{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px;}
+  .qc-quick-row button{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:10px;padding:10px 6px;font-size:13px;font-weight:800;cursor:pointer;}
+  .qc-quick-row button.social{border-color:#8A5CC7;color:#8A5CC7;}
   .qc-dim{position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.4);display:flex;align-items:flex-end;justify-content:center}
   .qc-sheet{width:100%;max-width:480px;max-height:90vh;overflow-y:auto;background:var(--panel);color:var(--ink);border-radius:20px 20px 0 0;padding:10px 16px calc(18px + env(safe-area-inset-bottom,0px))}
   .qc-grab{width:40px;height:4px;background:var(--line);border-radius:2px;margin:0 auto 10px}
@@ -702,14 +706,18 @@
 <div class="wrap">
   <script>
     try{
-      const savedTheme = localStorage.getItem('ignis-theme') || 'courtnight';
+      let savedTheme = localStorage.getItem('ignis-theme') || 'courtnight';
+      // v208: 12/1~31 연말, 12/23~25 크리스마스가 기본 스킨 (그 기간에 본인이 직접 다른 테마를 고르면 그 선택 유지)
+      const _n = new Date(), _m = _n.getMonth() + 1, _d = _n.getDate();
+      const _season = (_m === 12 && _d >= 23 && _d <= 25) ? 'xmas' : (_m === 12 ? 'yearend' : null);
+      if(_season && localStorage.getItem('ignis-theme-season') !== _n.getFullYear() + '-' + _season) savedTheme = _season;
       if(['dark','courtnight','xmas','yearend'].includes(savedTheme)) document.documentElement.setAttribute('data-theme', savedTheme);
     }catch(e){}
   </script>
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.207</span>
+      <span id="buildVersionTop" class="build-version-top">v.208</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -944,6 +952,8 @@
   <details class="admin-collapse" id="memberMgmtPanel"><summary class="admin-collapse-head">👥 회원 관리</summary><div class="admin-collapse-body" id="memberMgmtBody"></div></details>
   <details class="admin-collapse" id="templateList"><summary class="admin-collapse-head">📋 반복일정 목록</summary><div class="admin-collapse-body" id="templateListBody"></div></details>
   <details class="admin-collapse" id="addEventForm"><summary class="admin-collapse-head">➕ 일정 추가</summary><div class="admin-collapse-body">
+    <div class="qc-quick-row"><button type="button" id="formQuickCourtBtn">🎾 1회 코트 일정 빠른추가</button><button type="button" id="formQuickSocialBtn" class="social">🍻 모임·행사 추가</button></div>
+    <div class="hint" style="margin:0 0 8px;">아래는 매주 반복되는 정기 코트 일정 등록용이에요.</div>
     <div class="field">제목<input id="newTitle" placeholder="예: 유니온 저녁" style="min-width:120px"></div>
     <div class="field">지역
       <select id="newLoc"><option value="유니온">유니온</option><option value="종합운동장">종합운동장</option></select>
@@ -968,6 +978,7 @@
     <div class="hint">코트당 정원 6명 기준으로 자동 계산됩니다(유니온 3번코트 포함 복수코트는 확보 전까지 임시 축소, 확보 후 정상 정원). 반복 일정은 올해 12월 31일까지 생성됩니다. 특정 날짜를 입력하면 그 날 하루만 생성돼요. 월례대회처럼 여러 코트를 묶어 큰 규모로 진행할 땐 "코트" 칸에 콤마로 여러 코트를 입력하고(예: 1,2,3), "정원 직접 지정"에 실제 참석 규모(예: 40)를 넣어주세요.</div>
   </div></details>
   <!-- v205→v206: 일정 빠른 추가(1회성) — 일반 일정과 똑같이 올라가고, 특수이벤트는 카드의 "✨ 특수이벤트"로 따로 지정 -->
+  <button id="quickSocialFab" class="qc-fab social" style="display:none;">🍻 모임</button>
   <button id="quickCourtFab" class="qc-fab" style="display:none;">➕ 일정</button>
   <div id="quickCourtSheet" class="qc-dim" style="display:none;">
     <div class="qc-sheet" role="dialog" aria-label="일정 추가">
@@ -6153,6 +6164,7 @@ function syncAdminUI(){
   t.textContent = on ? '🔓 관리자 모드 (켜짐)' : '🔒 관리자 모드';
   document.getElementById('addEventForm').style.display = on ? 'block' : 'none';
   document.getElementById('quickCourtFab').style.display = on ? 'block' : 'none'; // v205: 일정 빠른추가 버튼은 관리자모드에서만
+  document.getElementById('quickSocialFab').style.display = on ? 'block' : 'none'; // v208: 모임·행사 바로가기
   document.getElementById('templateList').style.display = on ? 'block' : 'none';
   document.getElementById('memberMgmtPanel').style.display = on ? 'block' : 'none';
   document.getElementById('dashboardPanel').style.display = on ? 'block' : 'none';
@@ -6798,6 +6810,9 @@ function renderQuickCourt(){
   document.getElementById('qcSubmit').disabled = !ready;
 }
 document.getElementById('quickCourtFab').onclick = () => openQuickCourt(null);
+document.getElementById('quickSocialFab').onclick = () => openQuickCourt(null, 'social'); // v208
+document.getElementById('formQuickCourtBtn').onclick = () => openQuickCourt(null);
+document.getElementById('formQuickSocialBtn').onclick = () => openQuickCourt(null, 'social');
 document.getElementById('qcCancel').onclick = closeQuickCourt;
 document.getElementById('quickCourtSheet').addEventListener('click', e => { if(e.target.id === 'quickCourtSheet') closeQuickCourt(); });
 document.querySelector('#quickCourtSheet .qc-sheet').addEventListener('click', e => {
@@ -8375,13 +8390,27 @@ document.getElementById('ballPanelClose').onclick = () => closePanels();
 
 function renderAll(){ renderCalendar(); renderFpInline(); renderEventList(); }
 
-function applyTheme(theme){
+// v208: 시즌 기본 스킨 — 12/1~31 연말, 12/23~25 크리스마스. 자동 적용은 저장하지 않아(시즌이 끝나면 원래 테마로 복귀),
+// 그 기간에 회원이 테마 버튼을 직접 누르면 그 시즌 동안은 본인 선택을 유지
+function currentSeasonTheme(){
+  const n = new Date(), m = n.getMonth() + 1, d = n.getDate();
+  if(m === 12 && d >= 23 && d <= 25) return 'xmas';
+  if(m === 12) return 'yearend';
+  return null;
+}
+function seasonKey(){ const s = currentSeasonTheme(); return s ? new Date().getFullYear() + '-' + s : null; }
+function pickTheme(theme){
+  const k = seasonKey();
+  if(k){ try{ localStorage.setItem('ignis-theme-season', k); }catch(e){} }
+  applyTheme(theme);
+}
+function applyTheme(theme, persist){
   if(['dark','courtnight','xmas','yearend'].includes(theme)){
     document.documentElement.setAttribute('data-theme', theme);
   } else {
     document.documentElement.removeAttribute('data-theme');
   }
-  try{ localStorage.setItem('ignis-theme', theme); }catch(e){}
+  if(persist !== false){ try{ localStorage.setItem('ignis-theme', theme); }catch(e){} }
   const lightBtn = document.getElementById('themeLightBtn');
   const darkBtn = document.getElementById('themeDarkBtn');
   const courtBtn = document.getElementById('themeCourtBtn');
@@ -8448,15 +8477,18 @@ function startSeasonFx(mode){
   }
   seasonFx.raf = requestAnimationFrame(draw);
 }
-document.getElementById('themeLightBtn').onclick = () => applyTheme('light');
-document.getElementById('themeDarkBtn').onclick = () => applyTheme('dark');
-document.getElementById('themeCourtBtn').onclick = () => applyTheme('courtnight');
-document.getElementById('themeXmasBtn').onclick = () => applyTheme('xmas');
-document.getElementById('themeYearendBtn').onclick = () => applyTheme('yearend');
+document.getElementById('themeLightBtn').onclick = () => pickTheme('light');
+document.getElementById('themeDarkBtn').onclick = () => pickTheme('dark');
+document.getElementById('themeCourtBtn').onclick = () => pickTheme('courtnight');
+document.getElementById('themeXmasBtn').onclick = () => pickTheme('xmas');
+document.getElementById('themeYearendBtn').onclick = () => pickTheme('yearend');
 (function initThemeButtons(){
   let saved = 'courtnight';
-  try{ saved = localStorage.getItem('ignis-theme') || 'courtnight'; }catch(e){}
-  applyTheme(saved);
+  let seasonOverride = null;
+  try{ saved = localStorage.getItem('ignis-theme') || 'courtnight'; seasonOverride = localStorage.getItem('ignis-theme-season'); }catch(e){}
+  const season = currentSeasonTheme();
+  if(season && seasonOverride !== seasonKey()) applyTheme(season, false); // 시즌 기본 스킨(저장 안 함)
+  else applyTheme(saved);
 })();
 
 // ⚠️ "심플" 스킨은 위 라이트/다크/코트나이트와 달리 완전히 다른 코드베이스(별도 파일, 다른 UI구조)로 만들어진
