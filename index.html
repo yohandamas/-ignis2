@@ -695,6 +695,12 @@
   .social-group-head{font-size:calc(12px * var(--font-scale, 1));font-weight:800;color:var(--ink-soft);margin-bottom:4px;}
   .social-names{display:flex;flex-wrap:wrap;gap:5px;}
   .social-names span{background:var(--chip-bg);border:1px solid var(--line);border-radius:12px;padding:3px 9px;font-size:calc(12px * var(--font-scale, 1));color:var(--ink);}
+  .social-manual{margin-top:12px;padding:10px;border:1px dashed var(--line);border-radius:10px;}
+  .social-manual-row{display:flex;gap:6px;margin-top:6px;}
+  .social-manual-row input[data-sm-name]{flex:1;min-width:0;}
+  .social-manual-row select{flex:0 0 38%;}
+  .social-manual-row input[data-sm-late]{flex:1;}
+  .social-manual-row button{flex:0 0 auto;margin-left:auto;border:0;background:#8A5CC7;color:#fff;border-radius:10px;padding:8px 16px;font-weight:800;cursor:pointer;}
   .social-admin{display:flex;gap:6px;justify-content:flex-end;margin-top:10px;}
   .social-admin button{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:8px;padding:4px 9px;font-size:calc(11px * var(--font-scale, 1));cursor:pointer;}
   .qc-mode{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:4px 0 6px;}
@@ -719,7 +725,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.209</span>
+      <span id="buildVersionTop" class="build-version-top">v.210</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -7021,21 +7027,41 @@ async function setSocialVote(ev, status, lateMin){
   await saveData();
   renderEventList();
 }
+// v210: 운영진이 모임 응답을 대신 넣거나 지우기 — 회원 명단에 없으면(외부인·가족 등) 이름 그대로 저장
+async function adminSetSocialVote(ev, name, status, lateMin){
+  if(!hasAdminPower()) return;
+  if(!state.data.votes[ev.id]) state.data.votes[ev.id] = {};
+  const votes = state.data.votes[ev.id];
+  if(status === null){
+    delete votes[name];
+    await saveVoteRow(ev.id, name, null);
+  } else {
+    const m = getActiveMembers().find(x => x.name === name);
+    votes[name] = { status, gender: m ? m.gender : null, district: m ? m.district : null, lateArrival: !!lateMin, lateMinutes: lateMin || null, ts: Date.now(), invitedBy: state.myName }; // 수동 추가 표시(invited_by 컬럼 재사용, 새로고침 후에도 유지)
+    await saveVoteRow(ev.id, name, votes[name], state.myName);
+  }
+  await saveData();
+  renderEventList();
+}
 function renderSocialCard(ev){
   const card = document.createElement('div');
   card.className = 'event social-card';
   card.id = 'ev-' + ev.id;
   const votes = state.data.votes[ev.id] || {};
   const g = { attend:[], maybe:[], absent:[] };
+  const isAdm = hasAdminPower();
   Object.entries(votes).sort((a,b) => (a[1].ts||0) - (b[1].ts||0)).forEach(([name, v]) => {
     if(!g[v.status]) return;
-    g[v.status].push(v.status === 'attend' && v.lateArrival ? `${name}(${v.lateMinutes ? v.lateMinutes + '분 ' : ''}늦참)` : name);
+    const label = (v.status === 'attend' && v.lateArrival ? `${name}(${v.lateMinutes ? v.lateMinutes + '분 ' : ''}늦참)` : name) + (v.invitedBy ? ' ✍️' : '');
+    g[v.status].push({ name, label });
   });
   const mine = votes[state.myName];
   const myKey = !mine ? '' : (mine.status === 'attend' ? (mine.lateArrival ? 'late' : 'attend') : mine.status);
   const mapUrl = ev.place ? 'https://map.naver.com/p/search/' + encodeURIComponent(ev.place) : '';
-  const names = arr => arr.length ? arr.map(n => `<span>${escapeHtml(n)}</span>`).join('') : '<span style="opacity:.5;">-</span>';
-  const lateCount = g.attend.filter(n => n.includes('늦참)')).length;
+  // v210: 운영진은 이름 옆 ✕로 응답 삭제 가능, ✍️ = 운영진이 수동으로 넣은 응답
+  const names = arr => arr.length ? arr.map(n => `<span>${escapeHtml(n.label)}${isAdm ? ` <b data-s-rm="${escapeHtml(n.name)}" style="cursor:pointer;color:var(--danger);margin-left:2px;">✕</b>` : ''}</span>`).join('') : '<span style="opacity:.5;">-</span>';
+  const lateCount = g.attend.filter(n => n.label.includes('늦참)')).length;
+  const memberOpts = isAdm ? getActiveMembers().map(m => m.name).sort((a,b) => a.localeCompare(b, 'ko')).map(n => `<option value="${escapeHtml(n)}"></option>`).join('') : '';
   card.innerHTML = `
     <span class="social-kicker">🍻 모임·행사</span>
     <div class="social-title">${escapeHtml(ev.title)}</div>
@@ -7052,7 +7078,19 @@ function renderSocialCard(ev){
     ${ev.rsvp.includes('maybe') || g.maybe.length ? `<div class="social-group"><div class="social-group-head">🤔 미정 ${g.maybe.length}명</div><div class="social-names">${names(g.maybe)}</div></div>` : ''}
     <div class="social-group"><div class="social-group-head">❌ 불참 ${g.absent.length}명</div><div class="social-names">${names(g.absent)}</div></div>
     ` : `<div class="login-gate-notice">🔒 참석 응답과 명단은 로그인 후 확인할 수 있습니다.</div>`}
-    ${hasAdminPower() ? `<div class="social-admin"><button data-s-edit>✏️ 수정</button><button data-s-del style="color:var(--danger);border-color:var(--danger);">🗑️ 삭제</button></div>` : ''}`;
+    ${isAdm ? `<div class="social-manual">
+      <div class="social-group-head">✍️ 운영진 수동 추가 <span style="font-weight:500;color:var(--ink-faint);">(회원 검색 또는 외부인 이름 직접 입력)</span></div>
+      <div class="social-manual-row">
+        <input list="socialMembers-${ev.sid}" class="qc-text" data-sm-name placeholder="이름 (예: 김태헌, 홍길동(지인))">
+        <datalist id="socialMembers-${ev.sid}">${memberOpts}</datalist>
+        <select class="qc-text" data-sm-status>${QC_RSVP_ALL.map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select>
+      </div>
+      <div class="social-manual-row">
+        <input type="number" min="1" class="qc-text" data-sm-late placeholder="늦참 몇 분 (늦참일 때)" style="display:none;">
+        <button type="button" data-sm-add>추가</button>
+      </div>
+    </div>` : ''}
+    ${isAdm ? `<div class="social-admin"><button data-s-edit>✏️ 수정</button><button data-s-del style="color:var(--danger);border-color:var(--danger);">🗑️ 삭제</button></div>` : ''}`;
   const lateRow = card.querySelector('.social-late-row');
   card.querySelectorAll('[data-s]').forEach(b => b.onclick = () => {
     const st = b.getAttribute('data-s');
@@ -7066,6 +7104,23 @@ function renderSocialCard(ev){
     let m = b.getAttribute('data-late');
     if(m === 'custom'){ const r = prompt('몇 분 늦나요? (숫자만)', '45'); if(r === null) return; m = parseInt(r, 10); if(!(m > 0)){ alert('숫자로 입력해 주세요.'); return; } }
     setSocialVote(ev, 'attend', parseInt(m, 10));
+  });
+  // v210: 운영진 수동 추가/삭제
+  const smStatus = card.querySelector('[data-sm-status]'), smLate = card.querySelector('[data-sm-late]');
+  if(smStatus) smStatus.onchange = () => { smLate.style.display = smStatus.value === 'late' ? 'block' : 'none'; };
+  const smAdd = card.querySelector('[data-sm-add]');
+  if(smAdd) smAdd.onclick = async () => {
+    const name = card.querySelector('[data-sm-name]').value.trim();
+    if(!name){ alert('이름을 입력해 주세요.'); return; }
+    const st = smStatus.value;
+    let lateMin = null;
+    if(st === 'late'){ lateMin = parseInt(smLate.value, 10); if(!(lateMin > 0)){ alert('늦참 시간을 분 단위 숫자로 입력해 주세요.'); return; } }
+    await adminSetSocialVote(ev, name, st === 'late' ? 'attend' : st, lateMin);
+  };
+  card.querySelectorAll('[data-s-rm]').forEach(b => b.onclick = async () => {
+    const name = b.getAttribute('data-s-rm');
+    if(!confirm(`${name}님의 응답을 삭제할까요?`)) return;
+    await adminSetSocialVote(ev, name, null, null);
   });
   const eb = card.querySelector('[data-s-edit]'); if(eb) eb.onclick = () => openSocialEdit(ev.sid);
   const db = card.querySelector('[data-s-del]'); if(db) db.onclick = () => deleteSocialEvent(ev.sid);
