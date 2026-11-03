@@ -621,6 +621,7 @@
   /* v205→v206: 일정 빠른 추가(1회성) — 관리자 전용 플로팅 버튼 + 하단 시트 */
   .qc-fab{position:fixed;right:16px;bottom:calc(76px + env(safe-area-inset-bottom,0px));z-index:900;background:var(--brand);color:#fff;border:0;border-radius:28px;padding:13px 18px;font-size:15px;font-weight:800;box-shadow:0 6px 16px rgba(0,0,0,.25);cursor:pointer}
   [data-theme="courtnight"] .qc-fab{color:#111}
+  body:has(#panelBackdrop.show) .qc-fab{display:none !important;} /* v212: 하단 패널이 열려 있으면 떠 있는 버튼 숨김(패널 내용 가림 방지) */
   .qc-fab.social{bottom:calc(132px + env(safe-area-inset-bottom,0px));background:#8A5CC7;color:#fff !important;}
   .qc-quick-row{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px;}
   .qc-quick-row button{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:10px;padding:10px 6px;font-size:13px;font-weight:800;cursor:pointer;}
@@ -725,7 +726,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.211</span>
+      <span id="buildVersionTop" class="build-version-top">v.212</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
@@ -7737,18 +7738,34 @@ async function renderBallPanel(){
   const body = document.getElementById('ballPanelBody');
   if(!body) return;
   body.innerHTML = '<div class="fp-section"><div class="fp-title">🎾 테니스공 불출내역</div><div class="today-empty">불러오는 중...</div></div>';
-  let list = [];
+  // v212: 불출내역은 월 단위(1일~말일)로 표시 — ‹ › 로 이전/다음 달 이동. 미정산 개인볼은 달과 무관하게 전체 표시
+  if(!ballViewMonth) ballViewMonth = localIso(new Date()).slice(0, 7);
+  const [y, m] = ballViewMonth.split('-').map(Number);
+  const startIso = `${ballViewMonth}-01`;
+  const endIso = localIso(new Date(y, m, 0));
+  let list = [], unsettledAll = [];
   try{
-    const { data, error } = await sb.from('ignis_ball_checkouts').select('*').order('ts', { ascending: false }).limit(200);
-    if(error) throw error;
-    list = data || [];
+    const [monthRes, unsettledRes] = await Promise.all([
+      sb.from('ignis_ball_checkouts').select('*').gte('checkout_date', startIso).lte('checkout_date', endIso).order('checkout_date', { ascending: false }).order('ts', { ascending: false }).limit(1000),
+      sb.from('ignis_ball_checkouts').select('*').eq('ball_type', '개인볼').eq('settled', false).order('checkout_date', { ascending: false })
+    ]);
+    if(monthRes.error) throw monthRes.error;
+    list = monthRes.data || [];
+    unsettledAll = (unsettledRes && unsettledRes.data) || [];
   }catch(e){ console.error('공불출내역 조회 실패', e); }
-  body.innerHTML = renderBallSection(list);
+  body.innerHTML = renderBallSection(list, unsettledAll);
   wireBallSection(list);
 }
+let ballViewMonth = null;
 
-function renderBallSection(list){
+function renderBallSection(list, unsettledAll){
   list = list || [];
+  const bvm = ballViewMonth || localIso(new Date()).slice(0, 7);
+  const [bvy, bvmm] = bvm.split('-').map(Number);
+  const bvLast = new Date(bvy, bvmm, 0).getDate();
+  const isCurMonth = bvm === localIso(new Date()).slice(0, 7);
+  const monthClub = list.filter(b => b.ball_type === '클럽볼').reduce((a, b) => a + (b.count || 0), 0);
+  const monthPersonal = list.filter(b => b.ball_type === '개인볼').reduce((a, b) => a + (b.count || 0), 0);
   const admin = hasAdminPower();
   const today = localIso(new Date());
   const stock = state.data.ballStock || { '종합운동장': 0, '유니온': 0, '창고': 0 };
@@ -7808,7 +7825,14 @@ function renderBallSection(list){
         <summary style="font-weight:800;">🧾 재고 충전 히스토리 (누가·언제·몇개)</summary>
         <div style="margin-top:6px;">${refillHtml}</div>
       </details>
-      <div class="fp-progress">총 ${list.length}건 기록됨</div>
+      <div class="fp-progress" style="flex-direction:column;align-items:stretch;gap:4px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <button data-ball-month="-1" style="border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:8px;padding:4px 12px;cursor:pointer;">‹</button>
+          <b>${bvy}년 ${bvmm}월 (${bvmm}/1 ~ ${bvmm}/${bvLast})</b>
+          <button data-ball-month="1" ${isCurMonth ? 'disabled style="opacity:.3;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:8px;padding:4px 12px;"' : 'style="border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:8px;padding:4px 12px;cursor:pointer;"'}>›</button>
+        </div>
+        <div style="text-align:center;font-size:calc(12px * var(--font-scale, 1));">${list.length}건 · 클럽볼 <b>${monthClub}개</b> · 개인볼 <b>${monthPersonal}개</b></div>
+      </div>
       <div class="fp-lists show">
         <div class="fp-add-row" style="flex-direction:column;gap:6px;align-items:stretch;">
           <select id="ballNameSelect">${memberOptions}</select>
@@ -7831,11 +7855,11 @@ function renderBallSection(list){
           <button id="ballAddBtn" style="background:var(--brand);color:#fff;border:none;border-radius:8px;padding:10px;font-weight:700;cursor:pointer;">기록 추가</button>
         </div>
         <div class="fp-list-box">
-          <div class="fp-h">📋 불출 기록 (최신순)</div>
-          <div id="ballListBody">${list.length ? list.map(rowHtml).join('') : '<span class="fp-names">아직 기록이 없어요.</span>'}</div>
+          <div class="fp-h">📋 ${bvmm}월 불출 기록 (최신순)</div>
+          <div id="ballListBody">${list.length ? list.map(rowHtml).join('') : `<span class="fp-names">${bvmm}월 기록이 없어요.</span>`}</div>
         </div>
         ${(() => {
-          const unsettled = list.filter(b => b.ball_type === '개인볼' && b.settled === false);
+          const unsettled = (unsettledAll || list).filter(b => b.ball_type === '개인볼' && b.settled === false);
           if(unsettled.length === 0) return '';
           const grouped = {};
           unsettled.forEach(b => { grouped[b.member_name] = (grouped[b.member_name] || 0) + b.count; });
@@ -7862,8 +7886,10 @@ function renderBallSection(list){
 
 function computeBallMonthlyReport(list, days){
   days = days || 30;
-  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - days); cutoff.setHours(0,0,0,0);
-  const recent = list.filter(b => new Date(b.checkout_date) >= cutoff);
+  // v212: 리포트도 보고 있는 달(1일~말일) 기준 — list가 이미 그 달 기록만 담고 있음
+  const bvm = ballViewMonth || localIso(new Date()).slice(0, 7);
+  const cutoff = new Date(bvm + '-01T00:00:00');
+  const recent = list.filter(b => String(b.checkout_date).slice(0, 7) === bvm);
 
   const byLocationType = {}; // "위치|타입" -> 합계
   const byMember = {};
@@ -7897,10 +7923,10 @@ function renderBallMonthlyReport(list){
 
   body.innerHTML = `
     <div class="fp-list-box" style="border-color:var(--brand);">
-      <div class="fp-h">📊 최근 30일 재고정산 리포트 (${cutoff} ~ 오늘)</div>
+      <div class="fp-h">📊 ${parseInt(cutoff.slice(5,7),10)}월 재고정산 리포트 (${cutoff} ~ 말일)</div>
       <div style="font-size:calc(11px * var(--font-scale, 1));padding:6px 0;">
         <b>현재 재고</b> — 종합운동장 ${stock['종합운동장']??0}개(충전 ${lastRefill['종합운동장']||'-'}) · 유니온 ${stock['유니온']??0}개(충전 ${lastRefill['유니온']||'-'}) · 창고 ${stock['창고']??0}개(충전 ${lastRefill['창고']||'-'})<br><br>
-        <b>최근 30일 클럽볼 총 반출</b> — ${clubBallTotal}개<br><br>
+        <b>${parseInt(cutoff.slice(5,7),10)}월 클럽볼 총 반출</b> — ${clubBallTotal}개<br><br>
         <b>위치·종류별 반출량</b><br>${locTypeRows || '기록 없음'}<br><br>
         <b>회원별 반출 TOP10</b><br>${memberRows || '기록 없음'}<br><br>
         <b>일자별 추이</b><br>${trendRows || '기록 없음'}<br><br>
@@ -7931,6 +7957,12 @@ function downloadBallCsv(recent){
 
 function wireBallSection(list){
   list = list || [];
+  document.querySelectorAll('[data-ball-month]').forEach(b => b.onclick = () => {
+    const [y, m] = (ballViewMonth || localIso(new Date()).slice(0, 7)).split('-').map(Number);
+    const d = new Date(y, m - 1 + parseInt(b.dataset.ballMonth, 10), 1);
+    ballViewMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    renderBallPanel();
+  });
   const monthlyBtn = document.getElementById('ballMonthlyReportBtn');
   if(monthlyBtn) monthlyBtn.onclick = () => renderBallMonthlyReport(list);
   const addBtn = document.getElementById('ballAddBtn');
