@@ -1421,16 +1421,7 @@ async function loadVotesTable(sinceDay){
     const votes = {};
     allRows.forEach(row => {
       if(!votes[row.event_id]) votes[row.event_id] = {};
-      votes[row.event_id][row.member_name] = {
-        status: row.status, gender: row.gender, district: row.district,
-        hidden: !!row.hidden, type: row.vote_type || undefined,
-        ts: row.ts ? Number(row.ts) : Date.now(),
-        isInvite: !!row.is_invite, promotedFrom: row.promoted_from || null, invitedBy: row.invited_by || null, adminDemoted: !!row.admin_demoted,
-        displayName: row.display_name || null,
-        lateArrival: !!row.late_arrival, lateMinutes: row.late_minutes || null,
-        lessonTime: row.lesson_time || null,
-        autoApprovedPopupPending: !!row.auto_approved_popup_pending
-      };
+      votes[row.event_id][row.member_name] = mapVoteRow(row);
     });
     return votes;
   }catch(e){
@@ -5172,10 +5163,38 @@ async function recordAttendCancel(eventId, cancelType){
   }catch(e){ console.error('참석취소 기록 실패', e); }
 }
 
+function mapVoteRow(row){
+  return {
+    status: row.status, gender: row.gender, district: row.district,
+    hidden: !!row.hidden, type: row.vote_type || undefined,
+    ts: row.ts ? Number(row.ts) : Date.now(),
+    isInvite: !!row.is_invite, promotedFrom: row.promoted_from || null, invitedBy: row.invited_by || null, adminDemoted: !!row.admin_demoted,
+    displayName: row.display_name || null,
+    lateArrival: !!row.late_arrival, lateMinutes: row.late_minutes || null,
+    lessonTime: row.lesson_time || null,
+    autoApprovedPopupPending: !!row.auto_approved_popup_pending
+  };
+}
+// v212: 회원이 참석을 누르는 순간 그 일정의 참석현황을 서버에서 새로 받아온 뒤 정원·성별정원 판단
+// (11/5 목 20-22: 화면을 10분 넘게 새로고침 없이 두었다가 참석을 눌러, 이미 남자 7명인데 "5명"으로 보고 바로 참석됨 → 남 8명)
+async function refreshEventVotesFromServer(eventId){
+  try{
+    const { data, error } = await sb.from('ignis_votes').select('*').eq('event_id', eventId);
+    if(error) throw error;
+    const fresh = {};
+    (data || []).forEach(row => { fresh[row.member_name] = mapVoteRow(row); });
+    state.data.votes[eventId] = fresh;
+    return true;
+  }catch(e){ console.error('참석 직전 최신현황 조회 실패', e); return false; }
+}
 async function setVote(eventId, status, gender){
   if(!state.myName){ alert('먼저 로그인하거나 회원을 선택해 주세요.'); return; }
   const ev = getInstances().find(e => e.id === eventId);
   if(!ev) return;
+  if((status === 'attend' || status === 'waiting') && !hasAdminPower()){
+    const ok = await refreshEventVotesFromServer(eventId);
+    if(!ok && status === 'attend'){ alert('최신 참석현황을 확인하지 못했어요. 잠시 후 다시 눌러 주세요.'); return; }
+  }
 
   if(state.data.wholeCancelled && state.data.wholeCancelled[eventId] && !hasAdminPower() && (status === 'attend' || status === 'waiting')){
     alert(`이 일정은 코트취소되었습니다. (사유: ${state.data.wholeCancelled[eventId].reason})`);
