@@ -7757,7 +7757,7 @@ async function renderBallPanel(){
   }catch(e){ console.error('공불출내역 조회 실패', e); }
   body.innerHTML = renderBallSection(list, unsettledAll);
   wireBallSection(list);
-  if(hasAdminPower()) renderBallMissingBox(startIso, endIso);
+  renderBallMissingBox(startIso, endIso); // v212: 회원 모두 볼 수 있게(경고 아닌 미기록 표시)
 }
 async function renderBallMissingBox(startIso, endIso){
   const box = document.getElementById('ballMissingBody');
@@ -7767,14 +7767,8 @@ async function renderBallMissingBox(startIso, endIso){
     const end = endIso < t ? endIso : localIso(new Date(Date.now() - 86400000)); // 오늘 일정은 아직 진행 중이라 제외
     if(end < startIso){ box.innerHTML = '<span class="fp-names">아직 점검할 날이 없어요.</span>'; return; }
     const missing = await computeBallMissing(startIso, end);
-    const tally = {};
-    missing.forEach(mm => mm.sessions.forEach(s => s.names.forEach(n => { if(/\(게스트/.test(n)) return; tally[n] = (tally[n] || 0) + 1; })));
-    const ranked = Object.entries(tally).sort((a,b) => b[1] - a[1]);
-    const th = ballWarnThreshold(missing.length);
     box.innerHTML = missing.length
-      ? missing.map(mm => `<div class="fp-check-row" style="flex-direction:column;align-items:flex-start;"><b>${escapeHtml(ballMissingLine(mm))}</b><span style="font-size:calc(11px * var(--font-scale, 1));color:var(--ink-soft);">참석: ${escapeHtml(mm.sessions.map(s => s.names.join(', ')).join(' / '))}</span></div>`).join('') +
-        `<div class="fp-h" style="margin-top:8px;">👥 미기록 일정 참석 횟수 (빨강 = ${th}회 이상, 경고 확인 대상)</div>` +
-        ranked.map(([n,c]) => `<span style="display:inline-block;margin:2px 4px 2px 0;padding:2px 8px;border-radius:10px;border:1px solid ${c >= th ? 'var(--danger)' : 'var(--line)'};${c >= th ? 'color:var(--danger);font-weight:800;' : ''}">${escapeHtml(n)} ${c}회</span>`).join('')
+      ? `<div style="font-size:calc(11px * var(--font-scale, 1));margin-bottom:4px;">${missing.length}건</div>` + missing.map(mm => `<div class="fp-check-row" style="flex-direction:column;align-items:flex-start;"><b>${escapeHtml(ballMissingLine(mm))}</b><span style="font-size:calc(11px * var(--font-scale, 1));color:var(--ink-soft);">참석: ${escapeHtml(mm.sessions.map(s => s.names.join(', ')).join(' / '))}</span></div>`).join('')
       : '<span class="fp-names">미기록 일정이 없어요 👍</span>';
   }catch(e){ console.error(e); box.innerHTML = '<span class="fp-names">점검 실패 — 잠시 후 다시 열어주세요.</span>'; }
 }
@@ -7784,8 +7778,7 @@ let ballViewMonth = null;
 // ⚠️ 불출 기록에는 일정(시간대)이 아니라 날짜+장소만 저장되므로, 같은 날 같은 장소에 6명 이상 일정이 여러 개면
 // "기록 수 < 일정 수"일 때 그 장소 일정 전체를 '일부 미기록'으로 묶어서 표시(어느 시간대인지는 운영진 확인)
 const BALL_CHECK_MIN_ATTEND = 6;
-// 경고 확인 대상 기준: 그 달 미기록 일정의 절반 이상(최소 3회) 참석한 회원 — 10월 실데이터 기준 미기록 13건이라 고정 3회면 27명이 걸려 의미가 없었음
-function ballWarnThreshold(missingCount){ return Math.max(3, Math.ceil(missingCount / 2)); }
+// v212: 경고 조치 없이 '미기록' 표시만(회원 모두 열람)
 async function computeBallMissing(startIso, endIso){
   const evs = getEventsInDateRange(new Date(startIso + 'T00:00:00'), new Date(endIso + 'T00:00:00'))
     .filter(e => e.location === '유니온' || e.location === '종합운동장');
@@ -7838,7 +7831,7 @@ async function checkBallMissingYesterday(){
   }catch(e){ console.error('공 불출 미기록 점검 실패', e); }
   return true;
 }
-// 매월 1일 10시 이후 1회: 지난달 정리 보고서(운영진 참고용 경고 후보 포함)
+// 매월 1일 10시 이후 1회: 지난달 공 불출 정리(미기록 일정 목록 포함)
 async function checkBallMonthlyMissingReport(){
   const now = new Date();
   if(now.getDate() !== 1 || now.getHours() < 10) return false;
@@ -7861,15 +7854,12 @@ async function buildBallMonthSummary(ym){
   const club = (co || []).filter(r => r.ball_type === '클럽볼').reduce((a, r) => a + (r.count || 0), 0);
   const personal = (co || []).filter(r => r.ball_type === '개인볼').reduce((a, r) => a + (r.count || 0), 0);
   const missing = await computeBallMissing(startIso, endIso);
-  const tally = {};
-  missing.forEach(mm => mm.sessions.forEach(s => s.names.forEach(n => { if(/\(게스트/.test(n)) return; tally[n] = (tally[n] || 0) + 1; })));
-  const th = ballWarnThreshold(missing.length);
-  const warn = Object.entries(tally).filter(([,c]) => c >= th).sort((a,b) => b[1] - a[1]);
+
   const text = `📊 ${m}월 공 불출 정리 (${m}/1~${m}/${new Date(y, m, 0).getDate()})\n` +
     `• 기록 ${(co || []).length}건 · 클럽볼 ${club}개 · 개인볼 ${personal}개\n` +
-    `• 6명 이상 참석했는데 불출 미기록: ${missing.length}건` + (missing.length ? '\n' + missing.map(mm => '  - ' + ballMissingLine(mm)).join('\n') : '') +
-    (warn.length ? `\n• 경고 확인 대상(미기록 일정 ${th}회 이상 참석): ${warn.map(([n,c]) => `${n} ${c}회`).join(', ')}` : '');
-  return { text, missing, tally, warn, club, personal, count: (co || []).length };
+    `• 공 불출 미기록 일정(참석 6명 이상): ${missing.length}건` + (missing.length ? '\n' + missing.map(mm => '  - ' + ballMissingLine(mm)).join('\n') : '') +
+    '\n(공을 쓰셨다면 공불출에서 해당 날짜로 기록해 주세요)';
+  return { text, missing, club, personal, count: (co || []).length };
 }
 
 
@@ -7991,7 +7981,7 @@ function renderBallSection(list, unsettledAll){
             ${rows}
           </div>`;
         })()}
-        ${admin ? `<div class="fp-list-box" style="border-color:var(--danger);"><div class="fp-h">🔍 ${bvmm}월 불출 미기록 점검 (참석 ${BALL_CHECK_MIN_ATTEND}명 이상 일정)</div><div id="ballMissingBody"><span class="fp-names">확인 중…</span></div></div>` : ''}
+        <div class="fp-list-box" style="border-color:var(--accent);"><div class="fp-h">📝 ${bvmm}월 공 불출 미기록 (참석 ${BALL_CHECK_MIN_ATTEND}명 이상 일정)</div><div id="ballMissingBody"><span class="fp-names">확인 중…</span></div><div style="font-size:calc(10px * var(--font-scale, 1));color:var(--ink-faint);margin-top:4px;">공을 쓰셨다면 위 "기록 추가"에서 해당 날짜로 기록해 주세요.</div></div>
         ${admin ? `<button class="fp-reset-btn" id="ballMonthlyReportBtn" style="background:var(--brand-soft);color:var(--brand-dark);border-color:var(--brand);">📊 월간 재고정산 리포트 (CSV 다운로드)</button>` : ''}
         <div id="ballMonthlyReportBody"></div>
         ${admin ? `<button class="fp-reset-btn" id="ballResetAllBtn">🔄 전체 초기화</button>` : ''}
