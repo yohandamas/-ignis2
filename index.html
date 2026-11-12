@@ -742,6 +742,14 @@
   .notif-group summary::-webkit-details-marker{display:none;}
   .notif-more{display:inline-block;margin-left:6px;border-radius:10px;padding:1px 7px;font-size:calc(10px * var(--font-scale, 1));font-weight:800;background:var(--brand-soft);color:var(--brand-dark);}
   .notif-sub{font-size:calc(11px * var(--font-scale, 1));color:var(--ink-soft);padding:4px 0 4px 10px;border-left:2px solid var(--line);margin:4px 0 0 2px;}
+  .rule-box{border:1px solid var(--line);border-radius:14px;padding:12px;margin-top:10px;}
+  .rule-box.off{opacity:.75;}
+  .rule-top{display:flex;justify-content:space-between;align-items:center;gap:10px;}
+  .rule-top b{font-size:15px;}
+  .rule-sw{min-width:64px;height:36px;border-radius:18px;border:1px solid var(--line);background:var(--bg);color:var(--ink-soft);font-weight:800;cursor:pointer;}
+  .rule-sw.on{background:var(--brand);border-color:var(--brand);color:#fff;}
+  .rule-box .hint{margin-top:4px;}
+  .rule-box .qc-chips{margin-top:8px;}
   .fee-head{display:flex;align-items:center;justify-content:space-between;margin:8px 0;}
   .fee-head button{width:44px;height:40px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--ink);font-size:16px;cursor:pointer;}
   .fee-head b{font-size:16px;}
@@ -792,12 +800,13 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.214</span>
+      <span id="buildVersionTop" class="build-version-top">v.215</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
       <button id="themeSiteBtn" class="theme-btn">🎾 기본</button>
       <button id="themeLightBtn" class="theme-btn">☀️ 라이트</button>
       <button id="themeDarkBtn" class="theme-btn">🌙 다크</button>
+      <button id="rulesAdminBtn" class="theme-btn" style="display:none;">📏 운영 규칙</button>
       <button id="feeAdminBtn" class="theme-btn" style="display:none;">💰 회비</button>
       <button id="skinAdminBtn" class="theme-btn" style="display:none;">⚙️ 사이트 설정</button>
     </div>
@@ -1127,6 +1136,15 @@
       <button class="qc-cancel" id="feeSheetClose">닫기</button>
     </div>
   </div>
+  <!-- v215: 운영 규칙(운영진 전용) -->
+  <div id="rulesSheet" class="qc-dim" style="display:none;">
+    <div class="qc-sheet" role="dialog" aria-label="운영 규칙">
+      <div class="qc-grab"></div>
+      <h3>📏 운영 규칙 <span style="font-size:12px;color:var(--ink-faint);font-weight:500;">(누르면 바로 전체 적용)</span></h3>
+      <div id="rulesBody"></div>
+      <button class="qc-cancel" id="rulesSheetClose">닫기</button>
+    </div>
+  </div>
   <div id="noticePin" class="notice-pin" style="display:none;"></div>
   <div id="homeSummary" class="home-sum" style="display:none;"></div>
   <div class="calendar" id="calendar"></div>
@@ -1240,9 +1258,37 @@ function localIso(d){
 }
 function todayIso(){ return localIso(new Date()); }
 const OFF_SEASON_MONTHS = [12, 1, 2]; // 비수기(겨울) — 필요시 조정
+// ===== v215: 운영 규칙(운영진이 사이트에서 직접 설정) — siteSettings.rules. 값이 없으면 아래 기본값(=기존 동작) =====
+const RULE_DEFAULTS = { consecOn:true, consecPromote:'auto', offMonths:OFF_SEASON_MONTHS, pongOn:false, pongSkipDawn:true, pongSkipWeekend:true, pongStaffExempt:true,
+  limitOn:false, limitDays:7, limitStaffExempt:true, limitSpecialExempt:true };
+function rules(){
+  let r = null; try{ r = state.data && state.data.siteSettings && state.data.siteSettings.rules; }catch(e){}
+  return Object.assign({}, RULE_DEFAULTS, r || {});
+}
 function isPeakSeason(){
   const month = new Date().getMonth() + 1;
-  return !OFF_SEASON_MONTHS.includes(month);
+  return !(rules().offMonths || []).includes(month);
+}
+// 연속 대기 승급 시점: hour1(시작 1시간 전) | noon(당일 12시부터, 일반 대기와 같은 경로) | dayBefore(전날 12시부터). auto = 성수기 hour1 / 비수기 noon
+function consecMode(){ const m = rules().consecPromote; return m === 'auto' ? (isPeakSeason() ? 'hour1' : 'noon') : m; }
+function consecHold(ev){
+  const m = consecMode();
+  if(m === 'hour1') return true;
+  if(m === 'dayBefore') return Date.now() < new Date(ev.event_date + 'T12:00:00').getTime() - 86400000;
+  return false;
+}
+function consecPromoteHint(){ return { hour1:'시작 1시간 전에', noon:'당일 낮 12시 이후', dayBefore:'전날 낮 12시 이후' }[consecMode()]; }
+function isSpecialEv(ev){ return !!(ev && (ev.isSpecialEvent || ev.tournament)); }
+// 참석 가능 기간 제한: 막아야 하면 안내 문구, 아니면 null
+function attendLimitBlock(ev){
+  const r = rules();
+  if(!r.limitOn || hasAdminPower()) return null;
+  if(r.limitStaffExempt && state.myIsStaff) return null;
+  if(r.limitSpecialExempt && isSpecialEv(ev)) return null;
+  const days = Math.round((new Date(ev.event_date + 'T00:00:00') - new Date(todayIso() + 'T00:00:00')) / 86400000);
+  if(days <= r.limitDays) return null;
+  const open = new Date(new Date(ev.event_date + 'T00:00:00').getTime() - r.limitDays * 86400000);
+  return `이 일정은 ${open.getMonth()+1}월 ${open.getDate()}일부터 참석을 누를 수 있어요.\n(오늘부터 ${r.limitDays}일 뒤 일정까지만 참석 가능)`;
 }
 
 function getWeekRange(){
@@ -2492,14 +2538,29 @@ function eventEndMs(ev){
   return startMs + dur * 60000;
 }
 
+let lastConsecKind = null; // 'slot'(같은 날 연속 타임) | 'day'(연속 날짜·퐁당퐁당)
+function pongApplies(ev){
+  const r = rules();
+  if(!r.pongOn || isSpecialEv(ev)) return false;
+  if(r.pongStaffExempt && state.myIsStaff) return false;
+  if(r.pongSkipDawn && isDawnEvent(ev)) return false;
+  if(r.pongSkipWeekend && (ev.dow === 0 || ev.dow === 6)) return false;
+  return true;
+}
 function isConsecutiveCase(ev){
-  const sameDay = getInstances().filter(o => o.event_date === ev.event_date && o.id !== ev.id);
-  return sameDay.some(other => {
-    const isAdjacent = (other.end_time === ev.start_time) || (ev.end_time === other.start_time);
-    if(!isAdjacent) return false;
-    const v = (state.data.votes[other.id] || {})[state.myName];
-    return v && v.status === 'attend';
-  });
+  lastConsecKind = null;
+  const r = rules();
+  const mine = id => { const v = (state.data.votes[id] || {})[state.myName]; return !!(v && v.status === 'attend'); };
+  if(r.consecOn && getInstances().some(o => o.event_date === ev.event_date && o.id !== ev.id && ((o.end_time === ev.start_time) || (ev.end_time === o.start_time)) && mine(o.id))){
+    lastConsecKind = 'slot'; return true;
+  }
+  if(pongApplies(ev)){
+    const d0 = new Date(ev.event_date + 'T00:00:00'); d0.setDate(d0.getDate() - 1);
+    const near = generateInstances(state.data.templates, d0, 3, state.data.skippedDates, state.data.capacityOverrides, state.data.court3Confirmed, state.data.inviteCourts, state.data.eventOverrides, state.data.tournamentMarks);
+    const hit = near.some(o => o.event_date !== ev.event_date && !isSpecialEv(o) && !(r.pongSkipDawn && isDawnEvent(o)) && !(r.pongSkipWeekend && (o.dow === 0 || o.dow === 6)) && mine(o.id));
+    if(hit){ lastConsecKind = 'day'; return true; }
+  }
+  return false;
 }
 
 function waitingSortKey(v){
@@ -2718,7 +2779,7 @@ async function checkConsecutiveWaitingLatePromotion(){
           if(v.status !== 'waiting') return false;
           if(v.adminDemoted) return false; // v205: 운영진이 내린 회원은 승인 전 자동승급 제외(v204 규칙이 이 경로에 누락돼 있었음)
           const isLessonWaiting = v.type === 'late' && v.lessonTime; // 레슨자 대기(4인미만으로 밀린 케이스)
-          const isConsecutiveWaiting = v.type === 'late_consecutive' || (v.type === 'consecutive' && isPeakSeason());
+          const isConsecutiveWaiting = v.type === 'late_consecutive' || (v.type === 'consecutive' && consecMode() === 'hour1');
           const lateMin = Number(v.lateMinutes) || 0;
           const isLateArrivalWaiting = lateMin > 0 && (v.type === 'late' || v.type === 'late_consecutive');
           if(minutesUntil < 0){
@@ -2926,7 +2987,7 @@ async function promoteGenderFlexWaiting(ev, flexGender){
         if(!['gender_wait','regular','consecutive','late'].includes(v.type)) return false;
         if(state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender]) return false; // 관리자가 이 성별을 수동마감했으면, 이미 대기중인 사람도 자동승급 절대 금지(관리자가 이동▾으로 개별 추가하는 것만 예외)
         if(v.type === 'late_consecutive') return false; // 늦참+연참 동시는 계절 무관 항상 제외 — 시작1시간전 전용경로(checkConsecutiveWaitingLatePromotion)로만 승급
-        if(isPeakSeason() && v.type === 'consecutive') return false; // 순수 연참은 성수기에만 제외 — 시작 1시간전에 별도 승급 기회를 줌
+        if(v.type === 'consecutive' && consecHold(ev)) return false; // 순수 연참은 성수기에만 제외 — 시작 1시간전에 별도 승급 기회를 줌
         return true;
       })
       .sort((a,b) => waitingSortKey(a[1]) - waitingSortKey(b[1]));
@@ -2952,14 +3013,17 @@ async function tryAutoPromote(ev){
   const t = todayIso();
   const now = new Date();
   const isDawn = ev.start_time === '06:00' && ev.end_time === '08:00';
+  let consecOnly = false;
   if(isDawn){
     // 새벽테니스(06:00 시작)는 "당일 낮 12시"가 이미 끝난 뒤라 의미가 없어서, 전날 오후 11:50부터 체크
     const startDt = getEventDateTime(ev);
     const decisionStart = new Date(startDt.getTime() - (6 * 60 + 10) * 60 * 1000); // 시작 6시간10분 전 = 전날 23:50
     if(now < decisionStart || now >= startDt) return false;
-  } else {
-    if(ev.event_date !== t) return false;
-    if(now.getHours() < 12) return false;
+  } else if(ev.event_date !== t || now.getHours() < 12){
+    // v215: "전날 12시" 승급 모드면 전날 낮 12시~당일 낮 12시 사이엔 연속참석 대기만 먼저 승급 기회를 줌
+    const startNoonBefore = new Date(ev.event_date + 'T12:00:00').getTime() - 86400000;
+    if(consecMode() !== 'dayBefore' || now.getTime() < startNoonBefore || now >= getEventDateTime(ev)) return false;
+    consecOnly = true;
   }
   if(state.data.preClosed && state.data.preClosed[ev.id]) return false;
 
@@ -2978,10 +3042,11 @@ async function tryAutoPromote(ev){
       .filter(([,v]) => {
         if(v.status !== 'waiting') return false;
         if(['gwae_review','late_request','gwae_wait','guest_pending'].includes(v.type)) return false;
+        if(consecOnly && v.type !== 'consecutive') return false;
         if(v.adminDemoted) return false; // v204: 운영진이 임의로 대기로 내린 회원은 자동승급 대상에서 제외 — 운영진 승인후에만 승급
         if(state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender]) return false; // 관리자가 이 성별을 수동마감했으면, 이미 대기중인 사람도 자동승급 절대 금지(관리자가 이동▾으로 개별 추가하는 것만 예외)
           if(v.type === 'late_consecutive') return false; // 늦참+연참 동시는 계절 무관 항상 제외 — 시작1시간전 전용경로(checkConsecutiveWaitingLatePromotion)로만 승급
-          if(isPeakSeason() && v.type === 'consecutive') return false; // 순수 연참은 성수기에만 제외 — 시작 1시간전에 별도 승급 기회를 줌
+          if(v.type === 'consecutive' && consecHold(ev)) return false; // 순수 연참은 성수기에만 제외 — 시작 1시간전에 별도 승급 기회를 줌
         if(hasGenderCaps(ev)){
           // 성별당 상한은 코트수에 비례(quota의 절반) — 3번코트 확보시엔 상한 자체를 없애는 게 아니라 늘어난 정원만큼만 비례 확대
           const myGenderCount = v.gender === '여' ? counts.female : counts.male;
@@ -3789,7 +3854,7 @@ function renderInviteChips(entries){
 
 function renderMyWaitingNotice(myVote, counts){
   const typeMap = {
-    'consecutive': { label: '연속참석 대기', hint: '정오(낮 12시) 이후, 자리가 있으면 순서대로 자동 승급됩니다.' },
+    'consecutive': { label: '연속참석 대기', hint: `${consecPromoteHint()} 자리가 있으면 순서대로 자동 승급됩니다.` },
     'late_consecutive': { label: '늦참+연속참석 대기', hint: '시작 1시간전, 자리가 있으면 승급됩니다(가장 낮은 우선순위).' },
     'late': { label: '늦참 대기', hint: '정오(낮 12시) 이후, 자리가 있으면 순서대로 자동 승급됩니다.' },
     'gender_wait': { label: '성별 대기', hint: '전날 낮 12시 판정에서 반대 성별이 소수(3명 이하, 자체 복식 불가)로 확정되면 자동 승급됩니다.' },
@@ -5067,6 +5132,7 @@ async function checkLateArrival(eventId){
   if(!ev){ alert('일정 정보를 찾을 수 없어요.'); return; }
   if(!state.myName){ alert('먼저 이름을 선택해 주세요.'); return; }
   if(!state.myGender){ alert('성별 정보가 없어요. 관리자에게 문의해주세요.'); return; }
+  if(!(state.data.votes[eventId] || {})[state.myName]){ const limitMsg = attendLimitBlock(ev); if(limitMsg){ alert(limitMsg); return; } } // v215
 
   const choice = await showChoiceDialog('몇 분 정도 늦게 도착하실 것 같으세요?', ['5', '10', '15', '20', '25', '30', '30분 이상(직접입력)']);
   if(choice === null) return;
@@ -5275,6 +5341,10 @@ async function setVote(eventId, status, gender){
     return;
   }
 
+  if((status === 'attend' || status === 'waiting') && !(state.data.votes[eventId] || {})[state.myName]){
+    const limitMsg = attendLimitBlock(ev); if(limitMsg){ alert(limitMsg); return; }
+  }
+
   const beforeCounts = computedCounts(ev);
   if(!state.data.votes[eventId]) state.data.votes[eventId] = {};
   const votes = state.data.votes[eventId];
@@ -5406,9 +5476,9 @@ async function setVote(eventId, status, gender){
       votes[state.myName] = { status:'waiting', type:'consecutive', gender:g, district: state.myDistrict, ts: Date.now() };
       pushNotification(`${state.myName}님이 ${label} 연속참석 대기로 등록되었습니다.`);
       await saveVoteRow(eventId, state.myName, votes[state.myName]);
-      await postAiAdminComment(eventId, `${state.myName}님의 참석 시도가 대기로 자동 전환되었습니다. (사유: 같은 날 연속 세션 참석, 정오 이후 자동승급 대상)`);
+      await postAiAdminComment(eventId, `${state.myName}님의 참석 시도가 대기로 자동 전환되었습니다. (사유: ${lastConsecKind === 'day' ? '전날·다음 날 연속 참석' : '같은 날 연속 세션 참석'}, ${consecPromoteHint()} 자동승급 대상)`);
       renderEventList(); renderNotifBell();
-      alert('같은 날 연속 세션 참석은 먼저 대기로 등록됩니다. 당일 12시 이후 자리가 남으면 선착순으로 자동 참석 전환됩니다. (운영진/관리자는 이 규칙 없이 바로 참석 가능합니다)');
+      alert(`${lastConsecKind === 'day' ? '전날이나 다음 날에 이미 참석이 있어서' : '같은 날 연속 세션 참석이라'} 먼저 대기로 등록됩니다. ${consecPromoteHint()} 자리가 남으면 순서대로 자동 참석 전환됩니다.`);
       return;
     } else {
       const counts = computedCounts(ev);
@@ -5622,7 +5692,7 @@ async function promoteWaitingForCapacity(ev){
         if(v.adminDemoted) return false; // v204: 운영진이 임의로 대기로 내린 회원은 자동승급 대상에서 제외 — 운영진 승인후에만 승급
         if(state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender]) return false; // 관리자가 이 성별을 수동마감했으면, 이미 대기중인 사람도 자동승급 절대 금지(관리자가 이동▾으로 개별 추가하는 것만 예외)
         if(v.type === 'late_consecutive') return false; // 늦참+연참 동시는 계절 무관 항상 제외 — 시작1시간전 전용경로(checkConsecutiveWaitingLatePromotion)로만 승급
-        if(isPeakSeason() && v.type === 'consecutive') return false; // 순수 연참은 성수기에만 제외 — 시작 1시간전에 별도 승급 기회를 줌
+        if(v.type === 'consecutive' && consecHold(ev)) return false; // 순수 연참은 성수기에만 제외 — 시작 1시간전에 별도 승급 기회를 줌
         if(hasGenderCaps(ev)){
           // 성별당 상한은 코트수에 비례(quota의 절반) — 3번코트 확보시엔 상한 자체를 없애는 게 아니라 늘어난 정원만큼만 비례 확대
           const myGenderCount = v.gender === '여' ? counts.female : counts.male;
@@ -5818,7 +5888,7 @@ async function forcePromoteWaitingNow(ev){
         if(v.adminDemoted) return false; // v204: 운영진이 임의로 대기로 내린 회원은 자동승급 대상에서 제외 — 운영진 승인후에만 승급
         if(state.data.genderClosed && state.data.genderClosed[ev.id+'|'+v.gender]) return false; // 관리자가 이 성별을 수동마감했으면, 이미 대기중인 사람도 자동승급 절대 금지(관리자가 이동▾으로 개별 추가하는 것만 예외)
           if(v.type === 'late_consecutive') return false; // 늦참+연참 동시는 계절 무관 항상 제외 — 시작1시간전 전용경로(checkConsecutiveWaitingLatePromotion)로만 승급 (관리자 수동실행도 이 규칙은 동일 적용해 다른 자동경로와 일관성 유지)
-        if(isPeakSeason() && v.type === 'consecutive') return false; // 순수 연참은 성수기에만 제외
+        if(v.type === 'consecutive' && consecHold(ev)) return false; // 순수 연참은 성수기에만 제외
         if(hasGenderCaps(ev)){
           // 성별당 상한은 코트수에 비례(quota의 절반) — 3번코트 확보시엔 상한 자체를 없애는 게 아니라 늘어난 정원만큼만 비례 확대
           const myGenderCount = v.gender === '여' ? counts.female : counts.male;
@@ -6245,6 +6315,8 @@ function syncAdminUI(){
   document.getElementById('addSocialForm').style.display = on ? 'block' : 'none';
   document.getElementById('skinAdminBtn').style.display = on ? 'inline-block' : 'none'; // v209: 스킨은 운영진만
   document.getElementById('feeAdminBtn').style.display = on ? 'inline-block' : 'none'; // v214: 회비 현황은 운영진만
+  document.getElementById('rulesAdminBtn').style.display = on ? 'inline-block' : 'none'; // v215
+  if(!on) document.getElementById('rulesSheet').style.display = 'none';
   if(!on) document.getElementById('feeSheet').style.display = 'none';
   if(on) renderSocialAdminList();
   document.getElementById('templateList').style.display = on ? 'block' : 'none';
@@ -8811,8 +8883,10 @@ function renderHomeSummary(){
   const up = myUpcomingAttend()[0];
   const mine = up ? `<div class="hs-mine" data-hs-mine>🙋 내 다음 참석: <b>${mdLabel(up.ev.event_date)} ${escapeHtml(upLabel(up))}</b>${up.status === 'waiting' ? ' (대기)' : ''} ›</div>`
                   : `<div class="hs-mine" data-hs-mine>🙋 예정된 참석이 없어요. 일정을 골라 참석을 눌러 보세요 ›</div>`;
+  const rl = activeRuleLabels();
+  const ruleLine = rl.length ? `<div class="hs-mine" style="cursor:default;">📏 적용 중: ${rl.map(escapeHtml).join(' · ')}</div>` : '';
   el.style.display = 'block';
-  el.innerHTML = `<h4>오늘 ${mdLabel(t)} 한눈에</h4>` + (rows || `<div class="hs-row" style="cursor:default;color:var(--ink-soft);">오늘 남은 일정이 없어요.</div>`) + mine;
+  el.innerHTML = `<h4>오늘 ${mdLabel(t)} 한눈에</h4>` + (rows || `<div class="hs-row" style="cursor:default;color:var(--ink-soft);">오늘 남은 일정이 없어요.</div>`) + mine + ruleLine;
   el.querySelectorAll('[data-hs-date]').forEach(r => r.onclick = () => goToDate(r.dataset.hsDate));
   const m = el.querySelector('[data-hs-mine]');
   if(m) m.onclick = () => { openPanel('rankModal'); showStatusPane('mine'); };
@@ -8892,6 +8966,78 @@ function renderFeeSheet(){
 }
 document.getElementById('feeAdminBtn').onclick = () => { if(!hasAdminPower()) return; renderFeeSheet(); document.getElementById('feeSheet').style.display = 'flex'; };
 document.getElementById('feeSheetClose').onclick = () => { document.getElementById('feeSheet').style.display = 'none'; };
+
+// ===== v215: 운영 규칙 시트 =====
+function activeRuleLabels(){
+  const r = rules(), out = [];
+  if(r.limitOn) out.push(`${r.limitDays}일 뒤 일정까지만 참석 가능`);
+  if(r.pongOn) out.push('연속 날짜 참석은 대기');
+  if(!r.consecOn) out.push('같은 날 연속 타임 바로 참석 가능');
+  return out;
+}
+async function saveRules(patch){
+  if(!hasAdminPower()) return;
+  if(!state.data.siteSettings) state.data.siteSettings = {};
+  const cur = state.data.siteSettings.rules || {};
+  state.data.siteSettings.rules = Object.assign({}, cur, patch, { updatedBy: state.myName || '운영진', updatedAt: Date.now() });
+  markDirty('siteSettings', 'rules');
+  renderRulesSheet(); renderAll();
+  const ok = await saveData();
+  if(!ok) alert('저장에 실패했습니다. 다시 시도해 주세요.');
+}
+function renderRulesSheet(){
+  const body = document.getElementById('rulesBody'); if(!body) return;
+  if(!hasAdminPower()){ body.innerHTML = ''; return; }
+  const r = rules();
+  const sw = (key, on) => `<button class="rule-sw${on ? ' on' : ''}" data-rule-sw="${key}">${on ? '켜짐' : '꺼짐'}</button>`;
+  const chip = (key, on, label) => `<span class="qc-chip${on ? ' on' : ''}" data-rule-flag="${key}">${label}</span>`;
+  const modes = [['auto','계절 자동'],['hour1','시작 1시간 전'],['noon','당일 12시'],['dayBefore','전날 12시']];
+  const dayOpts = [3,5,7,10,14];
+  const stored = (state.data.siteSettings && state.data.siteSettings.rules) || {};
+  body.innerHTML = `
+    <div class="hint" style="margin-top:6px;">회칙이 바뀌면 여기서 켜고 끄면 돼요. 이미 눌러 둔 참석은 그대로 두고, 바꾼 뒤 새로 누르는 참석부터 적용돼요.${stored.updatedAt ? `<br>마지막 변경: ${escapeHtml(stored.updatedBy || '')} · ${new Date(stored.updatedAt).toLocaleString('ko-KR')}` : ''}</div>
+    <div class="rule-box${r.consecOn ? '' : ' off'}">
+      <div class="rule-top"><b>① 같은 날 연속 타임은 대기</b>${sw('consecOn', r.consecOn)}</div>
+      <div class="hint">켜짐: 바로 앞·뒤 타임에 참석 중이면 대기로 등록(기존 규칙). 꺼짐: 4시간 연속도 바로 참석.</div>
+    </div>
+    <div class="rule-box${r.pongOn ? '' : ' off'}">
+      <div class="rule-top"><b>② 연속 날짜는 대기 (퐁당퐁당)</b>${sw('pongOn', r.pongOn)}</div>
+      <div class="hint">켜짐: 전날이나 다음 날에 참석이 있으면 연속참석 대기로 등록되고, 자리가 남으면 승급돼요.</div>
+      <div class="qc-chips">${chip('pongSkipDawn', r.pongSkipDawn, '새벽 코트 제외')}${chip('pongSkipWeekend', r.pongSkipWeekend, '주말 제외')}${chip('pongStaffExempt', r.pongStaffExempt, '운영진 예외')}</div>
+    </div>
+    <div class="rule-box">
+      <div class="rule-top"><b>③ 연속 대기 승급 시점</b></div>
+      <div class="hint">①·② 대기자에게 똑같이 적용돼요. 지금 적용: <b>${consecPromoteHint()}</b></div>
+      <div class="qc-chips">${modes.map(([k,l]) => `<span class="qc-chip${r.consecPromote === k ? ' on' : ''}" data-rule-mode="${k}">${l}</span>`).join('')}</div>
+      <div class="hint" style="margin-top:8px;">계절 자동 = 비수기 달은 당일 12시, 나머지 달은 시작 1시간 전. 비수기 달:</div>
+      <div class="qc-chips">${[1,2,3,4,5,6,7,8,9,10,11,12].map(m => `<span class="qc-chip${(r.offMonths || []).includes(m) ? ' on' : ''}" data-rule-month="${m}" style="padding:6px 10px;">${m}월</span>`).join('')}</div>
+    </div>
+    <div class="rule-box${r.limitOn ? '' : ' off'}">
+      <div class="rule-top"><b>④ 참석 가능 기간 제한</b>${sw('limitOn', r.limitOn)}</div>
+      <div class="hint">켜짐: 오늘부터 <b>${r.limitDays}일</b> 뒤 일정까지만 참석을 누를 수 있어요. 모임·행사 일정은 해당 없어요.</div>
+      <div class="qc-chips">${dayOpts.map(d => `<span class="qc-chip${r.limitDays === d ? ' on' : ''}" data-rule-days="${d}">${d}일</span>`).join('')}<span class="qc-chip${dayOpts.includes(r.limitDays) ? '' : ' on'}" data-rule-days="custom">직접 입력${dayOpts.includes(r.limitDays) ? '' : ` (${r.limitDays}일)`}</span></div>
+      <div class="qc-chips">${chip('limitStaffExempt', r.limitStaffExempt, '운영진 예외')}${chip('limitSpecialExempt', r.limitSpecialExempt, '특수이벤트 예외')}</div>
+    </div>
+    <button class="qc-go" id="rulesWinterBtn" style="background:var(--panel);color:var(--ink);border:1px solid var(--line);">❄️ 겨울 탄력 운영 (①·② 모두 끄기)</button>
+    <button class="qc-go" id="rulesResetBtn" style="background:var(--panel);color:var(--ink-soft);border:1px solid var(--line);margin-top:8px;">↩️ 기본값으로 되돌리기</button>`;
+  body.querySelectorAll('[data-rule-sw]').forEach(b => b.onclick = () => saveRules({ [b.dataset.ruleSw]: !rules()[b.dataset.ruleSw] }));
+  body.querySelectorAll('[data-rule-flag]').forEach(b => b.onclick = () => saveRules({ [b.dataset.ruleFlag]: !rules()[b.dataset.ruleFlag] }));
+  body.querySelectorAll('[data-rule-mode]').forEach(b => b.onclick = () => saveRules({ consecPromote: b.dataset.ruleMode }));
+  body.querySelectorAll('[data-rule-month]').forEach(b => b.onclick = () => {
+    const m = Number(b.dataset.ruleMonth), cur = (rules().offMonths || []).slice();
+    saveRules({ offMonths: cur.includes(m) ? cur.filter(x => x !== m) : cur.concat([m]).sort((a,c) => a - c) });
+  });
+  body.querySelectorAll('[data-rule-days]').forEach(b => b.onclick = () => {
+    let d = b.dataset.ruleDays;
+    if(d === 'custom'){ const v = prompt('오늘부터 며칠 뒤 일정까지 참석을 누를 수 있게 할까요? (1~60)', String(rules().limitDays)); if(v === null) return; d = v; }
+    d = parseInt(d, 10); if(!d || d < 1 || d > 60){ alert('1~60 사이 숫자를 입력해 주세요.'); return; }
+    saveRules({ limitDays: d });
+  });
+  document.getElementById('rulesWinterBtn').onclick = () => { if(confirm('같은 날 연속 타임 대기와 연속 날짜 대기를 모두 끌까요?\n(연속으로 바로 참석할 수 있게 돼요)')) saveRules({ consecOn:false, pongOn:false }); };
+  document.getElementById('rulesResetBtn').onclick = () => { if(confirm('운영 규칙을 기본값(기존 운영 방식)으로 되돌릴까요?')) saveRules(Object.assign({}, RULE_DEFAULTS)); };
+}
+document.getElementById('rulesAdminBtn').onclick = () => { if(!hasAdminPower()) return; renderRulesSheet(); document.getElementById('rulesSheet').style.display = 'flex'; };
+document.getElementById('rulesSheetClose').onclick = () => { document.getElementById('rulesSheet').style.display = 'none'; };
 
 // ===== v213: 사이트 입장 잠금(공용 비밀번호) =====
 // siteSettings.gateHash = SHA-256(GATE_SALT + 비밀번호). 맞게 입력한 기기는 localStorage 'ignis-gate-ok'에 그 해시를 저장 →

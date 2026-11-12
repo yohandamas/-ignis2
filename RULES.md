@@ -2485,3 +2485,13 @@ v182에서 "처음불참/대기→불참" 전부 포함하도록 넓혔는데, "
 | 알림 묶음 | groupNotifications — eventId + (맨 앞 "○○님"만 지운 본문)이 같은 알림을 details 한 줄로. 화면 표시만, DB 그대로 |
 | 공지 고정 | siteSettings.notice = {text, ts, by} (null = 내림). ⚙️ 사이트 설정에서 저장 |
 | 회비 현황 | 운영진 전용 💰 회비 시트. feeStatus['YYYY-MM|이름'] = 'paid'/'exempt'(없으면 미납), MERGE_MAP_FIELDS에 추가. ⚠️ 화면에서만 운영진 전용 — 데이터는 공개 blob에 있어 RLS 전까지 서버 차단 아님 |
+
+## v215. 운영 규칙을 관리자 모드에서 설정 (📏 운영 규칙 시트) — wip
+| 항목 | 내용 |
+|---|---|
+| 저장 | siteSettings.rules (없으면 RULE_DEFAULTS = 기존 동작). rules()로 읽음. 누르면 즉시 저장·전체 적용, 이미 눌러 둔 참석은 그대로 |
+| ① 같은 날 연속 타임 대기 | consecOn (기본 켜짐). 끄면 isConsecutiveCase가 같은 날 인접 타임을 무시 → 4시간 연속 바로 참석 |
+| ② 연속 날짜 대기(퐁당퐁당) | pongOn (기본 꺼짐 — 12월 총회 후 적용 예정). 전날·다음 날 참석이 있으면 type 'consecutive' 대기. 옵션 pongSkipDawn / pongSkipWeekend / pongStaffExempt (기본 모두 켜짐), 특수이벤트는 항상 제외 |
+| ③ 승급 시점 | consecPromote: auto(성수기 hour1 / 비수기 noon) · hour1 · noon · dayBefore. consecHold(ev)가 일반 승급 경로 4곳에서 연속 대기를 보류, dayBefore는 tryAutoPromote가 전날 12시~당일 12시에 연속 대기만 승급(consecOnly). 비수기 달 offMonths도 설정 가능 |
+| ④ 참석 가능 기간 제한 | limitOn (기본 꺼짐), limitDays(기본 7), limitStaffExempt, limitSpecialExempt. attendLimitBlock(ev)를 setVote·checkLateArrival에서 새 참석만 차단. 모임·행사는 해당 없음 |
+| 기타 | ❄️ 겨울 탄력 운영 = ①·② 끄기. 홈 요약에 적용 중인 규칙 한 줄 표시 |
