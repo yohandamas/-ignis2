@@ -744,6 +744,10 @@
   .notif-sub{font-size:calc(11px * var(--font-scale, 1));color:var(--ink-soft);padding:4px 0 4px 10px;border-left:2px solid var(--line);margin:4px 0 0 2px;}
   .rule-box{border:1px solid var(--line);border-radius:14px;padding:12px;margin-top:10px;}
   .rule-box.off{opacity:.75;}
+  .rule-box.new{border-color:var(--danger);}
+  .rule-box select,.rule-box input[type=text]{width:100%;box-sizing:border-box;height:42px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:0 10px;font-size:14px;margin-top:8px;}
+  .pen-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-top:1px solid var(--line);font-size:13px;}
+  .pen-row button{height:34px;border-radius:17px;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:0 12px;font-weight:800;cursor:pointer;flex-shrink:0;}
   .rule-top{display:flex;justify-content:space-between;align-items:center;gap:10px;}
   .rule-top b{font-size:15px;}
   .rule-sw{min-width:64px;height:36px;border-radius:18px;border:1px solid var(--line);background:var(--bg);color:var(--ink-soft);font-weight:800;cursor:pointer;}
@@ -800,7 +804,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.215</span>
+      <span id="buildVersionTop" class="build-version-top">v.216</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
       <button id="themeSiteBtn" class="theme-btn">🎾 기본</button>
@@ -5132,6 +5136,7 @@ async function checkLateArrival(eventId){
   if(!ev){ alert('일정 정보를 찾을 수 없어요.'); return; }
   if(!state.myName){ alert('먼저 이름을 선택해 주세요.'); return; }
   if(!state.myGender){ alert('성별 정보가 없어요. 관리자에게 문의해주세요.'); return; }
+  if(!hasAdminPower()){ const penMsg = await myPenaltyBlock(); if(penMsg){ alert(penMsg); return; } } // v216
   if(!(state.data.votes[eventId] || {})[state.myName]){ const limitMsg = attendLimitBlock(ev); if(limitMsg){ alert(limitMsg); return; } } // v215
 
   const choice = await showChoiceDialog('몇 분 정도 늦게 도착하실 것 같으세요?', ['5', '10', '15', '20', '25', '30', '30분 이상(직접입력)']);
@@ -5341,6 +5346,9 @@ async function setVote(eventId, status, gender){
     return;
   }
 
+  if((status === 'attend' || status === 'waiting') && !hasAdminPower()){
+    const penMsg = await myPenaltyBlock(); if(penMsg){ alert(penMsg); return; }
+  }
   if((status === 'attend' || status === 'waiting') && !(state.data.votes[eventId] || {})[state.myName]){
     const limitMsg = attendLimitBlock(ev); if(limitMsg){ alert(limitMsg); return; }
   }
@@ -8967,6 +8975,73 @@ function renderFeeSheet(){
 document.getElementById('feeAdminBtn').onclick = () => { if(!hasAdminPower()) return; renderFeeSheet(); document.getElementById('feeSheet').style.display = 'flex'; };
 document.getElementById('feeSheetClose').onclick = () => { document.getElementById('feeSheet').style.display = 'none'; };
 
+// ===== v216: 참석 제한(운영진이 회원에게 3·7·14·30일 부여) — ignis_penalties 테이블 =====
+const PENALTY_DAYS = [3, 7, 14, 30];
+let penForm = { name: '', days: 7, reason: '' };
+function activePenalties(){ return Object.entries(state.data.penalties || {}).filter(([,p]) => p && p.until > Date.now()).sort((a,b) => a[1].until - b[1].until); }
+function penUntilLabel(ts){ const d = new Date(ts); return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; }
+// 본인 참석 제한 확인 — 누르는 순간 서버에서 다시 읽고, 실패하면 화면에 있던 값으로 판단
+async function myPenaltyBlock(){
+  let p = state.data.penalties && state.data.penalties[state.myName];
+  try{
+    const { data, error } = await sb.from('ignis_penalties').select('*').eq('member_name', state.myName).gt('until', Date.now()).order('until', { ascending: false }).limit(1);
+    if(!error){
+      p = (data && data[0]) ? { until: Number(data[0].until), reason: data[0].reason || '사유 미입력' } : null;
+      if(!state.data.penalties) state.data.penalties = {};
+      if(p) state.data.penalties[state.myName] = Object.assign({}, state.data.penalties[state.myName] || {}, p); else delete state.data.penalties[state.myName];
+    }
+  }catch(e){ console.error('참석 제한 확인 실패', e); }
+  if(!p || p.until <= Date.now()) return null;
+  return `🚫 지금은 참석 제한 기간이에요.\n\n사유: ${p.reason}\n해제: ${penUntilLabel(p.until)}\n\n문의는 운영진에게 해 주세요.`;
+}
+function renderPenaltyBoxHtml(){
+  const act = activePenalties();
+  const members = getActiveMembers().filter(m => !m.is_staff && !/^관리자/.test(m.name)).sort((a,b) => a.name.localeCompare(b.name, 'ko'));
+  return `<div class="rule-box new">
+      <div class="rule-top"><b>🚫 회원 참석 제한 <span class="hs-tag warn">신설</span></b><span class="hs-tag ${act.length ? 'warn' : 'mute'}">적용 중 ${act.length}명</span></div>
+      <div class="hint">기간 동안 새로 참석·대기를 누를 수 없어요. 이미 눌러 둔 참석은 그대로 두니, 필요하면 카드에서 따로 정리해 주세요. 알림은 본인에게만 가요.</div>
+      <select id="penName"><option value="">회원 선택</option>${members.map(m => `<option value="${escapeHtml(m.name)}"${penForm.name === m.name ? ' selected' : ''}>${escapeHtml(m.name)}</option>`).join('')}</select>
+      <div class="qc-chips">${PENALTY_DAYS.map(d => `<span class="qc-chip${penForm.days === d ? ' on' : ''}" data-pen-days="${d}">${d}일</span>`).join('')}</div>
+      <input type="text" id="penReason" maxlength="60" placeholder="사유 (예: 잦은 당일취소, 무단불참)" value="${escapeHtml(penForm.reason)}">
+      <button class="qc-go" id="penGiveBtn" style="margin-top:8px;">참석 제한 부여</button>
+      ${act.map(([name, p]) => `<div class="pen-row"><span><b>${escapeHtml(name)}</b> · ${p.days ? p.days + '일 · ' : ''}${penUntilLabel(p.until)}까지<br><span style="color:var(--ink-soft);">${escapeHtml(p.reason || '')}${p.imposedBy ? ' · ' + escapeHtml(p.imposedBy) : ''}</span></span><button data-pen-lift="${escapeHtml(name)}">해제</button></div>`).join('')}
+    </div>`;
+}
+function wirePenaltyBox(body){
+  const keep = () => { penForm.name = document.getElementById('penName').value; penForm.reason = document.getElementById('penReason').value; };
+  body.querySelectorAll('[data-pen-days]').forEach(c => c.onclick = () => { keep(); penForm.days = Number(c.dataset.penDays); renderRulesSheet(); });
+  document.getElementById('penGiveBtn').onclick = async () => {
+    if(!hasAdminPower()) return;
+    keep();
+    const name = penForm.name, days = penForm.days, reason = penForm.reason.trim() || '사유 미입력';
+    if(!name){ alert('회원을 선택해 주세요.'); return; }
+    if(!confirm(`"${name}"님에게 ${days}일 참석 제한을 부여할까요?\n사유: ${reason}`)) return;
+    const now = Date.now(), until = now + days * 86400000;
+    const id = 'p' + now.toString(36) + Math.random().toString(36).slice(2,6);
+    try{
+      const { error } = await sb.from('ignis_penalties').insert({ id, member_name: name, until, reason, days, imposed_by: state.myName, imposed_at: now });
+      if(error) throw error;
+    }catch(e){ console.error('참석 제한 저장 실패', e); alert('저장에 실패했습니다. 다시 시도해 주세요.'); return; }
+    if(!state.data.penalties) state.data.penalties = {};
+    state.data.penalties[name] = { id, until, reason, days, imposedBy: state.myName, imposedAt: now };
+    pushNotification(`🚫 ${name}님, 운영진이 ${days}일 참석 제한을 부여했습니다. (사유: ${reason} · ${penUntilLabel(until)}까지)`, { actor: name, category:'warning' });
+    penForm = { name: '', days: 7, reason: '' };
+    renderRulesSheet(); renderNotifBell();
+  };
+  body.querySelectorAll('[data-pen-lift]').forEach(b => b.onclick = async () => {
+    if(!hasAdminPower()) return;
+    const name = b.dataset.penLift;
+    if(!confirm(`"${name}"님의 참석 제한을 지금 해제할까요?`)) return;
+    try{
+      const { error } = await sb.from('ignis_penalties').delete().eq('member_name', name).gt('until', Date.now());
+      if(error) throw error;
+    }catch(e){ console.error('참석 제한 해제 실패', e); alert('저장에 실패했습니다. 다시 시도해 주세요.'); return; }
+    if(state.data.penalties) delete state.data.penalties[name];
+    pushNotification(`✅ ${name}님의 참석 제한이 해제되었습니다.`, { actor: name, category:'warning' });
+    renderRulesSheet(); renderNotifBell();
+  });
+}
+
 // ===== v215: 운영 규칙 시트 =====
 function activeRuleLabels(){
   const r = rules(), out = [];
@@ -8996,6 +9071,7 @@ function renderRulesSheet(){
   const stored = (state.data.siteSettings && state.data.siteSettings.rules) || {};
   body.innerHTML = `
     <div class="hint" style="margin-top:6px;">회칙이 바뀌면 여기서 켜고 끄면 돼요. 이미 눌러 둔 참석은 그대로 두고, 바꾼 뒤 새로 누르는 참석부터 적용돼요.${stored.updatedAt ? `<br>마지막 변경: ${escapeHtml(stored.updatedBy || '')} · ${new Date(stored.updatedAt).toLocaleString('ko-KR')}` : ''}</div>
+    ${renderPenaltyBoxHtml()}
     <div class="rule-box${r.consecOn ? '' : ' off'}">
       <div class="rule-top"><b>① 같은 날 연속 타임은 대기</b>${sw('consecOn', r.consecOn)}</div>
       <div class="hint">켜짐: 바로 앞·뒤 타임에 참석 중이면 대기로 등록(기존 규칙). 꺼짐: 4시간 연속도 바로 참석.</div>
@@ -9020,6 +9096,7 @@ function renderRulesSheet(){
     </div>
     <button class="qc-go" id="rulesWinterBtn" style="background:var(--panel);color:var(--ink);border:1px solid var(--line);">❄️ 겨울 탄력 운영 (①·② 모두 끄기)</button>
     <button class="qc-go" id="rulesResetBtn" style="background:var(--panel);color:var(--ink-soft);border:1px solid var(--line);margin-top:8px;">↩️ 기본값으로 되돌리기</button>`;
+  wirePenaltyBox(body);
   body.querySelectorAll('[data-rule-sw]').forEach(b => b.onclick = () => saveRules({ [b.dataset.ruleSw]: !rules()[b.dataset.ruleSw] }));
   body.querySelectorAll('[data-rule-flag]').forEach(b => b.onclick = () => saveRules({ [b.dataset.ruleFlag]: !rules()[b.dataset.ruleFlag] }));
   body.querySelectorAll('[data-rule-mode]').forEach(b => b.onclick = () => saveRules({ consecPromote: b.dataset.ruleMode }));
@@ -9036,7 +9113,7 @@ function renderRulesSheet(){
   document.getElementById('rulesWinterBtn').onclick = () => { if(confirm('같은 날 연속 타임 대기와 연속 날짜 대기를 모두 끌까요?\n(연속으로 바로 참석할 수 있게 돼요)')) saveRules({ consecOn:false, pongOn:false }); };
   document.getElementById('rulesResetBtn').onclick = () => { if(confirm('운영 규칙을 기본값(기존 운영 방식)으로 되돌릴까요?')) saveRules(Object.assign({}, RULE_DEFAULTS)); };
 }
-document.getElementById('rulesAdminBtn').onclick = () => { if(!hasAdminPower()) return; renderRulesSheet(); document.getElementById('rulesSheet').style.display = 'flex'; };
+document.getElementById('rulesAdminBtn').onclick = () => { if(!hasAdminPower()) return; refreshWarningDataFromServer().then(ok => { if(ok && document.getElementById('rulesSheet').style.display === 'flex') renderRulesSheet(); }); renderRulesSheet(); document.getElementById('rulesSheet').style.display = 'flex'; };
 document.getElementById('rulesSheetClose').onclick = () => { document.getElementById('rulesSheet').style.display = 'none'; };
 
 // ===== v213: 사이트 입장 잠금(공용 비밀번호) =====

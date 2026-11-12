@@ -2495,3 +2495,11 @@ v182에서 "처음불참/대기→불참" 전부 포함하도록 넓혔는데, "
 | ③ 승급 시점 | consecPromote: auto(성수기 hour1 / 비수기 noon) · hour1 · noon · dayBefore. consecHold(ev)가 일반 승급 경로 4곳에서 연속 대기를 보류, dayBefore는 tryAutoPromote가 전날 12시~당일 12시에 연속 대기만 승급(consecOnly). 비수기 달 offMonths도 설정 가능 |
 | ④ 참석 가능 기간 제한 | limitOn (기본 꺼짐), limitDays(기본 7), limitStaffExempt, limitSpecialExempt. attendLimitBlock(ev)를 setVote·checkLateArrival에서 새 참석만 차단. 모임·행사는 해당 없음 |
 | 기타 | ❄️ 겨울 탄력 운영 = ①·② 끄기. 홈 요약에 적용 중인 규칙 한 줄 표시 |
+
+## v216. 회원 참석 제한(3·7·14·30일) — 📏 운영 규칙 맨 위 — wip
+| 항목 | 내용 |
+|---|---|
+| 부여/해제 | 운영 규칙 시트 맨 위 상자. 회원 선택 + 기간 칩 + 사유 → ignis_penalties insert(id, member_name, until, reason, days, imposed_by, imposed_at). 해제 = 해당 회원의 진행 중 행 delete. 운영진·관리용 계정은 대상 목록에서 제외 |
+| 차단 | myPenaltyBlock() — setVote·checkLateArrival에서 참석/대기를 누르는 순간 서버 재조회(실패 시 캐시). 이미 눌러 둔 참석은 건드리지 않음 |
+| 알림 | category 'warning' + actor=대상 회원 → 본인과 운영진에게만 보임 |
+| 일정 | 보안 강화: 11/27~11/30 진행 예정 — 1단계 운영진 영역(설정·회비·회원 비밀번호·경고/참석 제한) → 안정화 확인 후 2단계 회원 영역 |
