@@ -708,12 +708,45 @@
   .qc-mode button{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:10px;padding:9px;font-size:14px;font-weight:800;cursor:pointer;}
   .qc-mode button.on{border-color:var(--brand);background:var(--brand-soft);color:var(--brand-dark);}
   .qc-text{width:100%;box-sizing:border-box;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);font-size:14px;}
+  /* v213: 사이트 입장 잠금(공용 비밀번호) — 잠긴 동안 본문 전체 숨김 */
+  html.gate-locked .wrap, html.gate-locked .bottom-nav, html.gate-locked .qc-fab, html.gate-locked #seasonFx{display:none !important;}
+  #siteGate{display:none;position:fixed;inset:0;z-index:5000;background:var(--bg);color:var(--ink);align-items:center;justify-content:center;padding:24px;}
+  html.gate-locked #siteGate{display:flex;}
+  .gate-box{width:100%;max-width:340px;text-align:center;}
+  .gate-box img{width:84px;height:84px;border-radius:22px;}
+  .gate-box h2{margin:14px 0 4px;font-size:20px;}
+  .gate-box p{margin:0 0 16px;font-size:13px;color:var(--ink-soft);line-height:1.5;}
+  .gate-box input{width:100%;box-sizing:border-box;height:48px;border-radius:12px;border:1px solid var(--line);background:var(--panel);color:var(--ink);font-size:16px;text-align:center;letter-spacing:2px;}
+  .gate-box button{width:100%;height:48px;margin-top:10px;border:0;border-radius:12px;background:var(--brand);color:#fff;font-size:16px;font-weight:800;cursor:pointer;}
+  [data-theme="courtnight"] .gate-box button{color:#111;}
+  .gate-err{min-height:18px;margin-top:10px;font-size:12px;color:var(--danger);}
+  .gate-admin{margin-top:14px;padding-top:12px;border-top:1px dashed var(--line);text-align:left;}
+  .gate-admin .row{display:flex;gap:6px;margin-top:6px;}
+  .gate-admin input{flex:1;min-width:0;height:42px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:0 10px;font-size:14px;}
+  .gate-admin button{height:42px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:0 12px;font-weight:800;cursor:pointer;}
 </style>
 </head>
 
 
 
 <body>
+<div id="siteGate">
+  <div class="gate-box">
+    <img src="https://ignisapp-zeta.vercel.app/pwa/icon-192.png" alt="이그니스">
+    <h2>이그니스 테니스 클럽</h2>
+    <p id="gateMsg">회원 전용 페이지입니다.<br>확인 중…</p>
+    <div id="gateForm" style="display:none;">
+      <input type="password" id="gateInput" placeholder="공용 비밀번호" autocomplete="off">
+      <button id="gateBtn">입장</button>
+      <div class="gate-err" id="gateErr"></div>
+    </div>
+  </div>
+</div>
+<script>
+  // v213: 이 기기에서 입장 확인을 한 번도 안 했으면 데이터가 올 때까지 본문을 숨김(외부인에게 일정이 잠깐 보이는 것 방지)
+  try{ if(!localStorage.getItem('ignis-gate-ok')) document.documentElement.classList.add('gate-locked'); }catch(e){ document.documentElement.classList.add('gate-locked'); }
+  setTimeout(function(){ var m = document.getElementById('gateMsg'), f = document.getElementById('gateForm'); if(m && f && f.style.display !== 'block' && document.documentElement.classList.contains('gate-locked')) m.innerHTML = '회원 전용 페이지입니다.<br>연결이 느려요. 잠시 후 새로고침해 주세요.'; }, 12000);
+</script>
 <div class="wrap">
   <script>
     try{
@@ -726,14 +759,14 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.212</span>
+      <span id="buildVersionTop" class="build-version-top">v.213</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="chooseTitleBtn" class="theme-btn" style="display:none;">🏅 칭호 선택</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
       <button id="themeSiteBtn" class="theme-btn">🎾 기본</button>
       <button id="themeLightBtn" class="theme-btn">☀️ 라이트</button>
       <button id="themeDarkBtn" class="theme-btn">🌙 다크</button>
-      <button id="skinAdminBtn" class="theme-btn" style="display:none;">🎨 스킨</button>
+      <button id="skinAdminBtn" class="theme-btn" style="display:none;">⚙️ 사이트 설정</button>
     </div>
   </div>
   <canvas id="seasonFx" style="display:none;" aria-hidden="true"></canvas>
@@ -1036,10 +1069,18 @@
   <div id="skinSheet" class="qc-dim" style="display:none;">
     <div class="qc-sheet" role="dialog" aria-label="사이트 스킨">
       <div class="qc-grab"></div>
-      <h3>🎨 사이트 스킨 <span style="font-size:12px;color:var(--ink-faint);font-weight:500;">(전체 회원에게 적용)</span></h3>
+      <h3>⚙️ 사이트 설정 <span style="font-size:12px;color:var(--ink-faint);font-weight:500;">(전체 회원에게 적용)</span></h3>
+      <div class="qc-lbl">스킨</div>
       <div class="qc-chips" id="skinChips" style="margin-top:10px;"></div>
       <div class="hint" style="margin-top:8px;">자동 = 12월 연말 · 12/23~25 크리스마스 · 그 외 코트나이트. 회원은 라이트/다크만 개인 선택할 수 있어요.</div>
       <button class="qc-go" id="simpleSkinBtn" style="background:var(--panel);color:var(--ink);border:1px solid var(--line);">🎨 심플 화면 열기</button>
+      <div class="gate-admin">
+        <b>🔒 사이트 공용 비밀번호</b>
+        <div class="hint" id="gateAdminStatus" style="margin-top:4px;"></div>
+        <div class="row"><input type="text" id="gateNewInput" placeholder="새 공용 비밀번호 (4자 이상)" autocomplete="off"><button id="gateSaveBtn">저장</button></div>
+        <div class="row"><button id="gateClearBtn" style="flex:1;color:var(--danger);border-color:var(--danger);">잠금 해제 (비밀번호 없이 입장)</button></div>
+        <div class="hint" style="margin-top:6px;">저장하면 바로 적용돼요. 회원들은 다음 접속 때(열어둔 화면은 1분 안에) 새 비밀번호를 한 번 입력해야 해요. 비밀번호는 밴드 공지로 알려주세요.</div>
+      </div>
       <button class="qc-cancel" id="skinSheetClose">닫기</button>
     </div>
   </div>
@@ -8618,7 +8659,7 @@ document.getElementById('ballPanelToggle').onclick = () => {
 document.getElementById('ballPanelClose').onclick = () => closePanels();
 
 
-function renderAll(){ applyEffectiveTheme(); renderCalendar(); renderFpInline(); renderEventList(); if(hasAdminPower()) renderSocialAdminList(); }
+function renderAll(){ applySiteGate(); applyEffectiveTheme(); renderCalendar(); renderFpInline(); renderEventList(); if(hasAdminPower()) renderSocialAdminList(); }
 
 // v209: 스킨 = 운영진이 정하는 사이트 전체 설정(state.data.siteSettings.skin: auto|courtnight|xmas|yearend).
 // 회원 개인 선택은 라이트/다크만(localStorage 'ignis-theme' = site|light|dark). 예전 저장값(courtnight 등)은 "기본"으로 간주
@@ -8726,7 +8767,81 @@ function renderSkinSheet(){
     await saveData();
   });
 }
-document.getElementById('skinAdminBtn').onclick = () => { renderSkinSheet(); document.getElementById('skinSheet').style.display = 'flex'; };
+// ===== v213: 사이트 입장 잠금(공용 비밀번호) =====
+// siteSettings.gateHash = SHA-256(GATE_SALT + 비밀번호). 맞게 입력한 기기는 localStorage 'ignis-gate-ok'에 그 해시를 저장 →
+// 운영진이 비밀번호를 바꾸면 해시가 달라져 모든 기기가 다시 입력해야 함. 미설정이면 'none' 저장(잠금 없음).
+// ⚠️ 화면 잠금 방식 — 일반 외부인의 열람을 막는 용도. 서버(Supabase) 데이터 자체의 접근 차단(RLS)은 별도 보안 강화 과제
+const GATE_SALT = 'ignis-gate-v1:';
+function gateHashNow(){ return (state.data && state.data.siteSettings && state.data.siteSettings.gateHash) || null; }
+function applySiteGate(){
+  if(!state.data) return;
+  const h = gateHashNow();
+  let ok = null; try{ ok = localStorage.getItem('ignis-gate-ok'); }catch(e){}
+  const root = document.documentElement;
+  if(!h){ try{ localStorage.setItem('ignis-gate-ok', 'none'); }catch(e){} root.classList.remove('gate-locked'); return; }
+  if(ok === h){ root.classList.remove('gate-locked'); return; }
+  const wasLocked = root.classList.contains('gate-locked') && document.getElementById('gateForm').style.display === 'block';
+  root.classList.add('gate-locked');
+  document.getElementById('gateMsg').innerHTML = (ok && ok !== 'none') ? '공용 비밀번호가 변경되었어요.<br>새 비밀번호를 입력해 주세요.' : '회원 전용 페이지입니다.<br>공용 비밀번호를 입력해 주세요.';
+  document.getElementById('gateForm').style.display = 'block';
+  if(!wasLocked) setTimeout(() => { try{ document.getElementById('gateInput').focus(); }catch(e){} }, 50);
+}
+let gateFails = 0, gateBlockUntil = 0;
+async function submitSiteGate(){
+  const err = document.getElementById('gateErr');
+  if(Date.now() < gateBlockUntil){ err.textContent = `잠시 후 다시 시도해 주세요. (${Math.ceil((gateBlockUntil - Date.now())/1000)}초)`; return; }
+  const val = document.getElementById('gateInput').value.trim();
+  if(!val) return;
+  const h = await hashSHA256(GATE_SALT + val);
+  if(h === gateHashNow()){
+    try{ localStorage.setItem('ignis-gate-ok', h); }catch(e){}
+    gateFails = 0; err.textContent = ''; document.getElementById('gateInput').value = '';
+    applySiteGate();
+  } else {
+    gateFails++;
+    if(gateFails >= 5){ gateBlockUntil = Date.now() + 30000; gateFails = 0; err.textContent = '5회 틀렸어요. 30초 후 다시 시도해 주세요.'; }
+    else err.textContent = '비밀번호가 맞지 않아요. 밴드 공지를 확인해 주세요.';
+  }
+}
+document.getElementById('gateBtn').onclick = submitSiteGate;
+document.getElementById('gateInput').addEventListener('keydown', e => { if(e.key === 'Enter') submitSiteGate(); });
+function renderGateAdmin(){
+  const ss = (state.data && state.data.siteSettings) || {};
+  document.getElementById('gateAdminStatus').textContent = ss.gateHash
+    ? `현재: 잠금 사용 중 · ${ss.gateSetAt ? new Date(ss.gateSetAt).toLocaleDateString('ko-KR') + ' ' : ''}${ss.gateSetBy || ''} 설정`
+    : '현재: 잠금 없음 (누구나 주소만 알면 볼 수 있어요)';
+}
+async function setSiteGatePassword(pw){
+  if(!hasAdminPower()) return;
+  if(!state.data.siteSettings) state.data.siteSettings = {};
+  const ss = state.data.siteSettings;
+  if(pw === null){
+    ss.gateHash = null; ss.gateSetAt = Date.now(); ss.gateSetBy = state.myName;
+  } else {
+    ss.gateHash = await hashSHA256(GATE_SALT + pw);
+    ss.gateSetAt = Date.now(); ss.gateSetBy = state.myName;
+    try{ localStorage.setItem('ignis-gate-ok', ss.gateHash); }catch(e){} // 설정한 운영진 본인은 다시 입력하지 않게
+  }
+  ['gateHash','gateSetAt','gateSetBy'].forEach(k => markDirty('siteSettings', k));
+  const ok = await saveData();
+  renderGateAdmin(); applySiteGate();
+  return ok;
+}
+document.getElementById('gateSaveBtn').onclick = async () => {
+  const inp = document.getElementById('gateNewInput');
+  const pw = inp.value.trim();
+  if(pw.length < 4){ alert('4자 이상으로 입력해 주세요.'); return; }
+  if(!confirm(`공용 비밀번호를 "${pw}"(으)로 바꿀까요?\n모든 회원이 다음 접속 때 새 비밀번호를 입력해야 합니다.`)) return;
+  const ok = await setSiteGatePassword(pw);
+  inp.value = '';
+  alert(ok === false ? '저장에 실패했어요. 잠시 후 다시 시도해 주세요.' : '저장했어요. 회원들에게 새 비밀번호를 공지해 주세요.');
+};
+document.getElementById('gateClearBtn').onclick = async () => {
+  if(!gateHashNow()){ alert('이미 잠금이 없는 상태예요.'); return; }
+  if(!confirm('잠금을 해제할까요? 주소를 아는 누구나 사이트를 볼 수 있게 됩니다.')) return;
+  await setSiteGatePassword(null);
+};
+document.getElementById('skinAdminBtn').onclick = () => { renderSkinSheet(); renderGateAdmin(); document.getElementById('skinSheet').style.display = 'flex'; };
 document.getElementById('skinSheetClose').onclick = () => { document.getElementById('skinSheet').style.display = 'none'; };
 document.getElementById('skinSheet').addEventListener('click', e => { if(e.target.id === 'skinSheet') e.target.style.display = 'none'; });
 applyEffectiveTheme();
