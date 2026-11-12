@@ -2475,3 +2475,13 @@ v182에서 "처음불참/대기→불참" 전부 포함하도록 넓혔는데, "
 | 잠금 | siteSettings.gateHash = SHA-256('ignis-gate-v1:' + 비밀번호). 맞게 입력한 기기는 localStorage ignis-gate-ok 에 해시 저장, 미설정이면 'none'. 해시가 바뀌면 전 기기 재입력. 첫 방문(캐시 없음)은 데이터 로드 전까지 본문 숨김(html.gate-locked) |
 | 운영진 | "⚙️ 사이트 설정"(구 🎨 스킨) 시트에서 저장/해제. 저장 즉시 적용(열린 화면은 폴링 1분 내). 5회 오답 시 30초 대기 |
 | 한계 | 화면 잠금 방식 — Supabase 공개키가 페이지에 있어 서버 데이터 자체 차단(RLS)은 별도 과제. /simple, /bracket(Vercel)은 미적용 |
+
+## v214. 안 쓰는 기능 삭제 + 홈 요약·내 참석·알림 묶음·공지 고정·회비 현황 — wip
+| 항목 | 내용 |
+|---|---|
+| 삭제 | 코트나이트 스킨(저장값 courtnight/auto → 시즌 스킨 없으면 라이트), 칭호 선택(획득 칭호는 첫 번째 자동 표시), 페널티 부여/해제·참석 차단, 심플 화면(iframe), 죽은 호출 scheduleTodayPanelAutoClose. 글자크기 유지. 코트나이트 CSS 규칙은 미사용 상태로 남아 있음(정리 후보) |
+| 홈 요약 | #homeSummary — 오늘 남은 일정별 빈자리(성별정원 있으면 남/여), 성별 1~3명이면 "복식까지 N명", 내 다음 참석. renderAll → renderHomeTop |
+| 내 참석 | 현황·랭킹 패널 3번째 탭(statusPaneMine). myUpcomingAttend() = 코트 참석/대기 + 모임 참석. 누르면 goToDate |
+| 알림 묶음 | groupNotifications — eventId + (맨 앞 "○○님"만 지운 본문)이 같은 알림을 details 한 줄로. 화면 표시만, DB 그대로 |
+| 공지 고정 | siteSettings.notice = {text, ts, by} (null = 내림). ⚙️ 사이트 설정에서 저장 |
+| 회비 현황 | 운영진 전용 💰 회비 시트. feeStatus['YYYY-MM|이름'] = 'paid'/'exempt'(없으면 미납), MERGE_MAP_FIELDS에 추가. ⚠️ 화면에서만 운영진 전용 — 데이터는 공개 blob에 있어 RLS 전까지 서버 차단 아님 |
