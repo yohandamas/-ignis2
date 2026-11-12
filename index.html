@@ -804,7 +804,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.216</span>
+      <span id="buildVersionTop" class="build-version-top">v.217</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
       <button id="themeSiteBtn" class="theme-btn">🎾 기본</button>
@@ -1264,7 +1264,8 @@ function todayIso(){ return localIso(new Date()); }
 const OFF_SEASON_MONTHS = [12, 1, 2]; // 비수기(겨울) — 필요시 조정
 // ===== v215: 운영 규칙(운영진이 사이트에서 직접 설정) — siteSettings.rules. 값이 없으면 아래 기본값(=기존 동작) =====
 const RULE_DEFAULTS = { consecOn:true, consecPromote:'auto', offMonths:OFF_SEASON_MONTHS, pongOn:false, pongSkipDawn:true, pongSkipWeekend:true, pongStaffExempt:true,
-  limitOn:false, limitDays:7, limitStaffExempt:true, limitSpecialExempt:true };
+  limitOn:false, limitDays:7, limitStaffExempt:true, limitSpecialExempt:true,
+  waitCloseOn:true, doublesWarnOn:true, sameDayWarnOn:true, sameDayWarnN:3, naeMin:3, perCourt:6, dawnBase:4, dawnFull:8, genderCapOn:true, genderCapN:0 }; // v217
 function rules(){
   let r = null; try{ r = state.data && state.data.siteSettings && state.data.siteSettings.rules; }catch(e){}
   return Object.assign({}, RULE_DEFAULTS, r || {});
@@ -1829,18 +1830,19 @@ function escapeHtml(s){
 function computeCapacity(t, id, opts){
   const capacityOverrides = opts.capacityOverrides, court3Confirmed = opts.court3Confirmed, inviteCourts = opts.inviteCourts;
   const isDawnCourt = t.startTime === '06:00' && t.endTime === '08:00';
-  const quota = isDawnCourt ? 8 : t.courts.length * 6; // 새벽코트는 레슨생(랠리)+게임조가 섞여있어 표준공식과 다르게 특수 지정
+  const RL = rules();
+  const quota = isDawnCourt ? RL.dawnFull : t.courts.length * RL.perCourt; // 새벽코트는 레슨생(랠리)+게임조가 섞여있어 표준공식과 다르게 특수 지정
   const fullMax = t.courts.length * 8;
   const includesCourt3 = t.location === '유니온' && t.courts.length > 1 && t.courts.some(c => c.replace(/번/g,'').trim() === '3');
-  const unconfirmedMax = isDawnCourt ? 4 : (includesCourt3 ? (t.courts.length === 3 ? 12 : (t.courts.length - 1) * 8) : fullMax); // 새벽코트 미확보 기준 6→4명으로 조정
+  const unconfirmedMax = isDawnCourt ? RL.dawnBase : (includesCourt3 ? (t.courts.length === 3 ? 12 : (t.courts.length - 1) * 8) : fullMax); // 새벽코트 미확보 기준 6→4명으로 조정
   const isConfirmed = !!(court3Confirmed && court3Confirmed[id]);
   // ⚠️ 새벽코트는 "3번코트 확보" 버튼 자체를 없애고, 확보여부와 무관하게 항상 8명(quota)으로 단순화
   // (요청: 정원 4명→8명으로 변경 = 3번코트 확보 절차 없이 항상 최대 8명까지 바로 등록 가능하게)
   // v192: 새벽코트를 다시 "기본 4명 / 3번코트 확보시 8명"으로 되돌림 (매일 05:40~05:50 현장 리스트업으로 확보)
-  const computedDefault = isDawnCourt ? (isConfirmed ? quota : 4) : (includesCourt3 ? (isConfirmed ? quota : unconfirmedMax) : quota);
+  const computedDefault = isDawnCourt ? (isConfirmed ? quota : RL.dawnBase) : (includesCourt3 ? (isConfirmed ? quota : unconfirmedMax) : quota);
   const inviteN = (inviteCourts && inviteCourts[id]) ? inviteCourts[id] : 0;
   const generalCourtCount = Math.max(0, t.courts.length - inviteN);
-  const generalQuota = inviteN > 0 ? generalCourtCount * 6 : (isDawnCourt ? computedDefault : quota);
+  const generalQuota = inviteN > 0 ? generalCourtCount * RL.perCourt : (isDawnCourt ? computedDefault : quota);
   const generalMax = (capacityOverrides && capacityOverrides[id] != null) ? capacityOverrides[id] : (inviteN > 0 ? generalQuota : computedDefault);
   const displayQuota = (capacityOverrides && capacityOverrides[id] != null) ? capacityOverrides[id] : generalQuota; // 정원 직접지정(월례대회 등) 시 "정원 N명" 표시도 동일하게 맞춤
   // v192: 대회준비 코트 — 남녀 정원을 따로 지정하면 전체정원 = 남+여, 성별상한도 그 값으로 엄격 적용
@@ -1930,8 +1932,8 @@ function hasAdminPower(){
 }
 
 // v192: 성별 상한 적용 여부/값 — 대회준비 코트에 남녀정원이 지정되면 그 값을 엄격 적용(다른 성별로 넘겨주지 않음)
-function hasGenderCaps(ev){ return !!(ev && (ev.genderCaps || (ev.court_count === 2 && !isDawnEvent(ev)))); }
-function genderCapFor(ev, g){ return (ev && ev.genderCaps) ? (ev.genderCaps[g] || 0) : Math.floor(ev.max_players / 2); }
+function hasGenderCaps(ev){ return !!(ev && (ev.genderCaps || (rules().genderCapOn && ev.court_count === 2 && !isDawnEvent(ev)))); }
+function genderCapFor(ev, g){ if(ev && ev.genderCaps) return ev.genderCaps[g] || 0; const n = rules().genderCapN; return n > 0 ? Math.min(n, ev.max_players) : Math.floor(ev.max_players / 2); }
 function isDawnEvent(ev){
   return !!(ev && ev.start_time === '06:00' && ev.end_time === '08:00');
 }
@@ -2178,7 +2180,7 @@ function canPromoteRespectingGwaeLimit(ev, counts, v){
   // regular/gender_wait 등 일반 대기유형이더라도, 그 사람이 관외라면 승급 직전 비율·관내최소인원 조건을 반드시 재확인
   // (정원마감 등으로 gwae_wait이 아닌 다른 타입으로 대기하게 된 관외 회원이, 비율/관내최소3명 규칙을 우회해서 승급되는 걸 방지)
   if(ev.location !== '종합운동장' || v.district !== '관외') return true;
-  if(counts.naeAttend < 3) return false;
+  if(counts.naeAttend < rules().naeMin) return false;
   const prospectiveTotal = counts.regularTotal + 1;
   const limit = gwaeLimit(prospectiveTotal, ev.court_count);
   return counts.gwaeAttend < limit;
@@ -2588,7 +2590,7 @@ async function tryPromoteGwaeWaiting(ev){
     if(gwaeWaitEntries.length === 0) break;
     const counts = computedCounts(ev);
     if(counts.regularTotal >= ev.max_players) break;
-    if(counts.naeAttend < 3) break; // 관외룰대기 — 관내 최소 3명 미만이면 승급 보류
+    if(counts.naeAttend < rules().naeMin) break; // 관외룰대기 — 관내 최소 3명 미만이면 승급 보류
     const prospectiveTotal = counts.regularTotal + 1;
     const limit = gwaeLimit(prospectiveTotal, ev.court_count);
     if(counts.gwaeAttend >= limit) break; // 아직 관내 비율 미충족, 더 기다려야 함
@@ -2718,6 +2720,7 @@ async function checkWaitlistToAbsentConversion(){
       continue;
     }
     if(ev.event_date !== t) continue;
+    if(!rules().waitCloseOn) continue; // v217: 대기 마감(시작 10분 전 불참 전환)을 껐으면 일정이 끝날 때까지 대기 유지
 
     const startMs = getEventDateTime(ev).getTime();
     if(now < startMs - 10 * 60000) continue; // 가장 이른 마감(시작 10분 전) 이전이면 볼 필요 없음
@@ -5430,7 +5433,7 @@ async function setVote(eventId, status, gender){
       const brokenFemale = beforeCounts.doublesFemale && !afterCounts.doublesFemale;
       const isDoublesBroken = brokenGeneral || brokenMale || brokenFemale;
       const isEventToday = ev.event_date === todayIso();
-      if(!hasAdminPower() && !withinGracePeriod && isEventToday && (isTimeBased || isDoublesBroken)){
+      if(rules().sameDayWarnOn && !hasAdminPower() && !withinGracePeriod && isEventToday && (isTimeBased || isDoublesBroken)){
         const exemptOptions = ['우천으로 인한 취소', '부상 위험으로 인한 취소', '성별 인원 배려로 인한 취소 (예: 복식 인원 맞추기 위해 양보)', '해당 없음 (그 외 사유)'];
         const list = exemptOptions.map((c,i) => `${i+1}. ${c}`).join('\n');
         const choice = await uiPrompt(`당일취소 사유를 선택해 주세요.\n${list}\n\n(우천·부상위험·성별인원배려로 인한 취소는 경고 대상이 아닙니다)`, '4');
@@ -5452,11 +5455,12 @@ async function setVote(eventId, status, gender){
         const autoWarnTs = Date.now();
         state.data.warnings[state.myName] = state.data.warnings[state.myName].concat([{ id: autoWarnId, category:'당일취소', detail: reason, ts: autoWarnTs, actor: '자동기록' }]);
         sb.from('ignis_warnings').insert({ id: autoWarnId, member_name: state.myName, category:'당일취소', detail: reason, ts: autoWarnTs, actor:'자동기록' }).then(({error}) => { if(error) console.error('당일취소 자동경고 저장 실패', error); });
-        const penaltyNote = newCount >= 3
-          ? `\n\n⚠️ 누적 ${newCount}회로 3회 이상입니다. 운영진 안건으로 상정될 수 있습니다.`
-          : `\n\n누적 ${newCount}회 (피치 못할 사유가 아닌 경우 3회 이상 누적되면 운영진 안건으로 상정될 수 있어요)`;
+        const warnN = rules().sameDayWarnN;
+        const penaltyNote = newCount >= warnN
+          ? `\n\n⚠️ 누적 ${newCount}회로 ${warnN}회 이상입니다. 운영진 안건으로 상정될 수 있습니다.`
+          : `\n\n누적 ${newCount}회 (피치 못할 사유가 아닌 경우 ${warnN}회 이상 누적되면 운영진 안건으로 상정될 수 있어요)`;
         setTimeout(() => { alert(`⚠️ 당일취소 하셨습니다. (사유: ${reason})${penaltyNote}`); }, 300);
-        pushNotification(`${newCount >= 3 ? '🚨' : '⚠️'} ${state.myName}님이 ${label} 당일취소했습니다. (사유: ${reason} · 누적 ${newCount}회)${newCount >= 3 ? ' — 운영진 안건 상정 필요' : ''}`, {eventId, actor: state.myName, category:'warning'});
+        pushNotification(`${newCount >= warnN ? '🚨' : '⚠️'} ${state.myName}님이 ${label} 당일취소했습니다. (사유: ${reason} · 누적 ${newCount}회)${newCount >= warnN ? ' — 운영진 안건 상정 필요' : ''}`, {eventId, actor: state.myName, category:'warning'});
         }
       }
     } else if(!hasAdminPower() && isConsecutiveCase(ev)){
@@ -5466,7 +5470,7 @@ async function setVote(eventId, status, gender){
         const gwCounts = computedCounts(ev);
         const gwSelfRegular = (existing && existing.status === 'attend' && !existing.hidden) ? 1 : 0;
         const gwSelfGwae = (gwSelfRegular && existing.district === '관외') ? 1 : 0;
-        const naeOk = gwCounts.naeAttend >= 3;
+        const naeOk = gwCounts.naeAttend >= rules().naeMin;
         const gwProspectiveTotal = gwCounts.regularTotal - gwSelfRegular + 1;
         const gwLimit = gwaeLimit(gwProspectiveTotal, ev.court_count);
         const gwWithoutSelf = gwCounts.gwaeAttend - gwSelfGwae;
@@ -5475,7 +5479,7 @@ async function setVote(eventId, status, gender){
           votes[state.myName] = { status:'waiting', type:'gwae_wait', gender:g, district:'관외', ts: Date.now() };
           await saveVoteRow(eventId, state.myName, votes[state.myName]);
           pushNotification(`${state.myName}님이 ${label} 관외 대기로 등록되었습니다. (연속참석 상황이지만, 관외 비율 조건이 우선 적용됨)`);
-          await postAiAdminComment(eventId, `${state.myName}님의 참석 시도가 관외 대기로 자동 전환되었습니다. (사유: ${!naeOk ? `관내 참석 ${gwCounts.naeAttend}명(최소 3명 필요)` : '관외 비율 조건 미충족'} — 연속참석보다 관외 규칙이 우선)`);
+          await postAiAdminComment(eventId, `${state.myName}님의 참석 시도가 관외 대기로 자동 전환되었습니다. (사유: ${!naeOk ? `관내 참석 ${gwCounts.naeAttend}명(최소 ${rules().naeMin}명 필요)` : '관외 비율 조건 미충족'} — 연속참석보다 관외 규칙이 우선)`);
           renderEventList(); renderNotifBell();
           alert('연속참석 상황이지만, 관외 비율 조건이 아직 충족되지 않아 관외 대기로 등록되었습니다.');
           return;
@@ -5495,13 +5499,13 @@ async function setVote(eventId, status, gender){
 
       if(!hasAdminPower() && ev.location === '종합운동장' && state.myDistrict === '관외'){
         // 관내 최소 3명 미만이면, 비율 계산과 무관하게 무조건 대기(관외룰대기) — 관내가 거의 없는 상태에서 관외만 먼저 채워지는 걸 방지
-        if(counts.naeAttend < 3){
+        if(counts.naeAttend < rules().naeMin){
           votes[state.myName] = { status:'waiting', type:'gwae_wait', gender:g, district:'관외', ts: Date.now() };
           await saveVoteRow(eventId, state.myName, votes[state.myName]);
-          pushNotification(`${state.myName}님이 ${label} 관외 대기로 등록되었습니다. (관내 최소 3명 필요, 현재 ${counts.naeAttend}명)`);
+          pushNotification(`${state.myName}님이 ${label} 관외 대기로 등록되었습니다. (관내 최소 ${rules().naeMin}명 필요, 현재 ${counts.naeAttend}명)`);
           await postAiAdminComment(eventId, `${state.myName}님의 참석 시도가 대기로 자동 전환되었습니다. (사유: 관내 참석 ${counts.naeAttend}명 — 관외 참석은 관내 최소 3명부터 가능)`);
           renderEventList(); renderNotifBell();
-          alert(`관내 참석 인원이 아직 ${counts.naeAttend}명이라(최소 3명 필요), 관외 대기로 등록되었습니다. 관내 인원이 3명 이상 되면 자동으로 참석 전환됩니다.`);
+          alert(`관내 참석 인원이 아직 ${counts.naeAttend}명이라(최소 ${rules().naeMin}명 필요), 관외 대기로 등록되었습니다. 관내 인원이 ${rules().naeMin}명 이상 되면 자동으로 참석 전환됩니다.`);
           return;
         }
         const prospectiveTotal = counts.regularTotal - selfRegular + 1;
@@ -5534,7 +5538,7 @@ async function setVote(eventId, status, gender){
         const gwaeWaitList = Object.entries(votes)
           .filter(([,v]) => v.status === 'waiting' && v.type === 'gwae_wait')
           .sort((a,b) => waitingSortKey(a[1]) - waitingSortKey(b[1]));
-        if(gwaeWaitList.length > 0 && counts.naeAttend >= 3){
+        if(gwaeWaitList.length > 0 && counts.naeAttend >= rules().naeMin){
           const currentLimit = gwaeLimit(counts.regularTotal, ev.court_count); // 내가 들어가기 전 기준 허용치
           if(counts.gwaeAttend < currentLimit){
             votes[state.myName] = { status:'waiting', type:'regular', gender:g, district: state.myDistrict, ts: Date.now() };
@@ -7554,6 +7558,7 @@ function checkDawnFourPlusPopup(){
 // 관리자/운영진에게 미리 경고 - 기존 checkCourt3ConfirmPopup과 동일한 패턴(N시간전 구간 체크, localStorage 1회제한, isPrivileged 대상)
 // 단, 인원수가 바뀌면 상황이 달라지니 "같은 인원수 조합"에 대해서만 1회로 제한(인원이 변하면 다시 알림)
 function checkDoublesShortagePopup(){
+  if(!rules().doublesWarnOn) return; // v217
   const now = new Date();
   const t = todayIso();
   const candidates = getInstances().filter(ev => ev.event_date === t);
@@ -9066,6 +9071,7 @@ function renderRulesSheet(){
   const r = rules();
   const sw = (key, on) => `<button class="rule-sw${on ? ' on' : ''}" data-rule-sw="${key}">${on ? '켜짐' : '꺼짐'}</button>`;
   const chip = (key, on, label) => `<span class="qc-chip${on ? ' on' : ''}" data-rule-flag="${key}">${label}</span>`;
+  const num = (key, opts, unit, pre) => opts.map(v => `<span class="qc-chip${r[key] === v ? ' on' : ''}" data-rule-num="${key}" data-v="${v}">${pre || ''}${v}${unit}</span>`).join('') + `<span class="qc-chip${opts.includes(r[key]) ? '' : ' on'}" data-rule-num="${key}" data-v="custom">직접 입력${opts.includes(r[key]) ? '' : ` (${r[key]}${unit})`}</span>`;
   const modes = [['auto','계절 자동'],['hour1','시작 1시간 전'],['noon','당일 12시'],['dayBefore','전날 12시']];
   const dayOpts = [3,5,7,10,14];
   const stored = (state.data.siteSettings && state.data.siteSettings.rules) || {};
@@ -9094,6 +9100,37 @@ function renderRulesSheet(){
       <div class="qc-chips">${dayOpts.map(d => `<span class="qc-chip${r.limitDays === d ? ' on' : ''}" data-rule-days="${d}">${d}일</span>`).join('')}<span class="qc-chip${dayOpts.includes(r.limitDays) ? '' : ' on'}" data-rule-days="custom">직접 입력${dayOpts.includes(r.limitDays) ? '' : ` (${r.limitDays}일)`}</span></div>
       <div class="qc-chips">${chip('limitStaffExempt', r.limitStaffExempt, '운영진 예외')}${chip('limitSpecialExempt', r.limitSpecialExempt, '특수이벤트 예외')}</div>
     </div>
+    <div class="rule-box${r.waitCloseOn ? '' : ' off'}">
+      <div class="rule-top"><b>⑤ 대기 마감 (시작 10분 전)</b>${sw('waitCloseOn', r.waitCloseOn)}</div>
+      <div class="hint">켜짐: 정원이 찬 일정의 대기자는 시작 10분 전에 불참으로 전환(늦참은 도착 10분 전). 꺼짐: 일정이 끝날 때까지 대기 유지, 자리 나면 승급.</div>
+    </div>
+    <div class="rule-box${r.doublesWarnOn ? '' : ' off'}">
+      <div class="rule-top"><b>⑥ 복식 경고 (시작 4시간 전)</b>${sw('doublesWarnOn', r.doublesWarnOn)}</div>
+      <div class="hint">켜짐: 남자나 여자가 1~3명이면 운영진에게 "복식 무산 위험" 알림. 꺼짐: 알림 없음.</div>
+    </div>
+    <div class="rule-box${r.sameDayWarnOn ? '' : ' off'}">
+      <div class="rule-top"><b>⑦ 당일취소 경고</b>${sw('sameDayWarnOn', r.sameDayWarnOn)}</div>
+      <div class="hint">켜짐: 시작 4시간 이내 취소나 복식 무산 취소를 경고로 자동 기록. 꺼짐: 사유도 묻지 않고 기록도 안 해요. 운영진 안건 기준: 누적 <b>${r.sameDayWarnN}회</b></div>
+      <div class="qc-chips">${num('sameDayWarnN', [2,3,4,5], '회')}</div>
+    </div>
+    <div class="rule-box">
+      <div class="rule-top"><b>⑧ 종합운동장 관내 최소 인원</b><span class="hs-tag">${r.naeMin}명</span></div>
+      <div class="hint">관내 참석이 이 인원이 되기 전에는 관외 회원은 대기로 등록돼요. 0명이면 이 조건 없이 비율만 봐요.</div>
+      <div class="qc-chips">${num('naeMin', [0,1,2,3,4], '명')}</div>
+    </div>
+    <div class="rule-box">
+      <div class="rule-top"><b>⑨ 코트 정원</b><span class="hs-tag">1면 ${r.perCourt}명</span></div>
+      <div class="hint">코트 1면당 기본 정원이에요(2면이면 ×2). 일정 카드에서 따로 정원을 지정한 일정은 그 값이 우선해요.</div>
+      <div class="qc-chips">${num('perCourt', [4,5,6,7,8], '명')}</div>
+      <div class="hint" style="margin-top:8px;">새벽 코트: 기본 <b>${r.dawnBase}명</b> / 3번코트 확보 시 <b>${r.dawnFull}명</b></div>
+      <div class="qc-chips">${num('dawnBase', [4,6,8], '명', '기본 ')}</div>
+      <div class="qc-chips">${num('dawnFull', [6,8,10,12], '명', '확보 ')}</div>
+    </div>
+    <div class="rule-box${r.genderCapOn ? '' : ' off'}">
+      <div class="rule-top"><b>⑩ 성별 정원 (코트 2면)</b>${sw('genderCapOn', r.genderCapOn)}</div>
+      <div class="hint">켜짐: 남녀 각각 상한 적용. 지금: <b>${r.genderCapN > 0 ? '남녀 각 ' + r.genderCapN + '명' : '정원의 절반(자동)'}</b>. 꺼짐: 성별 구분 없이 정원까지. 대회준비처럼 남녀 정원을 따로 지정한 일정은 그대로예요.</div>
+      <div class="qc-chips">${num('genderCapN', [0,4,5,6,7,8], '명').replace('>0명<', '>자동(절반)<')}</div>
+    </div>
     <button class="qc-go" id="rulesWinterBtn" style="background:var(--panel);color:var(--ink);border:1px solid var(--line);">❄️ 겨울 탄력 운영 (①·② 모두 끄기)</button>
     <button class="qc-go" id="rulesResetBtn" style="background:var(--panel);color:var(--ink-soft);border:1px solid var(--line);margin-top:8px;">↩️ 기본값으로 되돌리기</button>`;
   wirePenaltyBox(body);
@@ -9109,6 +9146,14 @@ function renderRulesSheet(){
     if(d === 'custom'){ const v = prompt('오늘부터 며칠 뒤 일정까지 참석을 누를 수 있게 할까요? (1~60)', String(rules().limitDays)); if(v === null) return; d = v; }
     d = parseInt(d, 10); if(!d || d < 1 || d > 60){ alert('1~60 사이 숫자를 입력해 주세요.'); return; }
     saveRules({ limitDays: d });
+  });
+  body.querySelectorAll('[data-rule-num]').forEach(b => b.onclick = () => {
+    const key = b.dataset.ruleNum; let v = b.dataset.v;
+    if(v === 'custom'){ const x = prompt('숫자를 입력해 주세요. (0~40)', String(rules()[key])); if(x === null) return; v = x; }
+    v = parseInt(v, 10); if(isNaN(v) || v < 0 || v > 40){ alert('0~40 사이 숫자를 입력해 주세요.'); return; }
+    if(['perCourt','dawnBase','dawnFull','sameDayWarnN'].includes(key) && v < 1){ alert('1 이상으로 입력해 주세요.'); return; }
+    if((key === 'perCourt' || key === 'dawnBase' || key === 'dawnFull' || key === 'genderCapN') && !confirm('정원을 바꾸면 앞으로의 모든 일정에 바로 적용돼요.\n이미 참석한 인원은 그대로 두고, 줄어든 경우 새 참석만 대기로 가요. 바꿀까요?')) return;
+    saveRules({ [key]: v });
   });
   document.getElementById('rulesWinterBtn').onclick = () => { if(confirm('같은 날 연속 타임 대기와 연속 날짜 대기를 모두 끌까요?\n(연속으로 바로 참석할 수 있게 돼요)')) saveRules({ consecOn:false, pongOn:false }); };
   document.getElementById('rulesResetBtn').onclick = () => { if(confirm('운영 규칙을 기본값(기존 운영 방식)으로 되돌릴까요?')) saveRules(Object.assign({}, RULE_DEFAULTS)); };

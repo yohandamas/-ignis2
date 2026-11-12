@@ -2503,3 +2503,16 @@ v182에서 "처음불참/대기→불참" 전부 포함하도록 넓혔는데, "
 | 차단 | myPenaltyBlock() — setVote·checkLateArrival에서 참석/대기를 누르는 순간 서버 재조회(실패 시 캐시). 이미 눌러 둔 참석은 건드리지 않음 |
 | 알림 | category 'warning' + actor=대상 회원 → 본인과 운영진에게만 보임 |
 | 일정 | 보안 강화: 11/27~11/30 진행 예정 — 1단계 운영진 영역(설정·회비·회원 비밀번호·경고/참석 제한) → 안정화 확인 후 2단계 회원 영역 |
+
+## v217. 운영 규칙 추가 항목 (⑤~⑩)
+| 항목 | 내용 |
+|---|---|
+| ⑤ 대기 마감 | waitCloseOn(기본 켜짐). 끄면 checkWaitlistToAbsentConversion의 시작 10분 전 불참 전환을 건너뜀(종료 후 정리는 유지) |
+| ⑥ 복식 경고 | doublesWarnOn(기본 켜짐). 끄면 checkDoublesShortagePopup 미실행 |
+| ⑦ 당일취소 경고 | sameDayWarnOn(기본 켜짐), sameDayWarnN(기본 3). 끄면 사유 질문·자동 경고 기록 없음 |
+| ⑧ 관내 최소 인원 | naeMin(기본 3, 0=조건 없음) — 관외 대기/승급 5곳 |
+| ⑨ 코트 정원 | perCourt(기본 6), dawnBase(4), dawnFull(8) — computeCapacity. capacityOverrides·대회준비 지정값이 우선. 3번코트 미확보 정원 공식은 그대로 |
+| ⑩ 성별 정원 | genderCapOn(기본 켜짐), genderCapN(0=정원 절반 자동) — hasGenderCaps/genderCapFor |
+| 검증 | 기본값에서 전체 일정의 정원·성별상한이 v216과 동일함을 비교 확인 |
+- 입장 잠금 초기 비밀번호: 1111 (2026-11-13 DB에 설정). 운영진이 ⚙️ 사이트 설정에서 변경
+- 마지막 보고 시점: v217까지 보고 완료 (2026-11-13). 다음 보고서는 v218부터
