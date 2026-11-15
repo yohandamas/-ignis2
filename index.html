@@ -804,7 +804,7 @@
   <div class="theme-toggle-row">
     <button id="refreshBtn" class="theme-btn" title="새로고침">🔄</button>
     <div class="theme-toggle-right">
-      <span id="buildVersionTop" class="build-version-top">v.217</span>
+      <span id="buildVersionTop" class="build-version-top">v.218</span>
       <button id="changePinBtn" class="theme-btn" style="display:none;">🔑 비번변경</button>
       <button id="fontSizeBtn" class="theme-btn">🔤 글자크기</button>
       <button id="themeSiteBtn" class="theme-btn">🎾 기본</button>
@@ -1694,7 +1694,7 @@ async function loadData(){
     }
     const d = Object.assign(defaultData(), { votes, comments, notifications });
     const { votes: _v, comments: _c, notifications: _n, ...blobOnly } = d;
-    await sb.from('ignis_state').upsert({ key: STATE_ROW_KEY, value: blobOnly });
+    await sb.from('ignis_state').upsert({ key: STATE_ROW_KEY, value: Object.assign(blobOnly, { _rev: 1 }) });
     return d;
   }catch(e){
     console.error('Supabase 불러오기 실패', e);
@@ -1734,6 +1734,7 @@ function markDirty(field, key){
 }
 
 async function saveData(){
+  let freshRev = 0; // v218: 서버 저장 번호(_rev) — 오래된 화면의 덮어쓰기를 DB 트리거가 거부
   try{
     try{
       const { data: fresh, error: freshErr } = await sb.from('ignis_state').select('value').eq('key', STATE_ROW_KEY).maybeSingle();
@@ -1744,6 +1745,7 @@ async function saveData(){
         console.error('저장 전 최신값 조회 실패 — 데이터 보호를 위해 이번 저장은 건너뜀', freshErr);
         return false;
       }
+      freshRev = Number(fresh.value._rev) || 0;
       {
         // 동시접속 시 서로 다른 세션의 저장이 상대방 변경사항을 지워버리지 않도록,
         // 맵(객체) 형태의 필드는 서버 최신값을 기본으로 삼고, 이번 세션에서 실제로 바꾼(dirty) 키만 로컬값으로 덮어쓴다.
@@ -1809,8 +1811,10 @@ async function saveData(){
       }
     }catch(e){ console.error('저장 전 최신값 병합 실패 — 데이터 보호를 위해 이번 저장은 건너뜀', e); return false; }
     const { votes, comments, notifications, penalties, warnings, ...blobData } = state.data; // penalties/warnings는 ignis_penalties/ignis_warnings 정규테이블이 진짜 소스이고, 매 로드시 refreshWarningDataFromServer()로 재구성되는 파생 캐시라 JSON blob 저장 대상에서 제외
+    blobData._rev = freshRev + 1; // v218: 최신값 번호 + 1 — 오래된 번호로 저장하면 DB가 거부(ignis_state_rev_guard_trg)
     const { error } = await sb.from('ignis_state').upsert({ key: STATE_ROW_KEY, value: blobData, updated_at: new Date().toISOString() });
-    if(error) throw error;
+    if(error){ if(String(error.message || '').includes('stale_write')){ console.warn('동시 저장 충돌 — 다음 주기에 다시 저장', error.message); return false; } throw error; }
+    state.data._rev = blobData._rev;
     for(const field in pendingDirtyKeys){ delete pendingDirtyKeys[field]; } // 성공적으로 저장됐으니 dirty 표시 해제
     return true;
   }catch(e){ console.error('Supabase 저장 실패', e); return false; }
@@ -9384,7 +9388,7 @@ async function init(){
         if(!m || new Date(m[1]) >= cutoff){ kept[key] = val; } else { removedCount++; }
       });
       if(removedCount > 0){
-        const newValue = Object.assign({}, data.value, { voteHistory: kept });
+        const newValue = Object.assign({}, data.value, { voteHistory: kept, _rev: (Number(data.value._rev) || 0) + 1 });
         const { error: updErr } = await sb.from('ignis_state').update({ value: newValue }).eq('key', STATE_ROW_KEY);
         if(!updErr) console.log(`오래된 참석이력 ${removedCount}건 자동정리 완료`);
       }
