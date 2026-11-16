@@ -2535,3 +2535,11 @@ v182에서 "처음불참/대기→불참" 전부 포함하도록 넓혔는데, "
 | 회원 메뉴 | 하단 네비 5번째 "회원"(memberPanel). 모두: 이름·성별·나이·관내/관외·휴회 배지, 검색, 전체/관내/관외/휴회 필터. 관리용 계정(관리자*)은 제외 |
 | memberInfo | memberInfo[이름] = {birthYear, leave, leaveNote, leaveSince 'YYYY-MM'} — MERGE_MAP_FIELDS. 나이 = 올해 − 출생연도(연 나이). 운영진은 이름을 눌러 출생연도·관내/관외·휴회 편집 |
 | 회비 | 💰 상단 버튼/시트 삭제 → 회원 메뉴로 이동(운영진만 보임). feeStatus['YYYY-MM|이름'] = 'unpaid' / 'exempt', 값 없으면 납부. 버튼: 납부 → 미납 → 면제 → 납부. 운영진·휴회(leaveSince 이후 달)는 자동 표시 |
+
+## v220. 유니온 3번 코트 예약제(12/1~) + 회원 데이터 반영 — wip
+| 항목 | 내용 |
+|---|---|
+| 3번 예약제 | rules().union3Online(기본 켜짐)·union3From('2026-12-01'). generateInstances: 유니온 일정은 시작일 이후 기본 코트에서 3번 제외(개별 수정 courts가 있으면 그대로). court3Booked[eventId]=true면 3번을 더하고 확보(confirmed)로 계산. 카드 버튼 "📅 3번 코트 온라인 예약 완료"(운영진·VIP3) → toggleUnion3Booked: 정원 증가 시 대기 승급, 취소 시 초과 인원 대기 전환. 운영 규칙 ⑪에서 끄고 켜기 |
+| 지문 연동 | 관외→관내 변경 시 ensureFingerprintTarget으로 지문 대상 자동 추가(정현모 누락 사례). 탈퇴 회원은 getFingerprintTargets에서 자동 제외 |
+| 회원 데이터 | 2026-11-16 DB 직접 반영: memberInfo 66명(출생연도·가입월·휴회 9명), feeStatus 37건(11월 미납 9명, 과거 휴회·면제), 김진영 탈퇴 해제(휴회), 지문 대상에 정현모 추가 |
+| 회원 메뉴 | 가입월 표시("26.5 가입"), 가입 전 달 회비는 "가입 전" |
