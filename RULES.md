@@ -2527,3 +2527,11 @@ v182에서 "처음불참/대기→불참" 전부 포함하도록 넓혔는데, "
 | 백업 | ignis_state_backup 보관 3일 → 7일 |
 | 복구 | 11/29 교류전 설정(1·2부 합침, 교류전 표시 2건, 2부 숨김), 박세영 참석취소 1회 — 11/15 DB에 직접 복구 |
 | 보고 | 다음 보고서는 v219부터 |
+
+## v219. 하단 "👥 회원" 메뉴 + 휴회 + 회비(미납만 체크) — wip
+| 항목 | 내용 |
+|---|---|
+| 회원 연동 확인 | 탈퇴(removedMembers)·지역(districtOverrides)·운영진(staffOverrides)·추가(extraMembers)는 markDirty+saveData로 ignis_state에 저장 — 11/16 탈퇴 3명 DB 반영 확인. 추가·탈퇴 저장 실패 시 알림 추가(이전엔 결과 미확인) |
+| 회원 메뉴 | 하단 네비 5번째 "회원"(memberPanel). 모두: 이름·성별·나이·관내/관외·휴회 배지, 검색, 전체/관내/관외/휴회 필터. 관리용 계정(관리자*)은 제외 |
+| memberInfo | memberInfo[이름] = {birthYear, leave, leaveNote, leaveSince 'YYYY-MM'} — MERGE_MAP_FIELDS. 나이 = 올해 − 출생연도(연 나이). 운영진은 이름을 눌러 출생연도·관내/관외·휴회 편집 |
+| 회비 | 💰 상단 버튼/시트 삭제 → 회원 메뉴로 이동(운영진만 보임). feeStatus['YYYY-MM|이름'] = 'unpaid' / 'exempt', 값 없으면 납부. 버튼: 납부 → 미납 → 면제 → 납부. 운영진·휴회(leaveSince 이후 달)는 자동 표시 |
